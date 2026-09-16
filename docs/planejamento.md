@@ -99,11 +99,19 @@ O épico [#8](https://github.com/moonshinerd/ContrarIA/issues/8) (painel web) é
 - **Área**, **Prioridade** (P0 bloqueante … P3), **Dupla**: espelham as labels, para filtrar e agrupar dentro do Project.
 - **Início / Entrega**: janela planejada, alimentam a view Roadmap.
 
-### Views sugeridas (criar pela UI, a API não cria views)
+### Views
 
-- **Board**: layout *Board* agrupado por `Status`, filtro `-status:"Pós-MVP"`.
-- **Por dupla**: layout *Table* agrupado por `Dupla`, ordenado por `Início`.
-- **Roadmap**: layout *Roadmap* com `Início`/`Entrega` como datas, agrupado por `Dupla`.
+| # | View | Layout | Filtro | Para quê |
+|---|---|---|---|---|
+| 1 | Backlog Geral | Tabela | — | Tudo: épicos e tarefas |
+| 2 | Board | Board | sem épicos e sem pós-MVP | Fluxo de Status do MVP inteiro |
+| 3 | Por dupla | Tabela | sem épicos e sem pós-MVP | Agrupar por `Dupla`, ordenar por `Início` |
+| 4 | Roadmap | Roadmap | sem pós-MVP | Gantt por `Início`/`Entrega` |
+| 5 | Épicos | Tabela | `label:epic` | Progresso das sub-issues de cada épico |
+| 6–8 | Victor + Marlon · Raissa + Samantha · Kyara + Antonio | Board | `dupla:"..."` | Board de cada dupla |
+| 9 | Minhas tarefas | Board | `assignee:@me` | O que é seu, para quem abrir o Project |
+
+Nome, layout, filtro e campos visíveis foram criados pela API (`createProjectV2View`). **Agrupamento, ordenação e os campos de data do Roadmap a API não expõe**: configure uma vez pela UI (menu ▾ da view → *Group by* `Dupla` na view 3; *Date fields* `Início`/`Entrega` e *Group by* `Dupla` na view 4) e clique em *Save*.
 
 ## Rotina
 
