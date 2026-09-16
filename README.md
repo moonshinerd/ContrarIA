@@ -38,5 +38,39 @@ Ao final do ciclo de 6 semanas, este repositório abrigará:
 - [ ] Solução/protótipo com suporte de IA
 - [ ] Apresentação e reflexão
 
-## 📂 Documentação e Atas
-- Acompanhe a nossa documentação e as atas das reuniões na pasta [`docs/atas`](docs/atas/).
+## 🏗️ Estrutura do repositório
+
+```
+ContrarIA/
+├── api/        # FastAPI + worker do pipeline (coleta → triagem → bot score → verificação → intervenção)
+├── research/   # datasets, treino do pré-filtro de fake news e benchmarks
+├── deploy/     # produção: Caddy (HTTPS) + Ozone (labeler)
+├── web/        # painel React (pós-MVP)
+└── docs/       # site MkDocs: planejamento, arquitetura, ADRs, atas
+```
+
+Detalhes e o porquê de cada camada: [`docs/arquitetura/index.md`](docs/arquitetura/index.md).
+
+## 🚀 Rodando localmente
+
+Pré-requisitos: Docker e [uv](https://docs.astral.sh/uv/).
+
+```bash
+make setup   # cria api/.env a partir do .env.example e instala dependências
+make up      # sobe db (Postgres + pgvector), api e worker
+curl http://localhost:8000/health   # {"status":"ok"}
+```
+
+Swagger em http://localhost:8000/docs. Outros alvos: `make lint`, `make test`, `make logs`, `make docs-serve`.
+
+## 🗂️ Planejamento, documentação e atas
+
+- Board: GitHub Project do ContrarIA, com a lógica explicada em [`docs/planejamento.md`](docs/planejamento.md).
+- Documentação completa (MkDocs): `make docs-serve`, fonte em [`docs/`](docs/).
+- Atas das reuniões: [`docs/atas`](docs/atas/).
+
+## 🌿 Branches e PRs
+
+- `main` sempre estável: todo trabalho entra por PR, revisado pela outra pessoa da dupla.
+- `feature/<descrição-curta>`: uma branch por issue, com `Closes #N` no PR.
+- O CI (ruff + pytest + build do MkDocs) roda em todo PR.

@@ -1,0 +1,44 @@
+name: Épico
+description: Entregável macro do MVP, quebrado em tarefas (sub-issues).
+title: "[Épico] "
+labels: ["epic"]
+body:
+  - type: textarea
+    id: objetivo
+    attributes:
+      label: Objetivo
+    validations:
+      required: true
+  - type: input
+    id: requisitos
+    attributes:
+      label: Requisitos cobertos
+      placeholder: "RF01, RF09, RNF07"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Infra/Deploy
+        - Coleta e Triagem
+        - Detecção de Bots
+        - Verificação
+        - Intervenção e Sinalização
+        - Pesquisa/Benchmark
+        - Documentação
+    validations:
+      required: true
+  - type: textarea
+    id: escopo
+    attributes:
+      label: Escopo (alto nível)
+    validations:
+      required: true
+  - type: textarea
+    id: criterio
+    attributes:
+      label: Critério de pronto
+    validations:
+      required: true

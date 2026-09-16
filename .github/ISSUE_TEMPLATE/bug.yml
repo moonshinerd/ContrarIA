@@ -1,0 +1,42 @@
+name: Bug
+description: Algo que funcionava (ou deveria) e quebrou.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: descricao
+    attributes:
+      label: O que aconteceu
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: Comportamento esperado
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Passos para reproduzir
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Infra/Deploy
+        - Coleta e Triagem
+        - Detecção de Bots
+        - Verificação
+        - Intervenção e Sinalização
+        - Pesquisa/Benchmark
+        - Documentação
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      render: shell
