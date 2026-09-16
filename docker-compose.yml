@@ -23,6 +23,7 @@ services:
     env_file: ./api/.env
     environment:
       DATABASE_URL: postgresql+psycopg://contraria:contraria@db:5432/contraria
+      BLUESKY_SESSION_PATH: /srv/data/bluesky.session
     ports:
       - "8000:8000"
     depends_on:
@@ -30,6 +31,7 @@ services:
         condition: service_healthy
     volumes:
       - ./api/app:/srv/app
+      - contraria-app-data:/srv/data
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
@@ -42,12 +44,15 @@ services:
     env_file: ./api/.env
     environment:
       DATABASE_URL: postgresql+psycopg://contraria:contraria@db:5432/contraria
+      BLUESKY_SESSION_PATH: /srv/data/bluesky.session
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./api/app:/srv/app
+      - contraria-app-data:/srv/data
     command: python -m app.worker
 
 volumes:
   contraria-db-data:
+  contraria-app-data:
