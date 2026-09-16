@@ -111,7 +111,7 @@ O épico [#8](https://github.com/moonshinerd/ContrarIA/issues/8) (painel web) é
 | 6–8 | Victor + Marlon · Raissa + Samantha · Kyara + Antonio | Board | `dupla:"..."` | Board de cada dupla |
 | 9 | Minhas tarefas | Board | `assignee:@me` | O que é seu, para quem abrir o Project |
 
-Nome, layout, filtro e campos visíveis foram criados pela API (`createProjectV2View`). **Agrupamento, ordenação e os campos de data do Roadmap a API não expõe**: configure uma vez pela UI (menu ▾ da view → *Group by* `Dupla` na view 3; *Date fields* `Início`/`Entrega` e *Group by* `Dupla` na view 4) e clique em *Save*.
+Todas criadas via API com `gh`: a REST `POST /users/{login}/projectsV2/{n}/views` aceita `group_by`, `vertical_group_by` e `sort_by`, que o GraphQL não aceita (lá esses campos são só leitura). Board: colunas por `Status`; *Por dupla* e *Roadmap*: agrupadas por `Dupla`; tudo ordenado por `Início` (o Board, por `Prioridade`). A única coisa que nenhuma das duas APIs expõe são os *date fields* do Roadmap: se a barra não aparecer, menu ▾ da view → *Date fields* → `Início` / `Entrega`.
 
 ## Rotina
 
