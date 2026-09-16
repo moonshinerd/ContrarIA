@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Planejamento do MVP
+    url: https://github.com/moonshinerd/ContrarIA/blob/main/docs/planejamento.md
+    about: Antes de abrir uma issue solta, confira se ela já não faz parte de um épico (label "epic").

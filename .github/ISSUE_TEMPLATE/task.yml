@@ -1,0 +1,62 @@
+name: Tarefa
+description: Item de trabalho acionável, feito por uma dupla e ligado a um épico.
+title: "[Tarefa] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Depois de criar: (1) labels `area/*` e `prioridade/*`, (2) atribuir a dupla,
+        (3) linkar como sub-issue do épico, (4) marcar dependências em "Relationships > Blocked by",
+        (5) preencher Início/Entrega no Project. Ver `docs/planejamento.md`.
+  - type: input
+    id: epico
+    attributes:
+      label: Épico
+      placeholder: "#1"
+    validations:
+      required: true
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto
+      description: Por que existe -- requisito (RF/RNF) e guiding question de origem.
+    validations:
+      required: true
+  - type: textarea
+    id: objetivo
+    attributes:
+      label: O que fazer
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Infra/Deploy
+        - Coleta e Triagem
+        - Detecção de Bots
+        - Verificação
+        - Intervenção e Sinalização
+        - Pesquisa/Benchmark
+        - Documentação
+    validations:
+      required: true
+  - type: dropdown
+    id: prioridade
+    attributes:
+      label: Prioridade
+      options:
+        - P0 (bloqueante)
+        - P1 (alta)
+        - P2 (média)
+        - P3 (baixa)
+    validations:
+      required: true
+  - type: textarea
+    id: criterio
+    attributes:
+      label: Critério de pronto
+    validations:
+      required: true

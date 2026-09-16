@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Env / segredos
+.env
+!.env.example
+*.session
+
+# Node (web/, pós-MVP)
+node_modules/
+dist/
+
+# Dados e modelos pesados (research/)
+research/datasets/data/
+research/experiments/results/
+*.joblib
+*.pt
+*.onnx
+
+# MkDocs
+site/
+
+.DS_Store
