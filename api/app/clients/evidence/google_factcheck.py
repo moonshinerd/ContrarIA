@@ -1,10 +1,11 @@
-from datetime import datetime
 import os
+from datetime import datetime
+
 import httpx
 
-from app.domain.entities import Evidence
 from app.clients.evidence.base import EvidenceSource
 from app.clients.evidence.cache import TTLCache
+from app.domain.entities import Evidence
 
 
 class GoogleFactCheckClient(EvidenceSource):
@@ -13,7 +14,11 @@ class GoogleFactCheckClient(EvidenceSource):
     name: str = "google_factcheck"
 
     def __init__(self, api_key: str | None = None, timeout: float = 10.0, ttl_seconds: int = 3600):
-        self.api_key = api_key or os.getenv("GOOGLE_FACTCHECK_API_KEY") or os.getenv("GOOGLE_FACT_CHECK_API_KEY")
+        self.api_key = (
+            api_key
+            or os.getenv("GOOGLE_FACTCHECK_API_KEY")
+            or os.getenv("GOOGLE_FACT_CHECK_API_KEY")
+        )
         self.timeout = timeout
         self.base_url = "https://factchecktools.googleapis.com/v1alpha1/claims:search"
         self.cache = TTLCache(ttl_seconds=ttl_seconds)
