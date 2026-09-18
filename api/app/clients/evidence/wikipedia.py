@@ -1,9 +1,8 @@
-from datetime import datetime
 import httpx
 
-from app.domain.entities import Evidence
 from app.clients.evidence.base import EvidenceSource
 from app.clients.evidence.cache import TTLCache
+from app.domain.entities import Evidence
 
 
 class WikipediaClient(EvidenceSource):
@@ -16,7 +15,9 @@ class WikipediaClient(EvidenceSource):
         self.base_search_url = "https://pt.wikipedia.org/w/api.php"
         self.base_summary_url = "https://pt.wikipedia.org/api/rest_v1/page/summary"
         self.headers = {
-            "User-Agent": "ContrarIABot/1.0 (https://github.com/moonshinerd/ContrarIA; contato@contraria.org)"
+            "User-Agent": (
+                "ContrarIABot/1.0 (https://github.com/moonshinerd/ContrarIA; contato@contraria.org)"
+            )
         }
         self.cache = TTLCache(ttl_seconds=ttl_seconds)
 
@@ -50,18 +51,25 @@ class WikipediaClient(EvidenceSource):
                 if not title:
                     continue
 
+                fallback_page = f"https://pt.wikipedia.org/wiki/{title}"
+                raw_snippet = item.get("snippet", "")
+                clean_snippet = raw_snippet.replace('<span class="searchmatch">', "").replace(
+                    "</span>", ""
+                )
+
                 try:
                     summary_resp = await client.get(f"{self.base_summary_url}/{title}")
                     if summary_resp.status_code == 200:
                         sdata = summary_resp.json()
-                        snippet = sdata.get("extract", "") or item.get("snippet", "")
-                        page_url = sdata.get("content_urls", {}).get("desktop", {}).get("page", f"https://pt.wikipedia.org/wiki/{title}")
+                        snippet = sdata.get("extract", "") or clean_snippet
+                        desktop_url = sdata.get("content_urls", {}).get("desktop", {})
+                        page_url = desktop_url.get("page", fallback_page)
                     else:
-                        snippet = item.get("snippet", "").replace('<span class="searchmatch">', "").replace("</span>", "")
-                        page_url = f"https://pt.wikipedia.org/wiki/{title}"
+                        snippet = clean_snippet
+                        page_url = fallback_page
                 except Exception:
-                    snippet = item.get("snippet", "").replace('<span class="searchmatch">', "").replace("</span>", "")
-                    page_url = f"https://pt.wikipedia.org/wiki/{title}"
+                    snippet = clean_snippet
+                    page_url = fallback_page
 
                 evidences.append(
                     Evidence(
