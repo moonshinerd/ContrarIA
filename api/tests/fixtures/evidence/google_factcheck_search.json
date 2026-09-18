@@ -1,0 +1,22 @@
+{
+  "claims": [
+    {
+      "text": "Urna eletrônica brasileira sofreu fraude nas eleições passadas comprovada em relatório técnico",
+      "claimant": "Boato das redes",
+      "claimDate": "2022-10-02T10:00:00Z",
+      "claimReview": [
+        {
+          "publisher": {
+            "name": "Aos Fatos",
+            "site": "aosfatos.org"
+          },
+          "url": "https://www.aosfatos.org/noticias/checagem-urna-fraude",
+          "title": "É falso que urnas eletrônicas tenham registrado votos computados irregularmente",
+          "reviewDate": "2022-10-03T14:30:00Z",
+          "textualRating": "Falso",
+          "languageCode": "pt"
+        }
+      ]
+    }
+  ]
+}

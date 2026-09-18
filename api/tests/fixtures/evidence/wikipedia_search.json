@@ -1,0 +1,13 @@
+{
+  "query": {
+    "search": [
+      {
+        "ns": 0,
+        "title": "Urna eletrônica brasileira",
+        "pageid": 12345,
+        "snippet": "A <span class=\"searchmatch\">urna</span> <span class=\"searchmatch\">eletrônica</span> brasileira é um sistema de votação eletrónica...",
+        "wordcount": 2500
+      }
+    ]
+  }
+}
