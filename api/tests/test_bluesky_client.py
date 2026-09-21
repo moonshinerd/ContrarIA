@@ -7,6 +7,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from atproto_client.exceptions import RequestException, UnauthorizedError
 from atproto_client.request import AsyncRequest
 
 from app.clients.bluesky_client import BlueskyAuthError, BlueskyClient
@@ -195,7 +196,10 @@ async def test_search_requires_login_and_persists_session(
     assert search.url.host == "bsky.social"
     assert search.url.params["lang"] == "pt" and search.url.params["sort"] == "top"
     assert search.headers["authorization"].startswith("Bearer ")
-    assert Path(settings.bluesky_session_path).exists()
+    session_file = Path(settings.bluesky_session_path)
+    assert session_file.exists()
+    assert session_file.stat().st_mode & 0o777 == 0o600
+    assert not session_file.with_name(session_file.name + ".tmp").exists()
 
 
 async def test_stored_session_is_reused_without_create_session(
@@ -250,6 +254,7 @@ async def test_ensure_bot_self_label_keeps_profile_fields(
             200,
             json={
                 "uri": "at://did:plc:contraria/app.bsky.actor.profile/self",
+                "cid": "bafyatual",
                 "value": {
                     "$type": "app.bsky.actor.profile",
                     "displayName": "ContrarIA",
@@ -265,6 +270,88 @@ async def test_ensure_bot_self_label_keeps_profile_fields(
     changed = await client.ensure_bot_self_label()
 
     assert changed is True
-    record = json.loads(router.called("com.atproto.repo.putRecord")[0].content)["record"]
-    assert record["displayName"] == "ContrarIA"
-    assert [v["val"] for v in record["labels"]["values"]] == ["bot"]
+    body = json.loads(router.called("com.atproto.repo.putRecord")[0].content)
+    assert body["swapRecord"] == "bafyatual"  # não sobrescreve se o perfil mudou no meio
+    assert body["record"]["displayName"] == "ContrarIA"
+    assert [v["val"] for v in body["record"]["labels"]["values"]] == ["bot"]
+
+
+async def test_ensure_bot_self_label_creates_record_only_when_profile_is_missing(
+    client: BlueskyClient, router: Router
+) -> None:
+    router.on("com.atproto.server.createSession", _session_response())
+    router.on(
+        "com.atproto.repo.getRecord",
+        httpx.Response(400, json={"error": "RecordNotFound", "message": "sem perfil"}),
+    )
+    router.on(
+        "com.atproto.repo.putRecord", httpx.Response(200, json={"uri": "at://x", "cid": "bafyx"})
+    )
+
+    assert await client.ensure_bot_self_label() is True
+
+    body = json.loads(router.called("com.atproto.repo.putRecord")[0].content)
+    assert body["record"]["$type"] == "app.bsky.actor.profile"
+    assert "swapRecord" not in body
+
+
+async def test_ensure_bot_self_label_never_overwrites_profile_on_other_errors(
+    client: BlueskyClient, router: Router
+) -> None:
+    router.on("com.atproto.server.createSession", _session_response())
+    router.on(
+        "com.atproto.repo.getRecord", httpx.Response(500, json={"error": "InternalServerError"})
+    )
+    router.on("com.atproto.repo.putRecord", httpx.Response(200, json={"uri": "at://x", "cid": "b"}))
+
+    with pytest.raises(RequestException):
+        await client.ensure_bot_self_label()
+
+    assert router.called("com.atproto.repo.putRecord") == []  # perfil intacto
+
+
+@pytest.mark.parametrize(
+    "rejection",
+    [
+        httpx.Response(400, json={"error": "ExpiredToken", "message": "Token has expired"}),
+        httpx.Response(401, json={"error": "AuthenticationRequired", "message": "revogada"}),
+    ],
+    ids=["ExpiredToken", "401"],
+)
+async def test_rejected_stored_session_falls_back_to_password_login(
+    settings: Settings, router: Router, client: BlueskyClient, rejection: httpx.Response
+) -> None:
+    router.on("com.atproto.server.createSession", _session_response())
+    router.on("app.bsky.feed.searchPosts", httpx.Response(200, json={"posts": []}))
+    await client.search_posts("stf")  # cria e persiste a sessão
+    assert len(router.called("createSession")) == 1
+
+    router.handlers["app.bsky.feed.searchPosts"] = [
+        rejection,
+        httpx.Response(200, json={"posts": [_post_view(1)]}),
+    ]
+    resumed = BlueskyClient(
+        settings,
+        public_request=AsyncRequest(transport=httpx.MockTransport(router)),
+        auth_request=AsyncRequest(transport=httpx.MockTransport(router)),
+    )
+
+    posts = await resumed.search_posts("tse")
+
+    assert len(posts) == 1
+    assert len(router.called("createSession")) == 2  # refez o login com o App Password
+    assert Path(settings.bluesky_session_path).exists()  # e gravou a sessão nova
+
+
+async def test_session_recovery_retries_only_once(client: BlueskyClient, router: Router) -> None:
+    router.on("com.atproto.server.createSession", _session_response())
+    router.on(
+        "app.bsky.feed.searchPosts",
+        httpx.Response(401, json={"error": "AuthenticationRequired"}),
+    )
+
+    with pytest.raises(UnauthorizedError):
+        await client.search_posts("stf")
+
+    assert len(router.called("createSession")) == 2  # login inicial + uma recuperação
+    assert len(router.called("app.bsky.feed.searchPosts")) == 2

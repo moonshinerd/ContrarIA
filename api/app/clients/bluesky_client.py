@@ -15,6 +15,7 @@ Respostas 429 são repetidas respeitando o header `ratelimit-reset`.
 
 import asyncio
 import logging
+import os
 import time
 from collections.abc import Awaitable, Callable, Iterable
 from datetime import datetime
@@ -22,7 +23,13 @@ from pathlib import Path
 from typing import Any, Literal, TypeVar
 
 from atproto import AsyncClient, Session, SessionEvent, models
-from atproto_client.exceptions import NetworkError, RateLimitExceededError, UnauthorizedError
+from atproto_client.exceptions import (
+    BadRequestError,
+    NetworkError,
+    RateLimitExceededError,
+    RequestErrorBase,
+    UnauthorizedError,
+)
 from atproto_client.request import AsyncRequest
 
 from app.core.config import Settings, get_settings
@@ -36,10 +43,23 @@ GET_POSTS_BATCH = 25  # limite do app.bsky.feed.getPosts
 SEARCH_PAGE_MAX = 100  # limite do app.bsky.feed.searchPosts
 FEED_PAGE_MAX = 100  # limite do app.bsky.feed.getAuthorFeed
 BOT_SELF_LABEL = "bot"
+SESSION_ERRORS = {"ExpiredToken", "InvalidToken"}  # tokens da sessão não servem mais
+RECORD_NOT_FOUND = "RecordNotFound"
 
 
 class BlueskyAuthError(RuntimeError):
     """Credenciais ausentes ou inválidas para uma operação autenticada."""
+
+
+def _xrpc_error(exc: RequestErrorBase) -> str | None:
+    """Nome do erro XRPC devolvido pelo servidor (ex.: `ExpiredToken`), se houver."""
+    return getattr(exc.response.content, "error", None) if exc.response else None
+
+
+def _is_session_failure(exc: RequestErrorBase) -> bool:
+    return isinstance(exc, UnauthorizedError) or (
+        isinstance(exc, BadRequestError) and _xrpc_error(exc) in SESSION_ERRORS
+    )
 
 
 def _parse_datetime(value: str | None) -> datetime | None:
@@ -106,8 +126,7 @@ class BlueskyClient:
         self._public = AsyncClient(
             base_url=self._settings.bluesky_appview_url, request=public_request
         )
-        self._auth = AsyncClient(base_url=self._settings.bluesky_pds_url, request=auth_request)
-        self._auth.on_session_change(self._persist_session)
+        self._auth = self._new_auth_client(auth_request)
         self._logged_in = False
         self._login_lock = asyncio.Lock()
         self._sleep = sleep
@@ -121,9 +140,29 @@ class BlueskyClient:
     async def _persist_session(self, event: SessionEvent, session: Session) -> None:
         path = self._session_path
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(session.export())
-        path.chmod(0o600)
+        # grava num temporário já com 0600 e troca de forma atômica: nunca há arquivo
+        # legível por outros nem sessão pela metade para outro processo ler
+        tmp = path.with_name(path.name + ".tmp")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as file:
+            file.write(session.export())
+        os.replace(tmp, path)
         logger.info("bluesky session persisted", extra={"event": event.value})
+
+    def _new_auth_client(self, request: AsyncRequest | None = None) -> AsyncClient:
+        client = AsyncClient(base_url=self._settings.bluesky_pds_url, request=request)
+        client.on_session_change(self._persist_session)
+        return client
+
+    def _discard_session(self) -> None:
+        """Esquece a sessão atual (memória e arquivo) para forçar um novo createSession.
+
+        O SDK não permite limpar a sessão de um cliente, então cria-se outro sobre o mesmo
+        transporte HTTP.
+        """
+        self._auth = self._new_auth_client(self._auth.request)
+        self._logged_in = False
+        self._session_path.unlink(missing_ok=True)
 
     async def login(self) -> str:
         """Garante uma sessão autenticada e devolve o DID da conta do bot.
@@ -185,6 +224,24 @@ class BlueskyClient:
                     raise
                 await self._sleep(min(2**attempt, self._settings.bluesky_max_backoff_seconds))
         raise AssertionError("unreachable")
+
+    async def _authenticated(self, fn: Callable[[], Awaitable[T]]) -> T:
+        """Como `_call`, mas garante login e se recupera de sessão revogada ou expirada.
+
+        Retomar a sessão salva não valida nada na rede (`fetch_bsky_profile=False`), então
+        um refresh token vencido só aparece aqui. Descarta a sessão, refaz o login com o
+        App Password e repete a chamada uma única vez.
+        """
+        await self.login()
+        try:
+            return await self._call(fn)
+        except (UnauthorizedError, BadRequestError) as exc:
+            if not _is_session_failure(exc):
+                raise
+            logger.warning("bluesky session rejected mid-call; logging in again")
+            self._discard_session()
+            await self.login()
+            return await self._call(fn)
 
     def _retry_after(self, exc: RateLimitExceededError) -> float:
         headers = {k.lower(): v for k, v in (exc.response.headers if exc.response else {}).items()}
@@ -248,7 +305,6 @@ class BlueskyClient:
         limit: int = 25,
     ) -> list[Post]:
         """Busca posts (exige login). Pagina até `limit` resultados."""
-        await self.login()
         posts: list[Post] = []
         cursor: str | None = None
         while len(posts) < limit:
@@ -260,7 +316,9 @@ class BlueskyClient:
                 "limit": min(SEARCH_PAGE_MAX, limit - len(posts)),
                 "cursor": cursor,
             }
-            response = await self._call(lambda p=params: self._auth.app.bsky.feed.search_posts(p))
+            response = await self._authenticated(
+                lambda p=params: self._auth.app.bsky.feed.search_posts(p)
+            )
             posts.extend(_post_from_view(view) for view in response.posts)
             cursor = response.cursor
             if not cursor or not response.posts:
@@ -274,14 +332,20 @@ class BlueskyClient:
         """
         did = await self.login()
         collection, rkey = "app.bsky.actor.profile", "self"
+        swap_cid: str | None = None  # só sobrescreve se o record não mudou desde a leitura
         try:
-            current = await self._call(
+            current = await self._authenticated(
                 lambda: self._auth.com.atproto.repo.get_record(
                     {"repo": did, "collection": collection, "rkey": rkey}
                 )
             )
             record: dict[str, Any] = models.get_model_as_dict(current.value)
-        except Exception:  # perfil ainda sem record: cria do zero
+            swap_cid = current.cid
+        except BadRequestError as exc:
+            # Só "perfil ainda sem record" cria do zero. Qualquer outra falha (rede,
+            # auth, rate limit) sobe: gravar um record vazio apagaria nome, bio e avatar.
+            if _xrpc_error(exc) != RECORD_NOT_FOUND:
+                raise
             record = {"$type": collection}
 
         values = (record.get("labels") or {}).get("values") or []
@@ -291,11 +355,11 @@ class BlueskyClient:
             "$type": "com.atproto.label.defs#selfLabels",
             "values": [*values, {"val": BOT_SELF_LABEL}],
         }
-        await self._call(
-            lambda: self._auth.com.atproto.repo.put_record(
-                {"repo": did, "collection": collection, "rkey": rkey, "record": record}
-            )
-        )
+        data: dict[str, Any] = {"repo": did, "collection": collection, "rkey": rkey}
+        data["record"] = record
+        if swap_cid:
+            data["swapRecord"] = swap_cid
+        await self._authenticated(lambda: self._auth.com.atproto.repo.put_record(data))
         return True
 
     async def quote_post(self, target: Post, text: str) -> str:
