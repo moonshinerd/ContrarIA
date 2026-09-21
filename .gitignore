@@ -10,6 +10,7 @@ __pycache__/
 .env
 !.env.example
 *.session
+api/data/
 
 # Node (web/, pós-MVP)
 node_modules/
