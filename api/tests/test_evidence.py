@@ -1,11 +1,12 @@
 import json
 from pathlib import Path
-import pytest
-import httpx
 
-from app.clients.evidence.wikipedia import WikipediaClient
+import httpx
+import pytest
+
+from app.clients.evidence import EVIDENCE_SOURCES, get_evidence_source
 from app.clients.evidence.google_factcheck import GoogleFactCheckClient
-from app.clients.evidence import get_evidence_source, EVIDENCE_SOURCES
+from app.clients.evidence.wikipedia import WikipediaClient
 
 # Caminho para as fixtures salvas
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "evidence"
@@ -13,13 +14,13 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures" / "evidence"
 
 @pytest.fixture
 def wikipedia_fixture():
-    with open(FIXTURES_DIR / "wikipedia_search.json", "r", encoding="utf-8") as f:
+    with open(FIXTURES_DIR / "wikipedia_search.json", encoding="utf-8") as f:
         return json.load(f)
 
 
 @pytest.fixture
 def factcheck_fixture():
-    with open(FIXTURES_DIR / "google_factcheck_search.json", "r", encoding="utf-8") as f:
+    with open(FIXTURES_DIR / "google_factcheck_search.json", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -40,6 +41,7 @@ def test_registry_evidence_sources():
 @pytest.mark.anyio
 async def test_wikipedia_search_with_fixture(wikipedia_fixture, monkeypatch):
     """Testa a busca da Wikipédia usando fixture gravada."""
+
     async def mock_get(self, url, *args, **kwargs):
         if "summary" in str(url):
             return httpx.Response(
@@ -72,6 +74,7 @@ async def test_wikipedia_search_with_fixture(wikipedia_fixture, monkeypatch):
 @pytest.mark.anyio
 async def test_google_factcheck_search_with_fixture(factcheck_fixture, monkeypatch):
     """Testa o critério da issue: consulta devolve ao menos uma ClaimReview em PT."""
+
     async def mock_get(self, url, *args, **kwargs):
         return httpx.Response(
             200,
@@ -91,6 +94,7 @@ async def test_google_factcheck_search_with_fixture(factcheck_fixture, monkeypat
     assert ev.rating == "Falso"
     assert "Checagem por Aos Fatos" in ev.snippet
     assert ev.published_at is not None
+
 
 @pytest.mark.anyio
 async def test_evidence_cache_prevents_duplicate_calls(factcheck_fixture, monkeypatch):
