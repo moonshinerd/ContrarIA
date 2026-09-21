@@ -50,6 +50,8 @@ make docs-serve   # MkDocs em :8001
 
 O CI (`.github/workflows/ci.yml`) roda em todo PR e em push na `main`, com um job por módulo: `api` (ruff + pytest), `research` (ruff com a configuração da api + pytest, que só roda quando existir `test_*.py`), `web` (lint, typecheck, testes e build, só quando existir `web/package.json`; pós-MVP), `docker` (`docker compose config` + build da imagem da api) e `docs` (`mkdocs build --strict`). Rode `make lint test` antes de abrir um PR; ele cobre `api` e `research` como o CI. Um push novo no mesmo PR cancela a execução anterior.
 
+**`main` protegida** (Settings → Branches): só entra por PR, com os 5 checks acima verdes, valendo também para administradores; sem force-push e sem deletar a branch. Não exige aprovação de reviewer nem a branch atualizada. Ao criar ou renomear um job do CI, atualize a lista de checks obrigatórios (`gh api -X PUT repos/moonshinerd/ContrarIA/branches/main/protection`), senão o job novo não bloqueia nada e o nome antigo trava todo PR esperando um check que não existe mais.
+
 Sem `uv` na máquina, rode tudo pelo Docker (a imagem é `--no-dev`, então o `uv sync` traz pytest e ruff, e `tests/` e `pyproject.toml` precisam ser montados):
 
 ```bash
