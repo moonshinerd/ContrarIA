@@ -11,6 +11,8 @@ from urllib.parse import urlsplit, urlunsplit
 
 import feedparser
 import httpx
+from bs4 import BeautifulSoup
+from curl_cffi.requests import AsyncSession
 from sqlalchemy import create_engine
 
 from app.clients.evidence.embeddings import LocalEmbedder
@@ -63,6 +65,50 @@ def parse_articles(content: bytes, source: str) -> list[dict]:
     return list(articles.values())
 
 
+async def _fetch_custom_source(source: str, url: str, timeout: float) -> list[dict]:
+    async with AsyncSession(impersonate="chrome120", timeout=timeout) as session:
+        response = await session.get(url)
+        response.raise_for_status()
+
+    if source == "uol_confere":
+        soup = BeautifulSoup(response.content, "lxml")
+        articles = []
+        for a in soup.select("a[href]"):
+            href = a["href"]
+            if "noticias.uol.com.br/confere/ultimas-noticias" in href and a.text.strip():
+                articles.append(
+                    {
+                        "url": href,
+                        "source": source,
+                        "title": clean_text(a.text),
+                        "summary": "",
+                        "published_at": None,
+                    }
+                )
+        return list({a["url"]: a for a in articles}.values())
+
+    if source == "estadao_verifica":
+        soup = BeautifulSoup(response.content, "lxml")
+        articles = []
+        for a in soup.select("a[href]"):
+            href = a["href"]
+            if "/estadao-verifica/" in href and a.text.strip() and len(a.text.strip()) > 20:
+                if not href.startswith("http"):
+                    href = "https://www.estadao.com.br" + href
+                articles.append(
+                    {
+                        "url": href,
+                        "source": source,
+                        "title": clean_text(a.text),
+                        "summary": "",
+                        "published_at": None,
+                    }
+                )
+        return list({a["url"]: a for a in articles}.values())
+
+    return parse_articles(response.content, source)
+
+
 class FeedIngestor:
     def __init__(self, settings: Settings, repository, *, embedder=None, transport=None):
         self.settings = settings
@@ -87,9 +133,14 @@ class FeedIngestor:
                     report["errors"][source] = "Feed sem URL confirmada; configure RSS_FEED_URLS"
                     continue
                 try:
-                    response = await client.get(url)
-                    response.raise_for_status()
-                    articles = parse_articles(response.content, source)
+                    if source in ("tse", "estadao_verifica", "uol_confere"):
+                        articles = await _fetch_custom_source(
+                            source, url, self.settings.evidence_timeout_seconds
+                        )
+                    else:
+                        response = await client.get(url)
+                        response.raise_for_status()
+                        articles = parse_articles(response.content, source)
                     report["feeds"][source] = len(articles)
                     pending = []
                     for article in articles:

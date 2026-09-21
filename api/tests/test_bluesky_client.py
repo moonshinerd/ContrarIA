@@ -74,6 +74,7 @@ class Router:
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
     return Settings(
+        _env_file=None,
         bluesky_handle="contraria.bsky.social",
         bluesky_app_password="xxxx-xxxx-xxxx-xxxx",
         bluesky_session_path=str(tmp_path / "bluesky.session"),
@@ -221,7 +222,14 @@ async def test_stored_session_is_reused_without_create_session(
 
 
 async def test_login_without_credentials_fails_clearly(tmp_path: Path) -> None:
-    client = BlueskyClient(Settings(bluesky_session_path=str(tmp_path / "none.session")))
+    client = BlueskyClient(
+        Settings(
+            _env_file=None,
+            bluesky_handle="",
+            bluesky_app_password="",
+            bluesky_session_path=str(tmp_path / "none.session"),
+        )
+    )
     with pytest.raises(BlueskyAuthError):
         await client.login()
 
