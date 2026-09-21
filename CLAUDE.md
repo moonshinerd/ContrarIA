@@ -74,6 +74,15 @@ Os `-e BLUESKY_*=` vazios são necessários: o `env_file` injeta as credenciais 
 - **Scripts com a conta real** (via Docker, sem `uv`): `docker compose run --rm --no-deps api python -m app.scripts.bsky_smoke` só lê e faz login. `bsky_bot_setup` grava o self-label `bot` no perfil (idempotente): rode só de propósito.
 - **Concorrência:** `api` e `worker` compartilham o arquivo de sessão, mas cada processo guarda a sua em memória. Prefira um só deles fazendo chamadas autenticadas.
 
+## Fontes de evidência
+
+- Cada fonte implementa `EvidenceSource` (`app/clients/evidence/base.py`) e se registra por nome em `EVIDENCE_SOURCES`; use `get_evidence_source("wikipedia" | "google_factcheck")`. O benchmark liga e desliga fontes por esse nome.
+- `google_factcheck` precisa de `GOOGLE_FACTCHECK_API_KEY` (lida via `Settings`). A chave é do projeto Google Cloud do Víctor, restrita à Fact Check Tools API. Sem chave, a fonte loga um aviso e devolve `[]`.
+- Falha de rede, cota (429) ou chave inválida vira log + `[]`, nunca exceção; resultado com falha não entra no cache. Nunca logue a URL da requisição do Google: a chave vai na query string.
+- `Evidence.rating` é o `textualRating` cru e **não é normalizado** (`falso`, `Falso`, frases inteiras). Quem consome (verificação, benchmark) precisa normalizar.
+- Os clientes aceitam `transport=` para testes com `httpx.MockTransport`. As fixtures em `api/tests/fixtures/evidence/` são respostas reais gravadas; para regravar, chame a API real e salve o JSON sem a chave.
+- Wikipédia: `User-Agent` identificável é exigido pela política da Wikimedia; o summary de cada resultado é buscado em paralelo.
+
 ## Issues e Project
 
 - Toda tarefa é sub-issue de um épico e tem dupla (dois assignees), labels `area/*`, `prioridade/P0-P3`, `dupla/*`, milestone `MVP – Showcase (26/09)` e campos `Status`, `Área`, `Prioridade`, `Dupla`, `Início` e `Entrega` no Project.

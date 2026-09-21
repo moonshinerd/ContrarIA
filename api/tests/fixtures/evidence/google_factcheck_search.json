@@ -1,22 +1,57 @@
 {
-  "claims": [
-    {
-      "text": "Urna eletrônica brasileira sofreu fraude nas eleições passadas comprovada em relatório técnico",
-      "claimant": "Boato das redes",
-      "claimDate": "2022-10-02T10:00:00Z",
-      "claimReview": [
+    "claims": [
         {
-          "publisher": {
-            "name": "Aos Fatos",
-            "site": "aosfatos.org"
-          },
-          "url": "https://www.aosfatos.org/noticias/checagem-urna-fraude",
-          "title": "É falso que urnas eletrônicas tenham registrado votos computados irregularmente",
-          "reviewDate": "2022-10-03T14:30:00Z",
-          "textualRating": "Falso",
-          "languageCode": "pt"
+            "text": "Ministros compraram chips de Taiwan para incorporar na urna eletrônica e fraudar eleições",
+            "claimant": "desinformação",
+            "claimDate": "2026-08-05T00:00:00Z",
+            "claimReview": [
+                {
+                    "publisher": {
+                        "name": "Aos Fatos",
+                        "site": "aosfatos.org"
+                    },
+                    "url": "https://www.aosfatos.org/noticias/barroso-moraes-chips-taiwan-urnas/",
+                    "title": "Barroso e Moraes não mandaram fabricar chips em Taiwan para ...",
+                    "reviewDate": "2026-08-05T00:00:00Z",
+                    "textualRating": "falso",
+                    "languageCode": "pt"
+                }
+            ]
+        },
+        {
+            "text": "Flávio Bolsonaro insinua que empresa venezuelana forneceu urnas eletrônicas ao Brasil",
+            "claimant": "Boato de internet",
+            "claimReview": [
+                {
+                    "publisher": {
+                        "name": "UOL Notícias",
+                        "site": "noticias.uol.com.br"
+                    },
+                    "url": "https://noticias.uol.com.br/confere/ultimas-noticias/2026/07/22/falso-flavio-bolsonaro-smartmatic-urnas-eletronicas-brasil.ghtm",
+                    "title": "Urnas eletrônicas usadas no Brasil não foram fabricadas pela ...",
+                    "textualRating": "Falso",
+                    "languageCode": "pt"
+                }
+            ]
+        },
+        {
+            "text": "PF descobriu que Lula só teve 36,32% dos votos em 2022",
+            "claimant": "desinformação",
+            "claimDate": "2026-06-03T00:00:00Z",
+            "claimReview": [
+                {
+                    "publisher": {
+                        "name": "Aos Fatos",
+                        "site": "aosfatos.org"
+                    },
+                    "url": "https://www.aosfatos.org/noticias/pf-policia-federal-lula-votos-2022-urna/",
+                    "title": "É falso que PF descobriu que Lula teve apenas 36% dos votos em ...",
+                    "reviewDate": "2026-06-03T00:00:00Z",
+                    "textualRating": "falso",
+                    "languageCode": "pt"
+                }
+            ]
         }
-      ]
-    }
-  ]
+    ],
+    "nextPageToken": "CAM"
 }
