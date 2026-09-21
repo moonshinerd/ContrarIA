@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -31,6 +32,28 @@ class Settings(BaseSettings):
     # Ficamos com margem para não estourar quando api e worker consultam juntos.
     google_factcheck_rate_per_minute: int = 240
     tavily_api_key: str = ""
+
+    tavily_enabled: bool = True
+    duckduckgo_enabled: bool = True
+    rss_checkers_enabled: bool = True
+    web_search_days: int = Field(default=7, ge=1)
+    web_cache_ttl_seconds: int = Field(default=3600, ge=1)
+    web_cache_max_entries: int = Field(default=1000, ge=1)
+    tavily_cooldown_seconds: int = Field(default=3600, ge=1)
+    evidence_timeout_seconds: float = Field(default=20, gt=0)
+    rss_poll_seconds: int = Field(default=3600, ge=60)
+    rss_recency_weight: float = Field(default=0.1, ge=0, le=1)
+    rss_recency_half_life_days: float = Field(default=30, gt=0)
+    rss_min_similarity: float = Field(default=0.3, ge=-1, le=1)
+    rss_enabled_sources: list[str] = [
+        "lupa",
+        "aos_fatos",
+        "g1_fato_fake",
+        "boatos",
+        "comprova",
+        "tse",
+    ]
+    rss_feed_urls: dict[str, str] = {}
 
     daily_llm_budget_usd: float = 1.0
     daily_max_interventions: int = 20

@@ -17,6 +17,20 @@ jobs:
   api:
     name: api (lint + testes)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: contraria
+          POSTGRES_PASSWORD: contraria
+          POSTGRES_DB: contraria_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U contraria -d contraria_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://contraria:contraria@localhost:5432/contraria_test
     defaults:
       run:
         working-directory: api
@@ -30,6 +44,11 @@ jobs:
         run: uv run ruff check .
       - name: ruff format --check
         run: uv run ruff format --check .
+      - name: Migration de ida e volta
+        run: |
+          DATABASE_URL="$TEST_DATABASE_URL" uv run alembic upgrade head
+          DATABASE_URL="$TEST_DATABASE_URL" uv run alembic downgrade base
+          DATABASE_URL="$TEST_DATABASE_URL" uv run alembic upgrade head
       - name: pytest
         run: uv run pytest
 

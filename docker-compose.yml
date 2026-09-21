@@ -31,6 +31,7 @@ services:
         condition: service_healthy
     volumes:
       - ./api/app:/srv/app
+      - contraria-model-cache:/root/.cache/huggingface
       - contraria-app-data:/srv/data
       - ./api/tests:/srv/tests
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -51,9 +52,11 @@ services:
         condition: service_healthy
     volumes:
       - ./api/app:/srv/app
+      - contraria-model-cache:/root/.cache/huggingface
       - contraria-app-data:/srv/data
     command: python -m app.worker
 
 volumes:
   contraria-db-data:
+  contraria-model-cache:
   contraria-app-data:
