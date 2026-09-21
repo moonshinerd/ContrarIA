@@ -74,7 +74,3 @@ Swagger em http://localhost:8000/docs. Outros alvos: `make lint`, `make test`, `
 - `main` sempre estável: todo trabalho entra por PR, revisado pela outra pessoa da dupla.
 - `feature/<descrição-curta>`: uma branch por issue, com `Closes #N` no PR.
 - O CI (ruff + pytest + build do MkDocs) roda em todo PR.
-### Fontes de evidência (#21)
-
-Busca web com Tavily/DuckDuckGo e acervo RSS com pgvector: veja
-[configuração, coleta, fontes disponíveis e validação](docs/evidencias.md).

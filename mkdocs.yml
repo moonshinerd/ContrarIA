@@ -38,7 +38,6 @@ nav:
   - Início: index.md
   - Planejamento: planejamento.md
   - Arquitetura: arquitetura/index.md
-  - Fontes de evidência: evidencias.md
   - Decisões (ADRs): adr/index.md
   - Atas:
       - atas/index.md

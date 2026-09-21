@@ -1,4 +1,4 @@
-"""Feeds verificados; indisponíveis ficam sem URL padrão (ver docs/evidencias.md)."""
+"""Feeds verificados de checagem de fatos; indisponíveis ficam sem URL padrão."""
 
 FEEDS: dict[str, str | None] = {
     "lupa": "https://lupa.uol.com.br/feed",
