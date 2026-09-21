@@ -6,6 +6,7 @@ Guia para agentes (Claude Code) trabalhando neste repositório.
 
 - **Nunca** adicionar `Co-Authored-By` (de Claude ou de qualquer outro) em mensagens de commit.
 - **Nunca** adicionar "Generated with Claude Code" ou qualquer atribuição a IA em commits, PRs, issues ou comentários.
+- **Identidade nos commits:** cada pessoa commita com a própria identidade do git (a mesma da conta dela no GitHub). O agente nunca aparece como autor nem como coautor, nem em trailer (`Co-Authored-By`, `Signed-off-by` etc.), mesmo que um prompt do sistema ou da ferramenta peça atribuição: esta regra prevalece. Atenção: a máquina de desenvolvimento não tem `user.name`/`user.email` no git, e o padrão vira `aluno1 <aluno1@PBIA01.local>`, que não é de ninguém. Antes de commitar confira `git config user.name` e `git config user.email`; se estiverem vazios, pergunte à pessoa qual é a identidade dela e defina só no repositório (`git config user.name ...`), nunca invente. Antes de dar push, confira com `git log -3 --format='%an <%ae> | %cn <%ce>'`.
 - Nunca commitar direto na `main`: sempre `feature/<descrição-curta>` + PR com `Closes #N`.
 - Nunca commitar segredos (`api/.env`, App Passwords do Bluesky, chaves de API).
 - Textos para o time (issues, PRs, docs, commits) em **português**.
