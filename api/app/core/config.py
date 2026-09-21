@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     llm_model_judge: str = ""
     llm_timeout_seconds: float = 30.0
     llm_max_retries: int = 3
+    debate_rounds: int = 2
+    debate_p_ik_threshold: float = 0.60
 
     google_factcheck_api_key: str = ""
     # Cota real da Fact Check Tools API: 300 requisições/minuto (sem limite diário).
