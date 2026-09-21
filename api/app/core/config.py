@@ -14,6 +14,13 @@ class Settings(BaseSettings):
 
     bluesky_handle: str = ""
     bluesky_app_password: str = ""
+    bluesky_pds_url: str = "https://bsky.social"
+    # AppView pública: leituras sem login (getPosts, getProfile, getAuthorFeed)
+    bluesky_appview_url: str = "https://public.api.bsky.app"
+    # createSession tem limite de 300/dia: a sessão é persistida e reaproveitada
+    bluesky_session_path: str = "data/bluesky.session"
+    bluesky_max_retries: int = 3
+    bluesky_max_backoff_seconds: float = 60.0
 
     llm_model_name: str = "openrouter/google/gemini-2.5-flash"
     llm_api_key: str = ""
