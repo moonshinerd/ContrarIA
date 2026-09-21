@@ -17,7 +17,14 @@ class Settings(BaseSettings):
 
     llm_model_name: str = "openrouter/google/gemini-2.5-flash"
     llm_api_key: str = ""
+    openrouter_api_key: str = ""
     llm_api_base_url: str = ""
+
+    llm_model_prosecutor: str = ""
+    llm_model_defender: str = ""
+    llm_model_judge: str = ""
+    llm_timeout_seconds: float = 30.0
+    llm_max_retries: int = 3
 
     google_factcheck_api_key: str = ""
     tavily_api_key: str = ""
