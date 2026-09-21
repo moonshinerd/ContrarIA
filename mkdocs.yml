@@ -43,5 +43,7 @@ nav:
   - Arquitetura: arquitetura/index.md
   - Decisões (ADRs): adr/index.md
   - Atas:
-      - atas/index.md
+      - Índice: atas/index.md
       - "09/09 – Alinhamento (Engage)": atas/ata01.md
+      - "16/09 – Planejamento do MVP": atas/ata02.md
+      - Checkpoints do MVP: atas/checkpoints.md
