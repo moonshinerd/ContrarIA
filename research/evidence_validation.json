@@ -1,0 +1,68 @@
+{
+  "checked_at": "2026-09-21T12:35:32.266624+00:00",
+  "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "articles": 158,
+  "cases": [
+    {
+      "claim": "O STF proibiu Bolsonaro de ampliar benefícios sociais durante o ano da eleição.",
+      "expected_url": "https://www.aosfatos.org/noticias/stf-nao-impediu-aumento-beneficios-bolsonaro/",
+      "retrieved_urls": [
+        "https://www.agencialupa.org/verificacao/2026/09/18/e-falso-que-flavio-bolsonaro-nao-disputara-as-eleicoes/",
+        "https://www.aosfatos.org/noticias/stf-nao-impediu-aumento-beneficios-bolsonaro/",
+        "https://www.boatos.org/politica/eneas-disse-em-1996-que-jair-bolsonaro-seria-uma-ameaca-ao-brasil.html",
+        "https://www.aosfatos.org/noticias/bolsonaristas-capturam-perfis-inflar-apoio-religioso-mendonca/",
+        "https://www.aosfatos.org/noticias/lula-flavio-crise-stf/"
+      ],
+      "passed": true
+    },
+    {
+      "claim": "Flávio Bolsonaro desistiu de concorrer nas eleições de 2026.",
+      "expected_url": "https://www.agencialupa.org/verificacao/2026/09/18/e-falso-que-flavio-bolsonaro-nao-disputara-as-eleicoes/",
+      "retrieved_urls": [
+        "https://www.agencialupa.org/verificacao/2026/09/18/e-falso-que-flavio-bolsonaro-nao-disputara-as-eleicoes/",
+        "https://www.boatos.org/politica/eneas-disse-em-1996-que-jair-bolsonaro-seria-uma-ameaca-ao-brasil.html",
+        "https://www.aosfatos.org/noticias/flavio-nao-viajou-para-eua/",
+        "https://www.aosfatos.org/noticias/lula-nao-chorou-flavio-bolsonaro-record/",
+        "https://www.boatos.org/esporte/var-da-expulsao-de-osorio-durante-palmeiras-e-sao-paulo-mostra-falta-de-criterio-de-rafael-klein.html"
+      ],
+      "passed": true
+    },
+    {
+      "claim": "A Polícia Federal deteve um grupo que comprava votos para Lula no estado do Pará.",
+      "expected_url": "https://www.boatos.org/politica/pf-prende-pessoas-que-estariam-comprando-votos-para-lula-no-para.html",
+      "retrieved_urls": [
+        "https://www.boatos.org/politica/pf-prende-pessoas-que-estariam-comprando-votos-para-lula-no-para.html",
+        "https://www.agencialupa.org/eleicoes/2026/09/17/e-falso-video-em-que-datena-declara-que-lula-esta-com-75-de-intencao-de-voto/",
+        "https://www.aosfatos.org/noticias/lula-flavio-crise-stf/",
+        "https://www.aosfatos.org/noticias/video-lula-ministros-stf-fevereiro-nao-atual/",
+        "https://www.aosfatos.org/noticias/ato-lula-torcida-mexico-copa/"
+      ],
+      "passed": true
+    },
+    {
+      "claim": "O tribunal eleitoral brasileiro vai organizar a escolha do papa usando votação eletrônica.",
+      "expected_url": "https://www.boatos.org/politica/tse-vai-comandar-a-eleicao-do-novo-papa-com-urnas-eletronicas.html",
+      "retrieved_urls": [
+        "https://www.boatos.org/politica/tse-vai-comandar-a-eleicao-do-novo-papa-com-urnas-eletronicas.html",
+        "https://www.boatos.org/politica/voto-parcial-apenas-para-presidente-sera-anulado-nas-eleicoes-de-2026.html",
+        "https://g1.globo.com/sp/sao-paulo/eleicoes/2026/noticia/2026/08/19/candidatos-ao-governo-de-sp-assinam-compromisso-contra-desinformacao-nas-eleicoes.ghtml",
+        "https://www.boatos.org/politica/pf-prende-pessoas-que-estariam-comprando-votos-para-lula-no-para.html",
+        "https://www.agencialupa.org/verificacao/2026/09/18/e-falso-que-flavio-bolsonaro-nao-disputara-as-eleicoes/"
+      ],
+      "passed": true
+    },
+    {
+      "claim": "Datena anunciou que a intenção de voto em Lula chegou a setenta e cinco por cento.",
+      "expected_url": "https://www.agencialupa.org/eleicoes/2026/09/17/e-falso-video-em-que-datena-declara-que-lula-esta-com-75-de-intencao-de-voto/",
+      "retrieved_urls": [
+        "https://www.agencialupa.org/eleicoes/2026/09/17/e-falso-video-em-que-datena-declara-que-lula-esta-com-75-de-intencao-de-voto/",
+        "https://www.boatos.org/politica/pf-prende-pessoas-que-estariam-comprando-votos-para-lula-no-para.html",
+        "https://www.aosfatos.org/noticias/lula-nao-chorou-flavio-bolsonaro-record/",
+        "https://www.boatos.org/politica/foto-mostra-manifestacao-em-copacabana-a-favor-de-lula-e-da-esquerda-em-setembro-de-2026.html",
+        "https://www.aosfatos.org/noticias/lula-flavio-crise-stf/"
+      ],
+      "passed": true
+    }
+  ],
+  "passed": true
+}

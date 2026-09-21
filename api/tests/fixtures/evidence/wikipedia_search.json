@@ -1,0 +1,32 @@
+{
+    "batchcomplete": "",
+    "continue": {
+        "sroffset": 2,
+        "continue": "-||"
+    },
+    "query": {
+        "searchinfo": {
+            "totalhits": 162
+        },
+        "search": [
+            {
+                "ns": 0,
+                "title": "Urna eletrônica (Brasil)",
+                "pageid": 112772,
+                "size": 91585,
+                "wordcount": 10074,
+                "snippet": "Ver artigo geral: <span class=\"searchmatch\">Urna</span> <span class=\"searchmatch\">eletrônica</span> No Brasil, a <span class=\"searchmatch\">urna</span> <span class=\"searchmatch\">eletrônica</span> (denominada originalmente coletor <span class=\"searchmatch\">eletrônico</span> de voto) foi implantada em 1996. Acabou com",
+                "timestamp": "2026-08-06T18:14:37Z"
+            },
+            {
+                "ns": 0,
+                "title": "Urna eletrônica",
+                "pageid": 1378280,
+                "size": 21406,
+                "wordcount": 2166,
+                "snippet": "Para o modelo usado no Brasil, veja <span class=\"searchmatch\">Urna</span> <span class=\"searchmatch\">eletrônica</span> (Brasil). <span class=\"searchmatch\">Urna</span> <span class=\"searchmatch\">eletrônica</span> (português brasileiro) ou <span class=\"searchmatch\">eletrónica</span> (português europeu) ou máquina de votação",
+                "timestamp": "2025-06-16T19:50:36Z"
+            }
+        ]
+    }
+}
