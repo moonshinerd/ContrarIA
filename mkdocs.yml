@@ -38,6 +38,8 @@ nav:
   - Início: index.md
   - Planejamento: planejamento.md
   - Requisitos: requisitos.md
+  - Pesquisa:
+      - Matrizes de Decisão: pesquisa/matrizes.md
   - Arquitetura: arquitetura/index.md
   - Decisões (ADRs): adr/index.md
   - Atas:
