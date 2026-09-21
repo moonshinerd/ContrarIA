@@ -14,6 +14,9 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.jobs.ingest_fact_articles import FeedIngestor
 from app.repositories.fact_articles import FactArticleRepository
+from app.clients.bluesky_client import BlueskyClient
+from app.repositories.posts import PostRepository
+from app.jobs.collector import JetstreamConsumer, SearchPoller
 
 logger = logging.getLogger("contraria.worker")
 
@@ -23,7 +26,19 @@ async def main() -> None:
     configure_logging(settings)
     logger.info("worker started", extra={"tick_seconds": settings.worker_tick_seconds})
     engine = create_engine(settings.database_url, pool_pre_ping=True)
+    
+    # Repositórios e Clientes
+    bsky_client = BlueskyClient(settings)
+    post_repo = PostRepository(engine)
+    
     ingestor = FeedIngestor(settings, FactArticleRepository(engine))
+    jetstream = JetstreamConsumer(post_repo)
+    poller = SearchPoller(post_repo, bsky_client, poll_interval_seconds=600)
+    
+    # Inicia as tasks em background
+    jetstream_task = asyncio.create_task(jetstream.run())
+    poller_task = asyncio.create_task(poller.run())
+    
     next_ingestion = 0.0
     try:
         while True:
@@ -36,6 +51,8 @@ async def main() -> None:
                 next_ingestion = monotonic() + settings.rss_poll_seconds
             await asyncio.sleep(settings.worker_tick_seconds)
     finally:
+        jetstream_task.cancel()
+        poller_task.cancel()
         engine.dispose()
 
 
