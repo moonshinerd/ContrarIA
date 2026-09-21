@@ -1,0 +1,15 @@
+{
+  "did": "did:plc:bot123",
+  "handle": "robo.bsky.social",
+  "displayName": "Robô",
+  "description": "",
+  "createdAt": "2026-09-01T12:00:00.000Z",
+  "indexedAt": "2026-09-01T12:00:00.000Z",
+  "followersCount": 3,
+  "followsCount": 900,
+  "postsCount": 4200,
+  "labels": [
+    {"src": "did:plc:bot123", "uri": "at://did:plc:bot123/app.bsky.actor.profile/self", "val": "bot", "cts": "2026-09-01T12:00:00.000Z"},
+    {"src": "did:plc:labeler", "uri": "did:plc:bot123", "val": "spam", "cts": "2026-09-02T12:00:00.000Z"}
+  ]
+}
