@@ -48,7 +48,7 @@ make migrate      # alembic upgrade head no container
 make docs-serve   # MkDocs em :8001
 ```
 
-O CI (`.github/workflows/ci.yml`) roda ruff, pytest e `mkdocs build --strict` em todo PR. Rode `make lint test` antes de abrir um PR.
+O CI (`.github/workflows/ci.yml`) roda em todo PR e em push na `main`, com um job por módulo: `api` (ruff + pytest), `research` (ruff com a configuração da api + pytest, que só roda quando existir `test_*.py`), `web` (lint, typecheck, testes e build, só quando existir `web/package.json`; pós-MVP), `docker` (`docker compose config` + build da imagem da api) e `docs` (`mkdocs build --strict`). Rode `make lint test` antes de abrir um PR; ele cobre `api` e `research` como o CI. Um push novo no mesmo PR cancela a execução anterior.
 
 Sem `uv` na máquina, rode tudo pelo Docker (a imagem é `--no-dev`, então o `uv sync` traz pytest e ruff, e `tests/` e `pyproject.toml` precisam ser montados):
 
