@@ -183,6 +183,7 @@ async def test_litellm_completion_execution_and_usage_recording():
         mock_acompletion.assert_called_once()
         _, kwargs = mock_acompletion.call_args
         assert kwargs["response_format"] == {"type": "json_object"}
+        assert kwargs["temperature"] == 0
         assert kwargs["timeout"] == 30.0
 
         # Verifica se o uso e custo foram computados

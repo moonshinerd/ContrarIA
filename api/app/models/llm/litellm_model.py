@@ -186,6 +186,8 @@ class LiteLLMModel(LLMPort):
         extra_kwargs: dict[str, Any] = {}
         if json_mode:
             extra_kwargs["response_format"] = {"type": "json_object"}
+            # Saídas estruturadas precisam ser reprodutíveis e fáceis de validar.
+            extra_kwargs["temperature"] = 0
 
         response = await litellm.acompletion(
             model=model,
