@@ -63,6 +63,23 @@ curl http://localhost:8000/health   # {"status":"ok"}
 
 Swagger em http://localhost:8000/docs. Outros alvos: `make lint`, `make test`, `make logs`, `make docs-serve`.
 
+### Extração de alegações e CoVe
+
+`ClaimVerificationPlanner` classifica trechos do post, do conteúdo citado e do pai como
+fato, opinião, sátira/ironia, hipérbole ou pergunta. Conteúdo sem alegação factual encerra
+o fluxo; fatos recebem perguntas independentes de verificação, sem respostas ou veredito.
+Os prompts ficam versionados em `api/app/prompts/` e toda saída do modelo passa por
+validação Pydantic antes de chegar ao pipeline.
+
+O conjunto dourado pode ser validado com um modelo real configurado no `.env`:
+
+```bash
+cd api
+uv run python -m scripts.validate_claim_extraction \
+  --cases ../research/claim_extraction_golden.json \
+  --output ../research/claim_extraction_validation.json
+```
+
 ## 🗂️ Planejamento, documentação e atas
 
 - Board: GitHub Project do ContrarIA, com a lógica explicada em [`docs/planejamento.md`](docs/planejamento.md).
