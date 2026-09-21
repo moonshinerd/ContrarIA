@@ -80,7 +80,7 @@ class Verdict:
     confidence: float  # [0, 1]
     rationale: str
     evidences: list[Evidence] = field(default_factory=list)
-    agent_outputs: dict[str, str] = field(default_factory=dict)  # promotor/defensor/juiz
+    agent_outputs: dict[str, str] = field(default_factory=dict)  # Self-RAG e debate
 
 
 @dataclass

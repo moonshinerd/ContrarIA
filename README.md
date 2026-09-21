@@ -71,6 +71,11 @@ o fluxo; fatos recebem perguntas independentes de verificação, sem respostas o
 Os prompts ficam versionados em `api/app/prompts/` e toda saída do modelo passa por
 validação Pydantic antes de chegar ao pipeline.
 
+As perguntas CoVe são processadas isoladamente pelo `SelfRAGService`: as fontes habilitadas
+são consultadas em paralelo, evidências irrelevantes são descartadas e somente respostas
+sustentadas seguem no fluxo. As reflexões `[Retrieve]`, `[IsRel]`, `[IsSup]` e `[IsUse]` ficam
+disponíveis em `agent_outputs` para auditoria e para as etapas de debate e veredito.
+
 O conjunto dourado pode ser validado com um modelo real configurado no `.env`:
 
 ```bash

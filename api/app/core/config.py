@@ -64,6 +64,12 @@ class Settings(BaseSettings):
     ]
     rss_feed_urls: dict[str, str] = {}
 
+    # Self-RAG (#23): #20 por padrão; fontes da #21 entram pela lista quando desejado.
+    self_rag_enabled_sources: list[str] = ["google_factcheck", "wikipedia"]
+    self_rag_max_questions: int = Field(default=10, ge=1, le=100)
+    self_rag_max_evidence_per_source: int = Field(default=3, ge=1, le=20)
+    self_rag_max_llm_calls: int = Field(default=30, ge=1, le=300)
+
     daily_llm_budget_usd: float = 1.0
     daily_max_interventions: int = 20
 

@@ -38,6 +38,8 @@ def get_evidence_source(name: str, **kwargs) -> EvidenceSource:
         )
     if "settings" in inspect.signature(source_cls).parameters:
         kwargs.setdefault("settings", get_settings())
+    else:
+        kwargs.pop("settings", None)
     return source_cls(**kwargs)
 
 
