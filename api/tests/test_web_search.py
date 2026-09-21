@@ -6,6 +6,7 @@ import pytest
 
 from app.clients.evidence.web_search import (
     DuckDuckGoClient,
+    EvidenceSearchUnavailable,
     TavilyClient,
     WebSearchSource,
     parse_date,
@@ -151,5 +152,150 @@ def test_ddgs_region_and_backend(monkeypatch):
             assert kwargs == {"region": "br-pt", "max_results": 3, "backend": "duckduckgo"}
             return []
 
+        text = news
+
     monkeypatch.setattr("ddgs.DDGS", FakeDDGS)
     assert asyncio.run(DuckDuckGoClient(settings()).search("notícia", limit=3)) == []
+
+
+@pytest.mark.parametrize("news_empty_exception", [False, True])
+def test_news_empty_falls_back_to_text_and_caches(monkeypatch, news_empty_exception):
+    from ddgs.exceptions import DDGSException
+
+    calls = []
+
+    class FakeDDGS:
+        def __init__(self, **kwargs):
+            pass
+
+        def news(self, query, **kwargs):
+            calls.append("news")
+            if news_empty_exception:
+                raise DDGSException("No results found.")
+            return []
+
+        def text(self, query, **kwargs):
+            calls.append("text")
+            assert query == "alegação completa"
+            assert kwargs["region"] == "br-pt"
+            assert kwargs["backend"] == "duckduckgo"
+            return [{"href": "https://example.org/check", "title": "Checagem", "body": "Resumo"}]
+
+    monkeypatch.setattr("ddgs.DDGS", FakeDDGS)
+    source = DuckDuckGoClient(settings())
+
+    async def run():
+        first = await source.search("alegação completa")
+        assert first[0].url == "https://example.org/check"
+        assert first[0].published_at is None
+        assert await source.search("alegação completa") == first
+
+    asyncio.run(run())
+    assert calls == ["news", "text"]
+
+
+def test_empty_web_is_not_logged_as_unavailable(monkeypatch, caplog):
+    from ddgs.exceptions import DDGSException
+
+    class FakeDDGS:
+        def __init__(self, **kwargs):
+            pass
+
+        def news(self, *args, **kwargs):
+            raise DDGSException("No results found.")
+
+        text = news
+
+    monkeypatch.setattr("ddgs.DDGS", FakeDDGS)
+    source = WebSearchSource(settings(tavily_enabled=False), raise_on_failure=True)
+    assert asyncio.run(source.search("sem correspondência")) == []
+    assert "indisponível" not in caplog.text
+
+
+def test_news_results_do_not_trigger_general_search(monkeypatch):
+    class FakeDDGS:
+        def __init__(self, **kwargs):
+            pass
+
+        def news(self, *args, **kwargs):
+            return [{"url": "https://example.org/news"}]
+
+        def text(self, *args, **kwargs):
+            pytest.fail("Notícias já forneceram resultados")
+
+    monkeypatch.setattr("ddgs.DDGS", FakeDDGS)
+    assert asyncio.run(DuckDuckGoClient(settings()).search("notícia"))[0].url.endswith("news")
+
+
+@pytest.mark.parametrize("error_type", ["TimeoutException", "RatelimitException", "DDGSException"])
+def test_real_provider_errors_are_not_cached_as_empty(monkeypatch, error_type):
+    from ddgs import exceptions
+
+    class FakeDDGS:
+        def __init__(self, **kwargs):
+            pass
+
+        def news(self, *args, **kwargs):
+            raise getattr(exceptions, error_type)("provider failed")
+
+        text = news
+
+    monkeypatch.setattr("ddgs.DDGS", FakeDDGS)
+    config = settings(tavily_enabled=False)
+    ddg = DuckDuckGoClient(config)
+    source = WebSearchSource(config, duckduckgo=ddg, raise_on_failure=True)
+    with pytest.raises(EvidenceSearchUnavailable):
+        asyncio.run(source.search("teste"))
+    assert not ddg._cache
+
+
+def test_web_search_fallback_from_tavily_missing_key_to_ddg_general(monkeypatch, caplog):
+    from ddgs.exceptions import DDGSException
+
+    calls = []
+
+    class FakeDDGS:
+        def __init__(self, **kwargs):
+            pass
+
+        def news(self, query, **kwargs):
+            calls.append("news")
+            raise DDGSException("No results found.")
+
+        def text(self, query, **kwargs):
+            calls.append("text")
+            return [{"href": "https://example.org/tse-papa", "title": "TSE Papa", "body": "Falso"}]
+
+    monkeypatch.setattr("ddgs.DDGS", FakeDDGS)
+    config = Settings(_env_file=None, tavily_api_key="", duckduckgo_enabled=True)
+    source = WebSearchSource(config)
+
+    results = asyncio.run(source.search("TSE eleição papa urnas eletrônicas"))
+    assert calls == ["news", "text"]
+    assert len(results) == 1
+    assert results[0].url == "https://example.org/tse-papa"
+    assert results[0].source == "duckduckgo"
+    assert "indisponível" not in caplog.text
+
+
+def test_no_results_anywhere_is_not_treated_as_failure_even_with_raise_on_failure(
+    monkeypatch, caplog
+):
+    from ddgs.exceptions import DDGSException
+
+    class FakeDDGS:
+        def __init__(self, **kwargs):
+            pass
+
+        def news(self, *args, **kwargs):
+            raise DDGSException("No results found.")
+
+        text = news
+
+    monkeypatch.setattr("ddgs.DDGS", FakeDDGS)
+    config = Settings(_env_file=None, tavily_api_key="", duckduckgo_enabled=True)
+    source = WebSearchSource(config, raise_on_failure=True)
+
+    results = asyncio.run(source.search("TSE eleição papa urnas eletrônicas"))
+    assert results == []
+    assert "indisponível" not in caplog.text

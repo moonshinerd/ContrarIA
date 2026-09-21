@@ -45,10 +45,18 @@ e autenticação Bearer. `web_search` tenta DuckDuckGo quando Tavily não tem ch
 está desligado, retorna vazio ou falha. Respostas 429, 432 e 433 suspendem novas
 chamadas Tavily durante `TAVILY_COOLDOWN_SECONDS` (uma hora por padrão).
 
-O [ddgs](https://github.com/deedy5/ddgs) usa busca de notícias, `region=br-pt` e backend
-`duckduckgo` explícito. Não exige chave. As chamadas síncronas ficam fora do loop
+O [ddgs](https://github.com/deedy5/ddgs) tenta notícias e, quando não há resultados,
+busca páginas gerais com a mesma consulta, `region=br-pt` e backend
+`duckduckgo` explícito. O retorno `href` da busca geral é normalizado para a URL da
+evidência; datas ausentes permanecem sem data. A mensagem `No results found.` é
+tratada como resultado vazio, enquanto erros de rede, timeout e cota continuam
+sendo falhas e não entram no cache. Não exige chave. As chamadas síncronas ficam fora do loop
 async. Falhas dos dois provedores resultam em lista vazia, com aviso nos logs.
-Consultas e chaves não são registradas nos avisos.
+Consultas e chaves não são registradas nos avisos. Interfaces que precisam distinguir
+falha de ausência de resultados podem usar `WebSearchSource(settings,
+raise_on_failure=True)`, que lança `EvidenceSearchUnavailable` quando não há
+resultados e algum provedor falhou. Consultas longas ainda podem não encontrar
+correspondências; a busca não reformula nem altera a alegação automaticamente.
 
 Cada provedor tem cache LRU em memória: 1.000 entradas e TTL de uma hora por padrão,
 incluindo resultados vazios. Chamadas simultâneas à mesma consulta reutilizam o

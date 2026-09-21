@@ -2,7 +2,12 @@
 
 from app.clients.evidence.base import EvidenceSource
 from app.clients.evidence.rss_checkers import RSSCheckersSource
-from app.clients.evidence.web_search import DuckDuckGoClient, TavilyClient, WebSearchSource
+from app.clients.evidence.web_search import (
+    DuckDuckGoClient,
+    EvidenceSearchUnavailable,
+    TavilyClient,
+    WebSearchSource,
+)
 from app.core.config import get_settings
 
 EVIDENCE_SOURCES: dict[str, type[EvidenceSource]] = {
@@ -18,3 +23,15 @@ def get_evidence_source(name: str, **kwargs) -> EvidenceSource:
         raise ValueError(f"Fonte desconhecida: {name}. Opções: {list(EVIDENCE_SOURCES)}")
     kwargs.setdefault("settings", get_settings())
     return EVIDENCE_SOURCES[name](**kwargs)
+
+
+__all__ = [
+    "EVIDENCE_SOURCES",
+    "DuckDuckGoClient",
+    "EvidenceSearchUnavailable",
+    "EvidenceSource",
+    "RSSCheckersSource",
+    "TavilyClient",
+    "WebSearchSource",
+    "get_evidence_source",
+]

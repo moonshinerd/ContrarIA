@@ -117,26 +117,46 @@ class DuckDuckGoClient(CachedSource):
     def enabled(self) -> bool:
         return self.settings.duckduckgo_enabled
 
-    def _news(self, query, limit):
+    def _web(self, query, limit):
         from ddgs import DDGS
+        from ddgs.exceptions import DDGSException
 
-        return DDGS(timeout=int(self.settings.evidence_timeout_seconds)).news(
-            query, region="br-pt", max_results=limit, backend="duckduckgo"
-        )
+        client = DDGS(timeout=int(self.settings.evidence_timeout_seconds))
+        for method in (client.news, client.text):
+            try:
+                rows = method(query, region="br-pt", max_results=limit, backend="duckduckgo")
+            except DDGSException as exc:
+                # ddgs usa a exceção base também para uma resposta legitimamente vazia.
+                # Não confundir subclasses (timeout/cota) ou outros erros com esse caso.
+                is_empty = (
+                    type(exc) is DDGSException
+                    and str(exc).strip().rstrip(".").lower() == "no results found"
+                )
+                if is_empty:
+                    rows = []
+                else:
+                    raise
+            if rows:
+                return rows
+        return []
 
     async def _search(self, query: str, limit: int) -> list[Evidence]:
-        rows = await asyncio.to_thread(self.search_fn or self._news, query, limit)
+        rows = await asyncio.to_thread(self.search_fn or self._web, query, limit)
         return [
             Evidence(
                 source=self.name,
-                url=row["url"],
+                url=row.get("url") or row.get("href", ""),
                 title=row.get("title", ""),
                 snippet=row.get("body", ""),
                 published_at=parse_date(row.get("date")),
             )
             for row in rows
-            if row.get("url")
+            if row.get("url") or row.get("href")
         ][:limit]
+
+
+class EvidenceSearchUnavailable(RuntimeError):
+    """Nenhum resultado utilizável e ao menos um provedor falhou."""
 
 
 class WebSearchSource(EvidenceSource):
@@ -144,11 +164,13 @@ class WebSearchSource(EvidenceSource):
 
     name = "web_search"
 
-    def __init__(self, settings: Settings, *, tavily=None, duckduckgo=None):
+    def __init__(self, settings: Settings, *, tavily=None, duckduckgo=None, raise_on_failure=False):
+        self.raise_on_failure = raise_on_failure
         self.tavily = tavily or TavilyClient(settings)
         self.duckduckgo = duckduckgo or DuckDuckGoClient(settings)
 
     async def search(self, query: str, *, limit: int = 5) -> list[Evidence]:
+        failures = []
         for source in (self.tavily, self.duckduckgo):
             try:
                 result = await source.search(query, limit=limit)
@@ -156,5 +178,8 @@ class WebSearchSource(EvidenceSource):
                     return result
             except Exception as exc:
                 # Não registrar URL/body de exceções: podem conter credenciais e consultas.
+                failures.append(source.name)
                 logger.warning("Fonte %s indisponível (%s)", source.name, type(exc).__name__)
+        if failures and self.raise_on_failure:
+            raise EvidenceSearchUnavailable("Falha ao consultar: " + ", ".join(failures))
         return []
