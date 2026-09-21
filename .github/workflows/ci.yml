@@ -5,6 +5,14 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+# um push novo no mesmo PR cancela a execução anterior
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   api:
     name: api (lint + testes)
@@ -43,6 +51,72 @@ jobs:
           DATABASE_URL="$TEST_DATABASE_URL" uv run alembic upgrade head
       - name: pytest
         run: uv run pytest
+
+  research:
+    name: research (lint + testes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      # research/ não tem pyproject próprio: usa o ruff travado da api e a mesma configuração
+      - name: ruff (config da api)
+        working-directory: api
+        run: |
+          uv sync --frozen
+          uv run ruff check --config pyproject.toml ../research
+          uv run ruff format --check --config pyproject.toml ../research
+      - name: pytest
+        working-directory: research
+        run: |
+          if find . -name 'test_*.py' -o -name '*_test.py' | grep -q .; then
+            uv run --no-project --with-requirements requirements.txt python -m pytest
+          else
+            echo "research/ ainda não tem testes; nada a rodar"
+          fi
+
+  web:
+    name: web (lint + testes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # web/ é pós-MVP: o job passa sem fazer nada até existir um package.json
+      - name: Detectar painel
+        id: web
+        run: |
+          if [ -f web/package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "web/ ainda sem package.json (pós-MVP); nada a validar"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.web.outputs.present == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: lint, typecheck, testes e build
+        if: steps.web.outputs.present == 'true'
+        working-directory: web
+        run: |
+          npm ci
+          npm run lint --if-present
+          npm run typecheck --if-present
+          npm test --if-present
+          npm run build --if-present
+
+  docker:
+    name: docker (compose + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar docker-compose.yml
+        run: |
+          cp api/.env.example api/.env
+          docker compose config -q
+      - name: Build da imagem da api
+        run: docker build -t contraria-api api
 
   docs:
     name: docs (mkdocs build --strict)

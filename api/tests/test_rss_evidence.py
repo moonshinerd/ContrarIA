@@ -102,5 +102,5 @@ def test_registry_and_search_config():
         "rss_checkers", settings=config, repository=SearchRepository(), embedder=FakeEmbedder()
     )
     assert asyncio.run(source.search("alegação")) == []
-    with pytest.raises(ValueError, match="Fonte desconhecida"):
+    with pytest.raises(ValueError, match="Fonte de evidência desconhecida"):
         get_evidence_source("inexistente")

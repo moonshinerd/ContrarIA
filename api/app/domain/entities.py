@@ -29,11 +29,15 @@ class Action(StrEnum):
 class Account:
     did: str
     handle: str
+    display_name: str = ""
+    description: str = ""
+    avatar_url: str | None = None
     created_at: datetime | None = None
     followers_count: int = 0
     follows_count: int = 0
     posts_count: int = 0
     self_labels: list[str] = field(default_factory=list)
+    labels: list[str] = field(default_factory=list)  # todos os rótulos (inclui de labelers)
 
 
 @dataclass
@@ -48,6 +52,8 @@ class Post:
     repost_count: int = 0
     reply_count: int = 0
     quote_count: int = 0
+    author_handle: str = ""
+    is_repost: bool = False  # só em feeds de autor: item é repost de outra conta
 
 
 @dataclass
