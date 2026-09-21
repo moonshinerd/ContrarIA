@@ -1,0 +1,22 @@
+[
+  {
+    "claim": "O STF proibiu Bolsonaro de ampliar benefícios sociais durante o ano da eleição.",
+    "expected_url": "https://www.aosfatos.org/noticias/stf-nao-impediu-aumento-beneficios-bolsonaro/"
+  },
+  {
+    "claim": "Flávio Bolsonaro desistiu de concorrer nas eleições de 2026.",
+    "expected_url": "https://www.agencialupa.org/verificacao/2026/09/18/e-falso-que-flavio-bolsonaro-nao-disputara-as-eleicoes/"
+  },
+  {
+    "claim": "A Polícia Federal deteve um grupo que comprava votos para Lula no estado do Pará.",
+    "expected_url": "https://www.boatos.org/politica/pf-prende-pessoas-que-estariam-comprando-votos-para-lula-no-para.html"
+  },
+  {
+    "claim": "O tribunal eleitoral brasileiro vai organizar a escolha do papa usando votação eletrônica.",
+    "expected_url": "https://www.boatos.org/politica/tse-vai-comandar-a-eleicao-do-novo-papa-com-urnas-eletronicas.html"
+  },
+  {
+    "claim": "Datena anunciou que a intenção de voto em Lula chegou a setenta e cinco por cento.",
+    "expected_url": "https://www.agencialupa.org/eleicoes/2026/09/17/e-falso-video-em-que-datena-declara-que-lula-esta-com-75-de-intencao-de-voto/"
+  }
+]
