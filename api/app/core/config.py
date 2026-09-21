@@ -52,6 +52,8 @@ class Settings(BaseSettings):
         "boatos",
         "comprova",
         "tse",
+        "estadao_verifica",
+        "uol_confere",
     ]
     rss_feed_urls: dict[str, str] = {}
 
