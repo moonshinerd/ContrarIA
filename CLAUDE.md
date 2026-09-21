@@ -78,10 +78,13 @@ Os `-e BLUESKY_*=` vazios são necessários: o `env_file` injeta as credenciais 
 
 - Cada fonte implementa `EvidenceSource` (`app/clients/evidence/base.py`) e se registra por nome em `EVIDENCE_SOURCES`; use `get_evidence_source("wikipedia" | "google_factcheck")`. O benchmark liga e desliga fontes por esse nome.
 - `google_factcheck` precisa de `GOOGLE_FACTCHECK_API_KEY` (lida via `Settings`). A chave é do projeto Google Cloud do Víctor, restrita à Fact Check Tools API. Sem chave, a fonte loga um aviso e devolve `[]`.
-- Falha de rede, cota (429) ou chave inválida vira log + `[]`, nunca exceção; resultado com falha não entra no cache. Nunca logue a URL da requisição do Google: a chave vai na query string.
+- **Cota do Google: 300 requisições/minuto, sem limite diário** (medido no console do projeto). O cliente usa um `RateLimiter` (`ratelimit.py`, janela deslizante, default 240/min em `google_factcheck_rate_per_minute`) que atrasa em vez de descartar. Um 429 abre pausa (respeita `Retry-After`, senão 60 s) em que nada é enviado. `api` e `worker` não compartilham o limitador: a margem de 20% cobre os dois.
+- Erros reais medidos: chave inválida = HTTP **400** (`API_KEY_INVALID`); sem chave = 403; consulta sem resultado = 200 com `{}`.
+- Falha de rede, cota (429) ou chave inválida vira log + `[]`, nunca exceção; resultado com falha não entra no cache.
+- Cache (`TTLCache`): em memória por processo (reinício zera; `api` e `worker` não compartilham), TTL 1 h e teto de 1000 entradas (descarta as mais antigas). A chave ignora maiúsculas e espaços extras. Nunca logue a URL da requisição do Google: a chave vai na query string.
 - `Evidence.rating` é o `textualRating` cru e **não é normalizado** (`falso`, `Falso`, frases inteiras). Quem consome (verificação, benchmark) precisa normalizar.
 - Os clientes aceitam `transport=` para testes com `httpx.MockTransport`. As fixtures em `api/tests/fixtures/evidence/` são respostas reais gravadas; para regravar, chame a API real e salve o JSON sem a chave.
-- Wikipédia: `User-Agent` identificável é exigido pela política da Wikimedia; o summary de cada resultado é buscado em paralelo.
+- Wikipédia: `User-Agent` identificável é exigido pela política da Wikimedia; o summary de cada resultado é buscado em paralelo, com no máximo 5 requisições simultâneas.
 
 ## Issues e Project
 

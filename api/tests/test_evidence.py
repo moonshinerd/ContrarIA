@@ -9,6 +9,7 @@ import pytest
 from app.clients.evidence import EVIDENCE_SOURCES, get_evidence_source
 from app.clients.evidence.cache import TTLCache
 from app.clients.evidence.google_factcheck import GoogleFactCheckClient
+from app.clients.evidence.ratelimit import RateLimiter
 from app.clients.evidence.wikipedia import WikipediaClient
 
 FIXTURES = Path(__file__).parent / "fixtures" / "evidence"
@@ -216,3 +217,107 @@ async def test_wikipedia_search_failure_logs_and_returns_empty(caplog):
         assert await WikipediaClient(transport=rec.transport).search("urna") == []
 
     assert "HTTP 503" in caplog.text
+
+
+async def test_google_factcheck_429_opens_cooldown_and_honors_retry_after(caplog):
+    calls = iter([httpx.Response(429, headers={"Retry-After": "30"})])
+    rec = Recorder(lambda request: next(calls))
+    client = google(rec)
+
+    with caplog.at_level(logging.WARNING):
+        assert await client.search("urna") == []
+        assert await client.search("outra consulta") == []
+
+    assert len(rec.requests) == 1  # a segunda nem chegou a sair
+    assert "em pausa" in caplog.text
+    assert 25 < client._blocked_until - time.monotonic() <= 30
+
+
+async def test_google_factcheck_resumes_after_cooldown(monkeypatch):
+    calls = iter(
+        [httpx.Response(429), httpx.Response(200, json=load("google_factcheck_search.json"))]
+    )
+    rec = Recorder(lambda request: next(calls))
+    client = google(rec)
+
+    assert await client.search("urna") == []
+    client._blocked_until = 0.0  # pausa vencida
+
+    assert len(await client.search("urna")) > 0
+
+
+async def test_rate_limiter_delays_calls_over_the_limit():
+    now = 0.0
+    waited: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        nonlocal now
+        waited.append(seconds)
+        now += seconds
+
+    limiter = RateLimiter(2, period=60.0, clock=lambda: now, sleep=fake_sleep)
+    for _ in range(3):
+        await limiter.acquire()
+
+    assert waited == [60.0]  # a 3ª chamada esperou a janela abrir
+
+
+async def test_google_factcheck_uses_rate_limiter_per_request():
+    rec = Recorder(lambda request: httpx.Response(200, json={}))
+    acquired = 0
+
+    class Counting(RateLimiter):
+        async def acquire(self) -> None:
+            nonlocal acquired
+            acquired += 1
+
+    client = google(rec, rate_limiter=Counting(10))
+    await client.search("a")
+    await client.search("b")
+    await client.search("a")  # vem do cache: não gasta cota
+
+    assert acquired == 2
+
+
+async def test_cache_key_ignores_case_and_spacing():
+    rec = Recorder(lambda request: httpx.Response(200, json=load("google_factcheck_search.json")))
+    client = google(rec)
+
+    await client.search("Urna  Eletrônica")
+    await client.search("urna eletrônica ")
+
+    assert len(rec.requests) == 1
+
+
+def test_ttl_cache_evicts_oldest_beyond_max_entries():
+    cache = TTLCache(ttl_seconds=60, max_entries=2)
+    for key in ("a", "b", "c"):
+        cache.set(key, key)
+
+    assert len(cache) == 2
+    assert cache.get("a") is None
+    assert cache.get("c") == "c"
+
+
+async def test_wikipedia_limits_concurrent_summary_requests():
+    import asyncio
+
+    active = peak = 0
+    search = load("wikipedia_search.json")
+    search["query"]["search"] = search["query"]["search"] * 4  # 8 resultados
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal active, peak
+        if "/page/summary/" not in request.url.path:
+            return httpx.Response(200, json=search)
+        active += 1
+        peak = max(peak, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return httpx.Response(200, json=load("wikipedia_summary.json"))
+
+    client = WikipediaClient(transport=httpx.MockTransport(handler), max_concurrency=3)
+    evidences = await client.search("urna", limit=8)
+
+    assert len(evidences) == 8
+    assert peak <= 3

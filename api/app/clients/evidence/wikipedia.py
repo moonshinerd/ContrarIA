@@ -29,8 +29,10 @@ class WikipediaClient(EvidenceSource):
         timeout: float = 10.0,
         ttl_seconds: int = 3600,
         transport: httpx.AsyncBaseTransport | None = None,
+        max_concurrency: int = 5,
     ):
         self.timeout = timeout
+        self.max_concurrency = max_concurrency
         self.transport = transport
         self.base_search_url = "https://pt.wikipedia.org/w/api.php"
         self.base_summary_url = "https://pt.wikipedia.org/api/rest_v1/page/summary"
@@ -39,7 +41,7 @@ class WikipediaClient(EvidenceSource):
         self.cache = TTLCache(ttl_seconds=ttl_seconds)
 
     async def search(self, query: str, *, limit: int = 5) -> list[Evidence]:
-        cache_key = f"{query}:{limit}"
+        cache_key = f"{' '.join(query.split()).casefold()}:{limit}"
         cached = self.cache.get(cache_key)
         if cached is not None:
             return list(cached)
@@ -64,19 +66,25 @@ class WikipediaClient(EvidenceSource):
                 return []
 
             titled = [item for item in results if item.get("title")]
-            evidences = list(await asyncio.gather(*(self._to_evidence(client, i) for i in titled)))
+            gate = asyncio.Semaphore(self.max_concurrency)
+            evidences = list(
+                await asyncio.gather(*(self._to_evidence(client, gate, i) for i in titled))
+            )
 
         self.cache.set(cache_key, evidences)
         return list(evidences)
 
-    async def _to_evidence(self, client: httpx.AsyncClient, item: dict) -> Evidence:
+    async def _to_evidence(
+        self, client: httpx.AsyncClient, gate: asyncio.Semaphore, item: dict
+    ) -> Evidence:
         title = item["title"]
         slug = quote(title.replace(" ", "_"), safe="")
         page_url = f"https://pt.wikipedia.org/wiki/{slug}"
         snippet = html.unescape(_TAGS.sub("", item.get("snippet", "")))
 
         try:
-            resp = await client.get(f"{self.base_summary_url}/{slug}")
+            async with gate:
+                resp = await client.get(f"{self.base_summary_url}/{slug}")
             resp.raise_for_status()
             summary = resp.json()
             snippet = summary.get("extract") or snippet
