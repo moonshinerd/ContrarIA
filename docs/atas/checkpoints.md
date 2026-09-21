@@ -14,7 +14,7 @@ Na ausência de sprints tradicionais de longa duração, a equipe realiza **chec
 
 ---
 
-## Checkpoint 1 – 18/09/2026 (Quinta-feira)
+## Checkpoint 1 – 18/09/2026 (Sexta-feira)
 
 * **Marco temporal**: Início das trilhas paralelas de desenvolvimento após congelamento do setup.
 

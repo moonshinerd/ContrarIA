@@ -82,7 +82,7 @@ Para garantir independência e paralelismo, o time foi dividido em 3 duplas com 
 ### Regras Operacionais Deliberadas
 1. **Desenvolvimento Orientado a Contratos**: As portas de domínio (`entities.py`, `LLMPort`, `EvidenceSource`) foram congeladas no setup inicial; qualquer alteração de contrato exige alinhamento com as outras duplas.
 2. **Revisão por Pares Obrigatória**: Nenhum código ou documento entra na branch `main` sem PR e aprovação da outra pessoa da dupla.
-3. **Checkpoints Bienais**: A cada 2 dias, o progresso consolidado será aferido e documentado em atas de checkpoint.
+3. **Checkpoints a cada dois dias**: O progresso consolidado será aferido e documentado em atas de checkpoint.
 
 ---
 
