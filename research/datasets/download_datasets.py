@@ -8,9 +8,10 @@ Os dados brutos e unificados são salvos em `research/datasets/data/`, ignorados
 """
 
 import argparse
-from pathlib import Path
+import subprocess
 import sys
-import urllib.request
+from pathlib import Path
+
 import pandas as pd
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -24,28 +25,27 @@ FAKE_RECOGNA_URL = (
 def download_file(url: str, dest_path: Path, force: bool = False) -> None:
     """Baixa um arquivo apenas se não existir ou se force=True."""
     if dest_path.exists() and not force and dest_path.stat().st_size > 0:
-        print(f"[OK] Já existe: {dest_path.name} ({dest_path.stat().st_size / 1024 / 1024:.2f} MB)")
+        mb = dest_path.stat().st_size / 1024 / 1024
+        print(f"[OK] Já existe: {dest_path.name} ({mb:.2f} MB)")
         return
 
     print(f"[*] Baixando {dest_path.name} de {url}...")
     dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-    import subprocess
-    # No macOS, curl utiliza o keychain nativo com certificados confiaveis
+    # No macOS, curl utiliza o keychain nativo com certificados confiáveis
     cmd = ["curl", "-sSL", "-A", "ContrarIA-Research/1.0", "-o", str(dest_path), url]
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode != 0 or not dest_path.exists() or dest_path.stat().st_size == 0:
         raise RuntimeError(f"Falha ao baixar {url} com curl: {res.stderr}")
 
-    print(f"[CONCLUÍDO] Salvo em {dest_path.name} ({dest_path.stat().st_size / 1024 / 1024:.2f} MB)")
+    mb = dest_path.stat().st_size / 1024 / 1024
+    print(f"[CONCLUÍDO] Salvo em {dest_path.name} ({mb:.2f} MB)")
 
 
 def load_and_standardize_fake_br(csv_path: Path) -> pd.DataFrame:
     """Padroniza o Fake.br Corpus."""
     print("[*] Processando Fake.br Corpus...")
     df = pd.read_csv(csv_path)
-    # Colunas: index, label, preprocessed_news
-    # label: 'fake' ou 'true'
     processed = pd.DataFrame(
         {
             "text": df["preprocessed_news"].fillna("").astype(str),
@@ -64,8 +64,7 @@ def load_and_standardize_fake_recogna(csv_path: Path) -> pd.DataFrame:
     """Padroniza o FakeRecogna (0.0 = Fake [boatos.org, e-farsas], 1.0 = Real [uol, g1])."""
     print("[*] Processando FakeRecogna...")
     df = pd.read_csv(csv_path)
-    # Colunas: Titulo, Subtitulo, Noticia, Categoria, Data, Autor, URL, Classe
-    # 0 = Fake -> rotulo 1; 1 = Real -> rotulo 0
+    # 0 = Fake -> rótulo 1; 1 = Real -> rótulo 0
     is_fake = (pd.to_numeric(df["Classe"], errors="coerce") == 0).astype(int)
 
     titles = df["Titulo"].fillna("").astype(str).str.strip()
@@ -90,7 +89,11 @@ def load_and_standardize_fake_recogna(csv_path: Path) -> pd.DataFrame:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Download e preparação dos datasets de Fake News.")
-    parser.add_argument("--force", action="store_true", help="Força novo download mesmo se o arquivo já existir.")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Força novo download mesmo se o arquivo já existir.",
+    )
     args = parser.parse_args()
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
