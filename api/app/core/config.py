@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     llm_api_base_url: str = ""
 
     google_factcheck_api_key: str = ""
+    # Cota real da Fact Check Tools API: 300 requisições/minuto (sem limite diário).
+    # Ficamos com margem para não estourar quando api e worker consultam juntos.
+    google_factcheck_rate_per_minute: int = 240
     tavily_api_key: str = ""
 
     daily_llm_budget_usd: float = 1.0
