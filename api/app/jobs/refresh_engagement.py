@@ -22,7 +22,7 @@ class EngagementRefresher:
     def _get_candidate_uris(self) -> list[str]:
         # Posts das últimas 48 horas
         limit_time = datetime.now(UTC) - timedelta(hours=48)
-        with Session(self.engine) as session:
+        with Session(self.engine) as session, session.begin():
             # Pegar URIs que precisam de refresh
             # Filtrar por data e ordenar por prioridade ou first_seen_at
             statement = (
@@ -42,7 +42,7 @@ class EngagementRefresher:
         snapshots = []
         uris = [p.uri for p in hydrated_posts]
 
-        with Session(self.engine) as session:
+        with Session(self.engine) as session, session.begin():
             # Pegar o último snapshot para cada URI
             # Para isso usaremos uma query agregada ou apenas faremos distinct on
             # Postgres: SELECT DISTINCT ON (uri) ... ORDER BY uri, ts DESC
@@ -63,75 +63,71 @@ class EngagementRefresher:
 
             from app.db.orm.posts import Post
 
-            with session.begin():
-                for p in hydrated_posts:
-                    snapshots.append(
-                        {
-                            "uri": p.uri,
-                            "ts": now,
-                            "likes": p.like_count,
-                            "reposts": p.repost_count,
-                            "replies": p.reply_count,
-                            "quotes": p.quote_count,
-                        }
-                    )
+            
+            for p in hydrated_posts:
+                snapshots.append(
+                    {
+                        "uri": p.uri,
+                        "ts": now,
+                        "likes": p.like_count,
+                        "reposts": p.repost_count,
+                        "replies": p.reply_count,
+                        "quotes": p.quote_count,
+                    }
+                )
 
-                    last_snap = last_snapshots.get(p.uri)
-                    velocity = 0.0
+                last_snap = last_snapshots.get(p.uri)
+                velocity = 0.0
 
-                    if last_snap:
-                        delta_hours = (now - last_snap.ts).total_seconds() / 3600.0
-                        if delta_hours > 0:
-                            current_interactions = (
-                                p.like_count + p.repost_count + p.reply_count + p.quote_count
-                            )
-                            old_interactions = (
-                                last_snap.likes
-                                + last_snap.reposts
-                                + last_snap.replies
-                                + last_snap.quotes
-                            )
-                            velocity = max(
-                                0.0, (current_interactions - old_interactions) / delta_hours
-                            )
-
-                    # Followers count? The getPosts API doesn't return author followers count.
-                    # getPosts doesn't have followers count.
-                    # The entity Post does not have followers_count. The Account entity does.
-                    # If we don't have followers count, we default to 0 for now.
-                    relevance = calculate_relevance(
-                        likes=p.like_count,
-                        reposts=p.repost_count,
-                        replies=p.reply_count,
-                        quotes=p.quote_count,
-                        velocity=velocity,
-                        followers=0,  # TODO: fetch author profile or adjust relevance calculation
-                    )
-
-                    triage_result = evaluate_gq04_matrix(
-                        is_political=True,  # Já foi filtrado antes na coleta
-                        relevance=relevance,
-                        bot_suspicion=0.0,  # Ainda não preenchido nesta etapa
-                        falsehood_chance=0.0,  # Ainda não preenchido nesta etapa
-                        public_harm_risk=False,  # Ainda não preenchido nesta etapa
-                        threshold_relevance=1.0,  # TODO: extrair da config
-                        threshold_bot=0.8,
-                        threshold_falsehood=0.8,
-                    )
-
-                    up_stmt = (
-                        update(Post)
-                        .where(Post.uri == p.uri)
-                        .values(
-                            priority=triage_result.priority,
-                            triage_status=triage_result.triage_status,
+                if last_snap:
+                    delta_hours = (now - (last_snap.ts.replace(tzinfo=UTC) if last_snap.ts.tzinfo is None else last_snap.ts)).total_seconds() / 3600.0
+                    if delta_hours > 0:
+                        current_interactions = (
+                            p.like_count + p.repost_count + p.reply_count + p.quote_count
                         )
-                    )
-                    session.execute(up_stmt)
+                        old_interactions = (
+                            last_snap.likes
+                            + last_snap.reposts
+                            + last_snap.replies
+                            + last_snap.quotes
+                        )
+                        velocity = max(
+                            0.0, (current_interactions - old_interactions) / delta_hours
+                        )
 
-                if snapshots:
-                    ins_stmt = insert(PostEngagementSnapshot).values(snapshots)
-                    session.execute(ins_stmt.on_conflict_do_nothing(index_elements=["uri", "ts"]))
+                relevance = calculate_relevance(
+                    likes=p.like_count,
+                    reposts=p.repost_count,
+                    replies=p.reply_count,
+                    quotes=p.quote_count,
+                    velocity=velocity,
+                    followers=0,  # TODO: fetch author profile or adjust relevance calculation
+                )
+
+                triage_result = evaluate_gq04_matrix(
+                    is_political=True,  # Já foi filtrado antes na coleta
+                    relevance=relevance,
+                    bot_suspicion=0.0,  # Ainda não preenchido nesta etapa
+                    falsehood_chance=0.0,  # Ainda não preenchido nesta etapa
+                    public_harm_risk=False,  # Ainda não preenchido nesta etapa
+                    threshold_relevance=1.0,  # TODO: extrair da config
+                    threshold_bot=0.8,
+                    threshold_falsehood=0.8,
+                )
+
+                up_stmt = (
+                    update(Post)
+                    .where(Post.uri == p.uri)
+                    .values(
+                        priority=triage_result.priority,
+                        triage_status=triage_result.triage_status,
+                    )
+                )
+                session.execute(up_stmt)
+
+            if snapshots:
+                ins_stmt = insert(PostEngagementSnapshot).values(snapshots)
+                session.execute(ins_stmt.on_conflict_do_nothing(index_elements=["uri", "ts"]))
 
     async def run(self):
         while True:

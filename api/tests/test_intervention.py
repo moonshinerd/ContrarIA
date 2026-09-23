@@ -42,7 +42,7 @@ async def test_intervention_dry_run(mock_repo, mock_bsky, mock_llm, monkeypatch)
         cid="cid1",
         author_did="did:1",
         text="fake",
-        created_at=datetime.now(UTC)
+        created_at=datetime.now(UTC),
     )
     author = Account(did="did:1", handle="user")
     verdict = Verdict(
@@ -71,7 +71,7 @@ async def test_intervention_live(mock_repo, mock_bsky, mock_llm):
         cid="cid1",
         author_did="did:1",
         text="fake",
-        created_at=datetime.now(UTC)
+        created_at=datetime.now(UTC),
     )
     author = Account(did="did:1", handle="user")
     verdict = Verdict(
@@ -99,7 +99,7 @@ async def test_intervention_anti_loop_daily_limit(mock_repo, mock_bsky, mock_llm
         cid="cid1",
         author_did="did:1",
         text="fake",
-        created_at=datetime.now(UTC)
+        created_at=datetime.now(UTC),
     )
     author = Account(did="did:1", handle="user")
     verdict = Verdict(
@@ -124,7 +124,7 @@ async def test_intervention_anti_loop_postgate(mock_repo, mock_bsky, mock_llm):
         cid="cid1",
         author_did="did:1",
         text="fake",
-        created_at=datetime.now(UTC)
+        created_at=datetime.now(UTC),
     )
     author = Account(did="did:1", handle="user")
     verdict = Verdict(
@@ -136,4 +136,100 @@ async def test_intervention_anti_loop_postgate(mock_repo, mock_bsky, mock_llm):
     )
 
     res = await service.execute_intervention(post, author, verdict, bot_score=0.1)
+    assert res is None
+
+
+@pytest.mark.asyncio
+async def test_intervention_low_confidence(mock_repo, mock_bsky, mock_llm):
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    post = Post(
+        uri="at://p1", cid="c1", author_did="did:1", text="fake", created_at=datetime.now(UTC)
+    )
+    author = Account(did="did:1", handle="user")
+    verdict = Verdict(
+        claim="c", label=VerdictLabel.FALSE, confidence=0.7, rationale="r", evidences=[]
+    )
+    res = await service.execute_intervention(post, author, verdict, 0.1)
+    assert res is None
+
+
+@pytest.mark.asyncio
+async def test_intervention_author_is_bot_self(mock_repo, mock_bsky, mock_llm):
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    post = Post(
+        uri="at://p1",
+        cid="c1",
+        author_did="did:bot:self",
+        text="fake",
+        created_at=datetime.now(UTC),
+    )
+    author = Account(did="did:bot:self", handle="user")
+    verdict = Verdict(
+        claim="c", label=VerdictLabel.FALSE, confidence=0.9, rationale="r", evidences=[]
+    )
+    res = await service.execute_intervention(post, author, verdict, 0.1)
+    assert res is None
+
+
+@pytest.mark.asyncio
+async def test_intervention_author_self_labeled_bot(mock_repo, mock_bsky, mock_llm):
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    post = Post(
+        uri="at://p1", cid="c1", author_did="did:1", text="fake", created_at=datetime.now(UTC)
+    )
+    author = Account(did="did:1", handle="user", self_labels=["bot"])
+    verdict = Verdict(
+        claim="c", label=VerdictLabel.FALSE, confidence=0.9, rationale="r", evidences=[]
+    )
+    res = await service.execute_intervention(post, author, verdict, 0.1)
+    assert res is None
+
+
+@pytest.mark.asyncio
+async def test_intervention_post_already_intervened(mock_repo, mock_bsky, mock_llm):
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    mock_repo.has_intervened_on_post.return_value = True
+    post = Post(
+        uri="at://p1", cid="c1", author_did="did:1", text="fake", created_at=datetime.now(UTC)
+    )
+    author = Account(did="did:1", handle="user")
+    verdict = Verdict(
+        claim="c", label=VerdictLabel.FALSE, confidence=0.9, rationale="r", evidences=[]
+    )
+    res = await service.execute_intervention(post, author, verdict, 0.1)
+    assert res is None
+
+
+@pytest.mark.asyncio
+async def test_intervention_author_already_intervened(mock_repo, mock_bsky, mock_llm):
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    mock_repo.count_interventions_by_author_in_last_24h.return_value = 1
+    post = Post(
+        uri="at://p1", cid="c1", author_did="did:1", text="fake", created_at=datetime.now(UTC)
+    )
+    author = Account(did="did:1", handle="user")
+    verdict = Verdict(
+        claim="c", label=VerdictLabel.FALSE, confidence=0.9, rationale="r", evidences=[]
+    )
+    res = await service.execute_intervention(post, author, verdict, 0.1)
+    assert res is None
+
+
+@pytest.mark.asyncio
+async def test_intervention_live_fail(mock_repo, mock_bsky, mock_llm):
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    service.settings.intervention_dry_run = False
+    mock_bsky.quote_post.side_effect = Exception("API fail")
+    post = Post(
+        uri="at://p1", cid="c1", author_did="did:1", text="fake", created_at=datetime.now(UTC)
+    )
+    author = Account(did="did:1", handle="user")
+    verdict = Verdict(
+        claim="c",
+        label=VerdictLabel.FALSE,
+        confidence=0.9,
+        rationale="r",
+        evidences=[Evidence("t", "u", "s", "d")],
+    )
+    res = await service.execute_intervention(post, author, verdict, 0.1)
     assert res is None
