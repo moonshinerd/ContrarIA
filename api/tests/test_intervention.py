@@ -28,7 +28,7 @@ def mock_bsky():
 @pytest.fixture
 def mock_llm():
     llm = AsyncMock()
-    llm.generate.return_value = "Isso não confere com os dados públicos. O que acha?"
+    llm.complete.return_value = "Isso não confere com os dados públicos. O que acha?"
     return llm
 
 
@@ -56,9 +56,9 @@ async def test_intervention_dry_run(mock_repo, mock_bsky, mock_llm, monkeypatch)
     res = await service.execute_intervention(post, author, verdict, bot_score=0.1)
 
     assert res == "dry_run_uri"
-    mock_llm.generate.assert_called_once()
+    mock_llm.complete.assert_called_once()
     mock_bsky.quote_post.assert_not_called()
-    mock_repo.record_intervention.assert_called_once_with(post.uri, post.author_did, "quote_post")
+    mock_repo.record_intervention.assert_not_called()
 
 
 @pytest.mark.asyncio

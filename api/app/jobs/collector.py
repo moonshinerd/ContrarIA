@@ -43,7 +43,7 @@ class JetstreamConsumer:
 
         record = commit.get("record", {})
         langs = record.get("langs", [])
-        if not langs or "pt" not in langs:
+        if not any(lang.casefold().startswith("pt") for lang in langs if isinstance(lang, str)):
             return None
 
         text = record.get("text", "")
@@ -78,14 +78,6 @@ class JetstreamConsumer:
         }
 
     async def run(self):
-        cursor = self.repo.get_cursor("jetstream")
-        if cursor > 0:
-            cursor = max(0, cursor - 5_000_000)
-
-        url = self.stream_url
-        if cursor > 0:
-            url += f"&cursor={cursor}"
-
         import ssl
 
         import certifi
@@ -94,16 +86,23 @@ class JetstreamConsumer:
 
         while True:
             try:
+                cursor = self.repo.get_cursor("jetstream")
+                if cursor > 0:
+                    cursor = max(0, cursor - 5_000_000)
+                url = self.stream_url
+                if cursor > 0:
+                    url += f"&cursor={cursor}"
                 async with websockets.connect(url, ssl=ssl_context) as ws:
                     logger.info("Conectado ao Jetstream em %s", url)
                     while True:
                         msg = await ws.recv()
                         post_data = self.parse_message(msg)
+                        time_us = json.loads(msg).get("time_us")
                         if post_data:
-                            time_us = post_data.pop("time_us", None)
+                            post_data.pop("time_us", None)
                             self.repo.upsert_posts([post_data])
-                            if time_us:
-                                self.repo.set_cursor("jetstream", time_us)
+                        if time_us:
+                            self.repo.set_cursor("jetstream", time_us)
 
             except websockets.exceptions.ConnectionClosed:
                 logger.warning("Conexão Jetstream fechada, reconectando em 5s...")

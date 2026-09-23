@@ -404,8 +404,20 @@ class BlueskyClient:
             for rule in rules:
                 if rule.get("$type") == "app.bsky.feed.postgate#disableRule":
                     return True
-        except Exception:
-            return False
+        except BadRequestError as exc:
+            # A ausência do record é a forma normal de indicar que não há postgate.
+            if _xrpc_error(exc) == RECORD_NOT_FOUND:
+                return False
+            logger.warning(
+                "postgate check failed; blocking quote", extra={"error": _xrpc_error(exc)}
+            )
+            return True
+        except Exception as exc:
+            # Sem conseguir verificar o postgate, a escolha segura é não publicar.
+            logger.warning(
+                "postgate check failed; blocking quote", extra={"error": type(exc).__name__}
+            )
+            return True
         return False
 
     async def close(self) -> None:

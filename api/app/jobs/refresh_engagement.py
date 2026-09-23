@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.clients.bluesky_client import BlueskyClient
+from app.core.config import get_settings
 from app.db.orm.posts import Post, PostEngagementSnapshot
 from app.domain.prioritization import calculate_relevance, evaluate_gq04_matrix
 
@@ -39,6 +40,7 @@ class EngagementRefresher:
             return
 
         now = datetime.now(UTC)
+        settings = get_settings()
         snapshots = []
         uris = [p.uri for p in hydrated_posts]
 
@@ -105,18 +107,18 @@ class EngagementRefresher:
                     replies=p.reply_count,
                     quotes=p.quote_count,
                     velocity=velocity,
-                    followers=0,  # TODO: fetch author profile or adjust relevance calculation
+                    followers=0,
                 )
 
                 triage_result = evaluate_gq04_matrix(
                     is_political=True,  # Já foi filtrado antes na coleta
                     relevance=relevance,
-                    bot_suspicion=0.0,  # Ainda não preenchido nesta etapa
-                    falsehood_chance=0.0,  # Ainda não preenchido nesta etapa
-                    public_harm_risk=False,  # Ainda não preenchido nesta etapa
-                    threshold_relevance=1.0,  # TODO: extrair da config
-                    threshold_bot=0.8,
-                    threshold_falsehood=0.8,
+                    bot_suspicion=0.0,
+                    falsehood_chance=0.0,
+                    public_harm_risk=False,
+                    threshold_relevance=settings.triage_threshold_relevance,
+                    threshold_bot=settings.triage_threshold_bot,
+                    threshold_falsehood=settings.triage_threshold_falsehood,
                 )
 
                 up_stmt = (

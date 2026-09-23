@@ -117,10 +117,25 @@ def compute_content_features(posts: list[Post]) -> dict[str, float]:
 
     total = len(posts)
 
-    # Duplicate ratio
+    # Duplicate ratio, incluindo quase-duplicatas via Jaccard de shingles.
     texts = [p.text.strip().lower() for p in posts if p.text]
-    unique_texts = set(texts)
-    duplicate_ratio = 1.0 - (len(unique_texts) / max(1, len(texts))) if texts else 0.0
+    fingerprints: list[set[str]] = []
+    for text in texts:
+        tokens = re.findall(r"\w+", text)
+        fingerprints.append(
+            {" ".join(tokens[index : index + 3]) for index in range(max(1, len(tokens) - 2))}
+        )
+    duplicate_count = 0
+    for index, fingerprint in enumerate(fingerprints):
+        is_duplicate = False
+        for previous in fingerprints[:index]:
+            union = fingerprint | previous
+            similarity = len(fingerprint & previous) / len(union) if union else 1.0
+            if similarity >= 0.8:
+                is_duplicate = True
+                break
+        duplicate_count += int(is_duplicate)
+    duplicate_ratio = duplicate_count / len(texts) if texts else 0.0
 
     # Repost ratio
     reposts = sum(1 for p in posts if getattr(p, "is_repost", False))

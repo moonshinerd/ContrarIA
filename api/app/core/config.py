@@ -76,8 +76,14 @@ class Settings(BaseSettings):
 
     daily_llm_budget_usd: float = 1.0
     daily_max_interventions: int = 20
+    daily_write_points_budget: int = 60
+    intervention_write_points: int = 3
     intervention_dry_run: bool = True
     worker_tick_seconds: int = 30
+    triage_threshold_relevance: float = 1.0
+    triage_threshold_bot: float = 0.8
+    triage_threshold_falsehood: float = 0.8
+    worker_pipeline_batch_size: int = 5
 
 
 @lru_cache

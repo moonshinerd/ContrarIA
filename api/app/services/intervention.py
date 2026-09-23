@@ -1,4 +1,5 @@
 import logging
+import unicodedata
 
 from app.clients.bluesky_client import BlueskyClient
 from app.core.config import get_settings
@@ -8,6 +9,27 @@ from app.repositories.interventions import InterventionRepository
 from app.services.prompts_loader import load_prompt
 
 logger = logging.getLogger("contraria.services.intervention")
+
+_AGGRESSIVE_TERMS = ("idiota", "burro", "imbecil", "estúpido", "estupido", "lixo")
+
+
+def _grapheme_len(text: str) -> int:
+    """Conta aproximação de grafemas sem depender de biblioteca externa."""
+    return sum(not unicodedata.combining(char) for char in text)
+
+
+def _truncate_graphemes(text: str, limit: int) -> str:
+    if _grapheme_len(text) <= limit:
+        return text
+    result: list[str] = []
+    count = 0
+    for char in text:
+        if not unicodedata.combining(char):
+            count += 1
+        if count > limit - 1:
+            break
+        result.append(char)
+    return "".join(result).rstrip() + "…"
 
 
 class InterventionService:
@@ -60,6 +82,17 @@ class InterventionService:
             logger.info("Limite diário de intervenções atingido (%d)", daily_max)
             return False
 
+        consumed_points = (
+            self.repo.count_interventions_in_last_24h("quote_post")
+            * self.settings.intervention_write_points
+        )
+        if (
+            consumed_points + self.settings.intervention_write_points
+            > self.settings.daily_write_points_budget
+        ):
+            logger.info("Orçamento diário de pontos de escrita atingido")
+            return False
+
         # Postgate
         if await self.bsky_client.has_postgate_quote_disabled(post.uri):
             logger.info("Post %s tem postgate desabilitando quote", post.uri)
@@ -88,11 +121,18 @@ class InterventionService:
         )
 
         logger.info("Gerando texto de intervenção (LLM)...")
-        generated_text = await self.llm.generate(prompt)
+        generated_text = await self.llm.complete(
+            system=prompt,
+            user="Gere apenas o texto final do quote post.",
+            purpose="quote_post",
+        )
 
         # Guardrails pós-geração
-        if len(generated_text) > 280:
-            generated_text = generated_text[:277] + "..."
+        generated_text = _truncate_graphemes(generated_text.strip(), 292)
+        is_aggressive = any(term in generated_text.casefold() for term in _AGGRESSIVE_TERMS)
+        if not generated_text or is_aggressive:
+            logger.warning("Texto de intervenção reprovado pelos guardrails")
+            return None
 
         is_dry_run = getattr(self.settings, "intervention_dry_run", True)
 
@@ -102,7 +142,6 @@ class InterventionService:
                 generated_text,
                 source_url,
             )
-            self.repo.record_intervention(post.uri, post.author_did, "quote_post")
             return "dry_run_uri"
 
         logger.info("Publicando quote post para %s...", post.uri)

@@ -59,6 +59,9 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?Defina o domínio público da API}
+      OZONE_DOMAIN: ${OZONE_DOMAIN:?Defina o domínio público do Ozone}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
