@@ -1,0 +1,24 @@
+{
+    # Global options
+}
+
+# Assume DNS API_DOMAIN is used. If not provided, it will bind to domain or just placeholder
+{$API_DOMAIN:api.contraria.local}, {$OZONE_DOMAIN:ozone.contraria.local} {
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        X-XSS-Protection "1; mode=block"
+    }
+
+    # Block sensitive paths
+    @blocked path /.env* /.git*
+    respond @blocked 403
+
+    # Reverse proxy to FastAPI
+    reverse_proxy api:8000 {
+        health_uri /health
+        health_interval 10s
+    }
+}
