@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     llm_max_retries: int = 3
     debate_rounds: int = 2
     debate_p_ik_threshold: float = 0.60
+    crc_alpha: float = Field(default=0.05, gt=0, lt=1)
+    crc_model_name: str = ""
 
     google_factcheck_api_key: str = ""
     # Cota real da Fact Check Tools API: 300 requisições/minuto (sem limite diário).
