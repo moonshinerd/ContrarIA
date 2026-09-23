@@ -127,16 +127,35 @@ class DebateService:
         cleaned = re.sub(r"\s*```$", "", cleaned)
         return cleaned.strip()
 
+    @staticmethod
+    def _parse_consensus(value: Any) -> bool:
+        """Interpreta consenso sem tratar a string ``false`` como verdadeira."""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            normalized = value.strip().casefold()
+            if normalized in {"true", "verdadeiro", "sim"}:
+                return True
+            if normalized in {"false", "falso", "não", "nao"}:
+                return False
+        return False
+
     async def conduct_debate(
         self,
         claim: str,
         post_text: str,
         evidences: list[Evidence],
         rounds: int | None = None,
+        verified_answers: list[str] | None = None,
     ) -> DebateVerdict:
         """Executa as N rodadas de debate e emite o veredito final do Juiz."""
         num_rounds = rounds or self.settings.debate_rounds
         evidences_text, evidence_map = self._format_evidences(evidences)
+        answers_text = (
+            "\n".join(f"- {answer}" for answer in verified_answers)
+            if verified_answers
+            else "Nenhuma resposta verificada disponível."
+        )
 
         promotor_prompt = load_prompt("promotor", version=1)
         defensor_prompt = load_prompt("defensor", version=1)
@@ -152,6 +171,7 @@ class DebateService:
                 f"ALEGAÇÃO SOB JULGAMENTO:\n{claim}\n\n"
                 f"TEXTO DA POSTAGEM ORIGINAL:\n{post_text}\n\n"
                 f"EVIDÊNCIAS CATALOGADAS:\n{evidences_text}\n\n"
+                f"RESPOSTAS VERIFICADAS PELO SELF-RAG:\n{answers_text}\n\n"
                 f"HISTÓRICO DO DEBATE ATÉ O MOMENTO:\n{history_text}\n\n"
                 f"Apresente seus argumentos para a Rodada {r}:"
             )
@@ -177,6 +197,7 @@ class DebateService:
                 f"ALEGAÇÃO SOB JULGAMENTO:\n{claim}\n\n"
                 f"TEXTO DA POSTAGEM ORIGINAL:\n{post_text}\n\n"
                 f"EVIDÊNCIAS CATALOGADAS:\n{evidences_text}\n\n"
+                f"RESPOSTAS VERIFICADAS PELO SELF-RAG:\n{answers_text}\n\n"
                 f"HISTÓRICO DO DEBATE ATÉ O MOMENTO:\n{history_text}\n\n"
                 f"Apresente seus contra-argumentos de defesa para a Rodada {r}:"
             )
@@ -202,6 +223,7 @@ class DebateService:
             f"ALEGAÇÃO SOB JULGAMENTO:\n{claim}\n\n"
             f"TEXTO DA POSTAGEM ORIGINAL:\n{post_text}\n\n"
             f"EVIDÊNCIAS CATALOGADAS:\n{evidences_text}\n\n"
+            f"RESPOSTAS VERIFICADAS PELO SELF-RAG:\n{answers_text}\n\n"
             f"TRANSCRIÇÃO COMPLETA DAS {num_rounds} RODADAS DO DEBATE:\n{full_history}\n\n"
             "Emita seu veredito no formato JSON especificado:"
         )
@@ -244,7 +266,7 @@ class DebateService:
         confidence = float(parsed.get("confidence", 0.5))
         rationale = str(parsed.get("rationale", "")).strip()
         cited_ids = list(parsed.get("cited_evidence_ids", []))
-        consensus = bool(parsed.get("consensus", True))
+        consensus = self._parse_consensus(parsed.get("consensus", False))
         p_ik = float(parsed.get("p_ik", confidence))
 
         # Aplicação das regras de Humildade Epistêmica P(IK) e Consenso
