@@ -5,8 +5,8 @@ Revises: 4d30889a9e40
 Create Date: 2026-09-21 17:13:52.595388
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision = '7f960ab77012'
@@ -30,7 +30,9 @@ def upgrade() -> None:
     sa.Column('langs', postgresql.ARRAY(sa.String()), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('source', sa.String(), nullable=False),
-    sa.Column('first_seen_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column(
+        'first_seen_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False
+    ),
     sa.PrimaryKeyConstraint('uri')
     )
     # ### end Alembic commands ###

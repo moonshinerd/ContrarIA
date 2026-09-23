@@ -10,13 +10,13 @@ from time import monotonic
 
 from sqlalchemy import create_engine
 
+from app.clients.bluesky_client import BlueskyClient
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.jobs.collector import JetstreamConsumer, SearchPoller
 from app.jobs.ingest_fact_articles import FeedIngestor
 from app.repositories.fact_articles import FactArticleRepository
-from app.clients.bluesky_client import BlueskyClient
 from app.repositories.posts import PostRepository
-from app.jobs.collector import JetstreamConsumer, SearchPoller
 
 logger = logging.getLogger("contraria.worker")
 

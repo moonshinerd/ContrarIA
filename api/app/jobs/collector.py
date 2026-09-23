@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 import websockets
 
@@ -84,9 +83,13 @@ class JetstreamConsumer:
         if cursor > 0:
             url += f"&cursor={cursor}"
 
+        import ssl
+        import certifi
+        ssl_context = ssl.create_default_context(cafile=certifi.where())
+
         while True:
             try:
-                async with websockets.connect(url) as ws:
+                async with websockets.connect(url, ssl=ssl_context) as ws:
                     logger.info("Conectado ao Jetstream em %s", url)
                     while True:
                         msg = await ws.recv()
@@ -106,7 +109,9 @@ class JetstreamConsumer:
 
 
 class SearchPoller:
-    def __init__(self, repo: PostRepository, bsky_client: BlueskyClient, poll_interval_seconds: int = 600):
+    def __init__(
+        self, repo: PostRepository, bsky_client: BlueskyClient, poll_interval_seconds: int = 600
+    ):
         self.repo = repo
         self.bsky_client = bsky_client
         self.poll_interval = poll_interval_seconds
@@ -141,7 +146,9 @@ class SearchPoller:
 
                 if posts_data:
                     self.repo.upsert_posts(posts_data)
-                    logger.info("Foram inseridos %d posts candidatos do searchPosts.", len(posts_data))
+                    logger.info(
+                        "Foram inseridos %d posts candidatos do searchPosts.", len(posts_data)
+                    )
 
             except Exception as e:
                 logger.error("Erro no SearchPoller: %s", e)

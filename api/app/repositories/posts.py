@@ -1,9 +1,8 @@
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import NoResultFound
 
-from app.db.orm.posts import Post, IngestCursor
+from app.db.orm.posts import IngestCursor, Post
 
 
 class PostRepository:
@@ -24,7 +23,9 @@ class PostRepository:
 
     def get_cursor(self, stream: str) -> int:
         with Session(self.engine) as session:
-            cursor = session.scalar(select(IngestCursor.cursor).where(IngestCursor.stream == stream))
+            cursor = session.scalar(
+                select(IngestCursor.cursor).where(IngestCursor.stream == stream)
+            )
             return cursor or 0
 
     def set_cursor(self, stream: str, cursor: int):

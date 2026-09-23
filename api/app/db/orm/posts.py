@@ -1,8 +1,6 @@
-from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import BigInteger, Column, DateTime, String, func
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.dialects.postgresql import ARRAY
 
 from app.db.base import Base
 
