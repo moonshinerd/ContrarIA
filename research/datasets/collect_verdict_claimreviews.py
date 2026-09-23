@@ -1,4 +1,4 @@
-"""Coleta ClaimReviews PT-BR para o conjunto de teste da issue #27."""
+"""Coleta ClaimReviews PT-BR para teste ou calibração, sem sobreposição."""
 
 import argparse
 import asyncio
@@ -151,6 +151,14 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--calibration", type=Path)
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        type=Path,
+        default=[],
+        help="Dataset cujas alegações devem ser removidas antes da seleção",
+    )
+    parser.add_argument("--split", default="test_issue_27")
     parser.add_argument("--query", action="append", dest="queries")
     parser.add_argument("--page-size", type=int, default=20)
     parser.add_argument("--max-items", type=int, default=150)
@@ -169,12 +177,16 @@ def main() -> int:
             page_size=args.page_size,
         )
     )
-    selected = _select(records, args.max_items)
+    excluded_paths = [*args.exclude]
     if args.calibration:
-        calibration_keys = {key for row in read_rows(args.calibration) for key in row_keys(row)}
-        overlap = [row["id"] for row in selected if calibration_keys & row_keys(row)]
-        if overlap:
-            raise SystemExit(f"Dataset não é disjunto da calibração: {len(overlap)} IDs repetidos")
+        excluded_paths.append(args.calibration)
+    excluded_keys = {
+        key for path in excluded_paths for row in read_rows(path) for key in row_keys(row)
+    }
+    eligible = [row for row in records if not (excluded_keys & row_keys(row))]
+    selected = _select(eligible, args.max_items)
+    for row in selected:
+        row["split"] = args.split
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8") as handle:
         for record in selected:

@@ -262,6 +262,12 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         help="Recalcula tabelas de um CSV registrado, sem chamadas externas",
     )
+    parser.add_argument(
+        "--scenario",
+        action="append",
+        dest="scenarios",
+        help="Executa somente o cenário informado; pode ser repetido",
+    )
     return parser
 
 
@@ -280,6 +286,13 @@ def main() -> int:
         leave_one_out=config.leave_one_out,
         repeat_without_origin=config.repeat_without_origin,
     )
+    if args.scenarios:
+        requested = set(args.scenarios)
+        available = {scenario.name for scenario in scenarios}
+        unknown = requested - available
+        if unknown:
+            raise ValueError(f"Cenários desconhecidos: {', '.join(sorted(unknown))}")
+        scenarios = [scenario for scenario in scenarios if scenario.name in requested]
     if args.predictions:
         predictions = _read_predictions(args.predictions.resolve())
         execution = "replay"

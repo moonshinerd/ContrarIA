@@ -49,3 +49,27 @@ def test_rejects_overlap_with_issue_27_holdout(tmp_path):
 
     with pytest.raises(ValueError, match="não são disjuntos"):
         ensure_disjoint(load_examples(calibration_path), holdout_path)
+
+
+def test_accepts_disjoint_jsonl_holdout(tmp_path):
+    calibration_path = tmp_path / "calibration.json"
+    calibration_path.write_text(
+        json.dumps(
+            [
+                {
+                    "id": "calibration-1",
+                    "actual_label": "true",
+                    "predicted_label": "true",
+                    "confidence": 0.9,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    holdout_path = tmp_path / "holdout.jsonl"
+    holdout_path.write_text(
+        json.dumps({"id": "test-1", "textualRating": "Falso"}) + "\n",
+        encoding="utf-8",
+    )
+
+    ensure_disjoint(load_examples(calibration_path), holdout_path)

@@ -14,8 +14,7 @@ e alegações que são apenas uma URL para manter o recorte PT-BR.
 
 1. Aplique as migrações e carregue o acervo RSS da #21.
 2. Configure OpenRouter, Google Fact Check e Tavily em `api/.env`.
-3. Substitua `lambda_hat` no YAML pelo valor produzido pela calibração da #25.
-4. Execute:
+3. Execute:
 
 ```bash
 make bench-verdict
@@ -24,6 +23,26 @@ make bench-verdict
 O alvo gera `predictions.csv`, `metrics.csv`, `summary.md` e `metadata.json` em
 `research/experiments/results/verdict/`. A tabela Markdown está pronta para ser
 incorporada à documentação da #33.
+
+## Calibração CRC usada
+
+O `lambda_hat` não é mais um valor provisório. Ele foi calculado com 40
+ClaimReviews disjuntos do teste, usando o mesmo modelo, as cinco fontes e duas
+rodadas de debate. A checagem de origem foi removida durante as previsões de
+calibração.
+
+- `lambda_hat`: `0.0`
+- `alpha`: `0.05`
+- risco empírico de falso positivo: `0.0`
+- cota CRC: `0.0243902439`
+- alegações verdadeiras: 6; falsos positivos: 0
+- custo observado da calibração: USD 0.61005
+
+O conjunto tem 17 casos `false`, 17 `misleading` e 6 `true`. Quarenta casos é
+uma amostra menor que a faixa desejável de 100–200, limitada pela trava diária
+de USD 1. O valor deve ser recalibrado quando houver mais alegações verdadeiras,
+quando o modelo mudar ou quando o orçamento permitir uma amostra maior. As
+predições e o relatório JSON estão versionados para tornar o cálculo auditável.
 
 ## Reproduzir uma execução registrada
 

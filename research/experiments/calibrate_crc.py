@@ -59,6 +59,9 @@ def _read_rows(path: Path) -> list[dict[str, Any]]:
     if path.suffix.casefold() == ".csv":
         with path.open(encoding="utf-8", newline="") as handle:
             return list(csv.DictReader(handle))
+    if path.suffix.casefold() == ".jsonl":
+        with path.open(encoding="utf-8") as handle:
+            return [json.loads(line) for line in handle if line.strip()]
     with path.open(encoding="utf-8") as handle:
         payload = json.load(handle)
     if isinstance(payload, dict):
@@ -75,12 +78,15 @@ def _row_id(row: dict[str, Any], index: int) -> str:
 def load_examples(path: Path) -> list[CalibrationExample]:
     examples: list[CalibrationExample] = []
     for index, row in enumerate(_read_rows(path), start=1):
-        actual = row.get("actual_label", row.get("true_label", row.get("textualRating")))
+        actual = row.get(
+            "actual_label",
+            row.get("true_label", row.get("expected_label", row.get("textualRating"))),
+        )
         predicted = row.get("predicted_label", row.get("prediction", row.get("verdict")))
         confidence = row.get("confidence")
         if actual is None or predicted is None or confidence is None:
             raise ValueError(
-                f"Linha {index}: actual_label/textualRating, predicted_label "
+                f"Linha {index}: actual_label/expected_label/textualRating, predicted_label "
                 "e confidence são obrigatórios"
             )
         examples.append(

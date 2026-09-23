@@ -1,0 +1,11 @@
+{
+  "lambda_hat": 0.0,
+  "alpha": 0.05,
+  "n": 40,
+  "model": "openrouter/google/gemini-2.5-flash",
+  "empirical_false_positive_risk": 0.0,
+  "conditional_false_positive_rate": 0.0,
+  "false_positives": 0,
+  "risk_bound": 0.024390243902439025,
+  "persisted": true
+}

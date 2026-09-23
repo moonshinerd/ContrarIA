@@ -2,6 +2,7 @@
 
 BENCH_VERDICT_CONFIG ?= ../research/benchmarks/verdict/config/benchmark.yaml
 BENCH_VERDICT_ARGS ?=
+BENCH_DATABASE_URL ?= postgresql+psycopg://contraria:contraria@127.0.0.1:5432/contraria
 
 help:
 	@echo "make setup       - cria api/.env e instala dependências locais (uv)"
@@ -56,9 +57,9 @@ docs-build:
 
 bench-verdict:
 	@if command -v uv >/dev/null 2>&1; then \
-		cd api && uv run --frozen python ../research/benchmarks/verdict/run_benchmark.py --config $(BENCH_VERDICT_CONFIG) $(BENCH_VERDICT_ARGS); \
+		cd api && DATABASE_URL=$(BENCH_DATABASE_URL) uv run --frozen python ../research/benchmarks/verdict/run_benchmark.py --config $(BENCH_VERDICT_CONFIG) $(BENCH_VERDICT_ARGS); \
 	elif [ -x api/.venv/bin/python ]; then \
-		cd api && .venv/bin/python ../research/benchmarks/verdict/run_benchmark.py --config $(BENCH_VERDICT_CONFIG) $(BENCH_VERDICT_ARGS); \
+		cd api && DATABASE_URL=$(BENCH_DATABASE_URL) .venv/bin/python ../research/benchmarks/verdict/run_benchmark.py --config $(BENCH_VERDICT_CONFIG) $(BENCH_VERDICT_ARGS); \
 	else \
 		echo "Erro: instale o uv ou crie o ambiente api/.venv antes de executar o benchmark."; \
 		exit 1; \
