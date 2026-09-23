@@ -39,6 +39,11 @@ async def main() -> None:
     jetstream_task = asyncio.create_task(jetstream.run())
     poller_task = asyncio.create_task(poller.run())
 
+    from app.jobs.refresh_engagement import EngagementRefresher
+
+    refresher = EngagementRefresher(engine, bsky_client)
+    refresher_task = asyncio.create_task(refresher.run())
+
     next_ingestion = 0.0
     try:
         while True:
@@ -53,6 +58,7 @@ async def main() -> None:
     finally:
         jetstream_task.cancel()
         poller_task.cancel()
+        refresher_task.cancel()
         engine.dispose()
 
 
