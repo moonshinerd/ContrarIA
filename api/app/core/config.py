@@ -76,7 +76,7 @@ class Settings(BaseSettings):
 
     daily_llm_budget_usd: float = 1.0
     daily_max_interventions: int = 20
-
+    intervention_dry_run: bool = True
     worker_tick_seconds: int = 30
 
 
