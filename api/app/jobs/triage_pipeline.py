@@ -71,6 +71,14 @@ class TriagePipeline:
                     await self.intervention.execute_intervention(
                         post, author, verdict, assessment.score
                     )
+                logger.info(
+                    "Candidato processado",
+                    extra={
+                        "uri": post.uri,
+                        "triage_status": triage.triage_status,
+                        "verdict": verdict.label.value,
+                    },
+                )
             except Exception:
                 # Um candidato não pode encerrar o worker; fica elegível novamente após restart.
                 self._processed_uris.discard(post.uri)

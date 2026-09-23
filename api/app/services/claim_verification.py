@@ -130,7 +130,7 @@ class ClaimQuestionSet(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     claim: str = Field(min_length=1, max_length=1000)
-    questions: list[VerificationQuestion] = Field(min_length=2, max_length=5)
+    questions: list[VerificationQuestion] = Field(min_length=1, max_length=5)
 
     @field_validator("claim", mode="before")
     @classmethod
@@ -142,7 +142,16 @@ class ClaimQuestionSet(BaseModel):
         normalized = [" ".join(item.question.casefold().split()) for item in self.questions]
         if len(normalized) != len(set(normalized)):
             raise ValueError("A resposta contém perguntas duplicadas")
-        return self
+        if len(self.questions) >= 2:
+            return self
+        # Alguns modelos retornam só uma pergunta mesmo após correção estruturada.
+        # Completamos a segunda de forma determinística para manter CoVe factored.
+        subject = self.claim[:400].rstrip(".?! ")
+        fallback = VerificationQuestion(
+            question=f"Qual fonte independente confirma ou refuta que {subject}?",
+            purpose="Obter confirmação independente da alegação.",
+        )
+        return self.model_copy(update={"questions": [*self.questions, fallback]})
 
 
 class CoVeQuestionPlan(BaseModel):
@@ -301,7 +310,8 @@ class ClaimVerificationPlanner:
             if attempt:
                 retry_instruction = (
                     "\n\nSua resposta anterior falhou na validação. Gere novamente somente o JSON "
-                    "e obedeça exatamente ao esquema, sem campos adicionais."
+                    "e obedeça exatamente ao esquema, sem campos adicionais. "
+                    f"Erro específico a corrigir: {validation_error}"
                 )
             raw = await self.llm.complete(
                 system=system + retry_instruction,
