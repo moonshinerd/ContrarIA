@@ -1,6 +1,5 @@
-from sqlalchemy import BigInteger, Column, DateTime, Float, String, func
+from sqlalchemy import JSON, BigInteger, Column, DateTime, Float, String, func
 from sqlalchemy.dialects.postgresql import ARRAY
-from sqlalchemy import JSON
 
 from app.db.base import Base
 

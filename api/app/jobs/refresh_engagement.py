@@ -63,7 +63,6 @@ class EngagementRefresher:
 
             from app.db.orm.posts import Post
 
-            
             for p in hydrated_posts:
                 snapshots.append(
                     {
@@ -80,7 +79,14 @@ class EngagementRefresher:
                 velocity = 0.0
 
                 if last_snap:
-                    delta_hours = (now - (last_snap.ts.replace(tzinfo=UTC) if last_snap.ts.tzinfo is None else last_snap.ts)).total_seconds() / 3600.0
+                    delta_hours = (
+                        now
+                        - (
+                            last_snap.ts.replace(tzinfo=UTC)
+                            if last_snap.ts.tzinfo is None
+                            else last_snap.ts
+                        )
+                    ).total_seconds() / 3600.0
                     if delta_hours > 0:
                         current_interactions = (
                             p.like_count + p.repost_count + p.reply_count + p.quote_count
@@ -91,9 +97,7 @@ class EngagementRefresher:
                             + last_snap.replies
                             + last_snap.quotes
                         )
-                        velocity = max(
-                            0.0, (current_interactions - old_interactions) / delta_hours
-                        )
+                        velocity = max(0.0, (current_interactions - old_interactions) / delta_hours)
 
                 relevance = calculate_relevance(
                     likes=p.like_count,

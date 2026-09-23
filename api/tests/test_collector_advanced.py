@@ -18,7 +18,7 @@ async def test_jetstream_consumer_message_parsing():
     repo = MagicMock()
     consumer = JetstreamConsumer(repo)
 
-    msg_valid = '{"kind":"commit","commit":{"operation":"create","record":{"$type":"app.bsky.feed.post","langs":["pt"],"text":"urna eletronica","createdAt":"2024-01-01T12:00:00Z"},"cid":"c1","rkey":"r1"},"did":"did:1","time_us":100}'
+    msg_valid = '{"kind":"commit","commit":{"operation":"create","record":{"$type":"app.bsky.feed.post","langs":["pt"],"text":"urna eletronica","createdAt":"2024-01-01T12:00:00Z"},"cid":"c1","rkey":"r1"},"did":"did:1","time_us":100}'  # noqa: E501
     parsed = consumer.parse_message(msg_valid)
     assert parsed is not None
     assert parsed["uri"] == "at://did:1/app.bsky.feed.post/r1"
@@ -29,15 +29,11 @@ async def test_jetstream_consumer_message_parsing():
     assert consumer.parse_message(msg_invalid_kind) is None
 
     # Missing pt lang
-    msg_no_pt = (
-        '{"kind":"commit","commit":{"operation":"create","record":{"langs":["en"],"text":"urna eletronica"}}}'
-    )
+    msg_no_pt = '{"kind":"commit","commit":{"operation":"create","record":{"langs":["en"],"text":"urna eletronica"}}}'  # noqa: E501
     assert consumer.parse_message(msg_no_pt) is None
 
     # Irrelevant text
-    msg_irrelevant = (
-        '{"kind":"commit","commit":{"operation":"create","record":{"$type":"app.bsky.feed.post","langs":["pt"],"text":"nada"}}}'
-    )
+    msg_irrelevant = '{"kind":"commit","commit":{"operation":"create","record":{"$type":"app.bsky.feed.post","langs":["pt"],"text":"nada"}}}'  # noqa: E501
     assert consumer.parse_message(msg_irrelevant) is None
 
 
@@ -88,8 +84,8 @@ async def test_search_poller_run_cycle(monkeypatch):
         except Exception:
             pass
 
-    # Actually test the real logic inside the loop via overriding run or just letting it run one tick
-    # But wait, SearchPoller.run is a while True loop with asyncio.sleep. We can patch sleep to raise an exception to exit loop
+    # Actually test the real logic inside the loop via overriding run or just letting it run one tick  # noqa: E501
+    # But wait, SearchPoller.run is a while True loop with asyncio.sleep. We can patch sleep to raise an exception to exit loop  # noqa: E501
     async def mock_sleep(seconds):
         raise KeyboardInterrupt
 
@@ -136,7 +132,7 @@ async def test_jetstream_consumer_run(monkeypatch):
             pass
 
         async def recv(self):
-            return '{"kind":"commit","commit":{"operation":"create","record":{"$type":"app.bsky.feed.post","langs":["pt"],"text":"urna eletronica","createdAt":"2024-01-01T12:00:00Z"},"cid":"c1","rkey":"r1"},"did":"did:1","time_us":100}'
+            return '{"kind":"commit","commit":{"operation":"create","record":{"$type":"app.bsky.feed.post","langs":["pt"],"text":"urna eletronica","createdAt":"2024-01-01T12:00:00Z"},"cid":"c1","rkey":"r1"},"did":"did:1","time_us":100}'  # noqa: E501
 
     mock_connect = MagicMock(return_value=MockWS())
     monkeypatch.setattr(websockets, "connect", mock_connect)
@@ -146,7 +142,7 @@ async def test_jetstream_consumer_run(monkeypatch):
 
     monkeypatch.setattr(asyncio, "sleep", mock_sleep)
 
-    # We patch consumer.parse_message to throw KeyboardInterrupt on second call to avoid infinite loop inside inner while
+    # We patch consumer.parse_message to throw KeyboardInterrupt on second call to avoid infinite loop inside inner while  # noqa: E501
     call_count = 0
     original_parse = consumer.parse_message
 

@@ -51,7 +51,11 @@ class BotScoringService:
         with Session(self.engine) as session:
             row = session.scalar(select(AccountAssessment).where(AccountAssessment.did == did))
             if row:
-                age_hours = (now - row.assessed_at.replace(tzinfo=UTC) if row.assessed_at.tzinfo is None else row.assessed_at).total_seconds() / 3600.0
+                age_hours = (
+                    now - row.assessed_at.replace(tzinfo=UTC)
+                    if row.assessed_at.tzinfo is None
+                    else row.assessed_at
+                ).total_seconds() / 3600.0
                 if age_hours < 24.0:
                     return BotAssessment(did=did, score=row.score, features=row.features)
 
