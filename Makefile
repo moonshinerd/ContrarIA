@@ -1,4 +1,7 @@
-.PHONY: help setup up down logs lint format test migrate docs-serve docs-build
+.PHONY: help setup up down logs lint format test migrate docs-serve docs-build bench-verdict bench-verdict-dataset
+
+BENCH_VERDICT_CONFIG ?= ../research/benchmarks/verdict/config/benchmark.yaml
+BENCH_VERDICT_ARGS ?=
 
 help:
 	@echo "make setup       - cria api/.env e instala dependências locais (uv)"
@@ -10,6 +13,8 @@ help:
 	@echo "make test        - pytest da api e do research (igual ao CI)"
 	@echo "make migrate     - alembic upgrade head dentro do container da api"
 	@echo "make docs-serve  - MkDocs local em http://127.0.0.1:8001"
+	@echo "make bench-verdict - benchmark de veredito e ablação da issue #27"
+	@echo "make bench-verdict-dataset - atualiza o conjunto ClaimReview PT-BR"
 
 setup:
 	@test -f api/.env || cp api/.env.example api/.env
@@ -48,3 +53,23 @@ docs-serve:
 
 docs-build:
 	uvx --with mkdocs-material mkdocs build --strict
+
+bench-verdict:
+	@if command -v uv >/dev/null 2>&1; then \
+		cd api && uv run --frozen python ../research/benchmarks/verdict/run_benchmark.py --config $(BENCH_VERDICT_CONFIG) $(BENCH_VERDICT_ARGS); \
+	elif [ -x api/.venv/bin/python ]; then \
+		cd api && .venv/bin/python ../research/benchmarks/verdict/run_benchmark.py --config $(BENCH_VERDICT_CONFIG) $(BENCH_VERDICT_ARGS); \
+	else \
+		echo "Erro: instale o uv ou crie o ambiente api/.venv antes de executar o benchmark."; \
+		exit 1; \
+	fi
+
+bench-verdict-dataset:
+	@if command -v uv >/dev/null 2>&1; then \
+		cd api && uv run --frozen python ../research/datasets/collect_verdict_claimreviews.py --output ../research/datasets/verdict_claimreviews_ptbr.jsonl --max-items 150; \
+	elif [ -x api/.venv/bin/python ]; then \
+		cd api && .venv/bin/python ../research/datasets/collect_verdict_claimreviews.py --output ../research/datasets/verdict_claimreviews_ptbr.jsonl --max-items 150; \
+	else \
+		echo "Erro: instale o uv ou crie o ambiente api/.venv antes de atualizar o dataset."; \
+		exit 1; \
+	fi

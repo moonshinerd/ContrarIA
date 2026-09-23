@@ -1,0 +1,26 @@
+dataset: research/benchmarks/verdict/fixtures/claims_smoke.jsonl
+calibration_dataset: null
+output_dir: research/experiments/results/verdict-smoke
+
+model: openrouter/google/gemini-2.5-flash
+evaluation_date: 2026-09-24
+lambda_hat: 0.80
+alpha: 0.05
+max_claims: null
+
+sources:
+  - google_factcheck
+  - wikipedia
+  - tavily
+  - duckduckgo
+  - rss_checkers
+
+ablation:
+  include_all: true
+  individual: true
+  leave_one_out: true
+  repeat_without_origin: true
+
+runtime:
+  debate_rounds: 1
+  p_ik_threshold: 0.60
