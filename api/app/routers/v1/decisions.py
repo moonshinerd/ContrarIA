@@ -33,7 +33,7 @@ def get_db():
 def get_pipeline(db: Session = Depends(get_db)):  # noqa: B008
     settings = get_settings()
     bluesky = BlueskyClient(settings)
-    ozone = OzoneClient(bluesky.get_auth_client())
+    ozone = OzoneClient(settings=settings)
     bots = BotScoringService(db.get_bind(), bluesky)
     llm = LiteLLMModel(settings)
     verification = VerificationService.from_settings(llm, settings=settings, engine=db.get_bind())

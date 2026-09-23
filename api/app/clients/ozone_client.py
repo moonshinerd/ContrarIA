@@ -1,10 +1,11 @@
 import logging
+from asyncio import Lock
 from typing import Literal
 
 from atproto import AsyncClient, models
 from atproto_client.exceptions import RequestException
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.domain.entities import Account, Post
 
 logger = logging.getLogger("contraria.ozone")
@@ -13,9 +14,30 @@ logger = logging.getLogger("contraria.ozone")
 class OzoneClient:
     """Cliente para interagir com o serviço de moderação Ozone."""
 
-    def __init__(self, client: AsyncClient):
-        self.client = client
-        self.settings = get_settings()
+    def __init__(self, client: AsyncClient | None = None, settings: Settings | None = None):
+        self.settings = settings or get_settings()
+        # O Ozone deve autenticar como a conta de serviço do Labeler, nunca
+        # como a conta que publica quotes pelo pipeline.
+        self.client = client or AsyncClient(base_url=self.settings.bluesky_pds_url)
+        self._logged_in = client is not None
+        self._login_lock = Lock()
+
+    async def _ensure_login(self) -> None:
+        if self._logged_in:
+            return
+        if not self.settings.ozone_labeler_handle or not self.settings.ozone_labeler_app_password:
+            raise RuntimeError(
+                "OZONE_LABELER_HANDLE e OZONE_LABELER_APP_PASSWORD são obrigatórios "
+                "para emitir rótulos"
+            )
+        async with self._login_lock:
+            if not self._logged_in:
+                await self.client.login(
+                    login=self.settings.ozone_labeler_handle,
+                    password=self.settings.ozone_labeler_app_password,
+                    fetch_bsky_profile=False,
+                )
+                self._logged_in = True
 
     async def emit_label(
         self,
@@ -28,6 +50,7 @@ class OzoneClient:
         """
         if not self.settings.ozone_labeler_did:
             raise RuntimeError("OZONE_LABELER_DID não configurado; emissão de rótulo bloqueada")
+        await self._ensure_login()
 
         if isinstance(target, Post):
             subject = models.ComAtprotoRepoStrongRef.Main(

@@ -47,7 +47,7 @@ async def main() -> None:
         settings=settings,
         db_session=Session(engine),
         bluesky=bsky_client,
-        ozone=OzoneClient(bsky_client.get_auth_client()),
+        ozone=OzoneClient(settings=settings),
         bots=BotScoringService(engine, bsky_client),
         verification=VerificationService.from_settings(llm, settings=settings, engine=engine),
         intervention=InterventionService(InterventionRepository(engine), bsky_client, llm),

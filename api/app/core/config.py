@@ -92,6 +92,8 @@ class Settings(BaseSettings):
     pipeline_labeler_enabled: bool = False
     pipeline_bot_ignore_threshold: float = Field(default=0.9, ge=0, le=1)
     pipeline_min_followers_for_intervention: int = Field(default=1000, ge=0)
+    ozone_labeler_handle: str = ""
+    ozone_labeler_app_password: str = ""
     ozone_labeler_did: str = ""
 
 
