@@ -1,6 +1,6 @@
-dataset: research/datasets/verdict_claimreviews_ptbr.jsonl
-calibration_dataset: research/datasets/crc_calibration_claimreviews_ptbr.jsonl
-output_dir: research/experiments/results/verdict
+dataset: research/datasets/crc_calibration_claimreviews_ptbr.jsonl
+calibration_dataset: research/datasets/verdict_claimreviews_ptbr.jsonl
+output_dir: research/experiments/results/crc-calibration
 
 model: openrouter/google/gemini-2.5-flash
 evaluation_date: 2026-09-24
@@ -17,8 +17,8 @@ sources:
 
 ablation:
   include_all: true
-  individual: true
-  leave_one_out: true
+  individual: false
+  leave_one_out: false
   repeat_without_origin: true
 
 runtime:
