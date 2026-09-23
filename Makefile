@@ -55,7 +55,21 @@ docs-build:
 	uvx --with mkdocs-material mkdocs build --strict
 
 bench-verdict:
-	cd api && uv run --frozen python ../research/benchmarks/verdict/run_benchmark.py --config $(BENCH_VERDICT_CONFIG) $(BENCH_VERDICT_ARGS)
+	@if command -v uv >/dev/null 2>&1; then \
+		cd api && uv run --frozen python ../research/benchmarks/verdict/run_benchmark.py --config $(BENCH_VERDICT_CONFIG) $(BENCH_VERDICT_ARGS); \
+	elif [ -x api/.venv/bin/python ]; then \
+		cd api && .venv/bin/python ../research/benchmarks/verdict/run_benchmark.py --config $(BENCH_VERDICT_CONFIG) $(BENCH_VERDICT_ARGS); \
+	else \
+		echo "Erro: instale o uv ou crie o ambiente api/.venv antes de executar o benchmark."; \
+		exit 1; \
+	fi
 
 bench-verdict-dataset:
-	cd api && uv run --frozen python ../research/datasets/collect_verdict_claimreviews.py --output ../research/datasets/verdict_claimreviews_ptbr.jsonl --max-items 150
+	@if command -v uv >/dev/null 2>&1; then \
+		cd api && uv run --frozen python ../research/datasets/collect_verdict_claimreviews.py --output ../research/datasets/verdict_claimreviews_ptbr.jsonl --max-items 150; \
+	elif [ -x api/.venv/bin/python ]; then \
+		cd api && .venv/bin/python ../research/datasets/collect_verdict_claimreviews.py --output ../research/datasets/verdict_claimreviews_ptbr.jsonl --max-items 150; \
+	else \
+		echo "Erro: instale o uv ou crie o ambiente api/.venv antes de atualizar o dataset."; \
+		exit 1; \
+	fi
