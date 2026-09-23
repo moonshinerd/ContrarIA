@@ -68,7 +68,8 @@ async def test_has_postgate_quote_disabled(bsky, monkeypatch):
     # Exception
     bsky._public.com.atproto.repo.get_record.side_effect = Exception("error")
     res3 = await bsky.has_postgate_quote_disabled("at://did:1/app.bsky.feed.post/r1")
-    assert res3 is False
+    # Em falha de leitura do postgate, bloquear quote é a escolha segura.
+    assert res3 is True
 
     # Invalid URI
     assert await bsky.has_postgate_quote_disabled("invalid_uri") is False
