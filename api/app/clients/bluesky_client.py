@@ -136,7 +136,7 @@ class BlueskyClient:
     @property
     def _session_path(self) -> Path:
         return Path(self._settings.bluesky_session_path)
-        
+
     def get_auth_client(self) -> AsyncClient:
         return self._auth
 

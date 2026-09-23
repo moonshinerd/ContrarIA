@@ -1,3 +1,9 @@
+"""Orquestrador do pipeline E2E (Issue #17).
+
+Executa: bot score -> pré-filtro -> prioridade -> verificação -> GQ01.
+Grava decisão imutável no log ao final de cada análise.
+"""
+
 import logging
 
 from sqlalchemy.orm import Session
@@ -15,9 +21,9 @@ logger = logging.getLogger("contraria.services.pipeline")
 
 
 class PipelineService:
-    """
-    Orquestrador do pipeline (Issue #17).
-    Executa: bot score -> pré-filtro -> prioridade -> verificação -> GQ01
+    """Orquestrador do pipeline (Issue #17).
+
+    Executa: bot score -> pré-filtro -> prioridade -> verificação -> GQ01.
     Grava decisão imutável no log.
     """
 
@@ -39,28 +45,28 @@ class PipelineService:
         self.verification = verification
         self.intervention = intervention
 
-    async def analyze(self, post: Post) -> DecisionLog:
+    async def analyze(self, post: Post) -> DecisionLog:  # noqa: C901
         """Processa um post sob demanda (POST /analyze ou pelo worker)."""
-        logger.info(f"Analisando post: {post.uri}")
-        
-        # 1. Obter autor e bot score
+        logger.info("Analisando post: %s", post.uri)
+
+        # 1. Bot score
         author = await self.bluesky.get_profile(post.author_did)
         assessment = await self.bots.get_assessment(post.author_did)
         bot_score = assessment.score
-        
-        # 2 e 3. Engajamento / Prioridade (simplificado)
-        # Assumindo que engajamento alto é > 1000 seguidores para fins de demonstração
+
+        # 2/3. Engajamento / Prioridade (simplificado)
+        # Engajamento alto = ≥1000 seguidores
         high_engagement = author.followers_count >= 1000
-        
+
         # 4. Verificação
         verdict = await self.verification.verify(post)
         is_adverse = verdict.label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING)
         is_insufficient = verdict.label == VerdictLabel.INSUFFICIENT_EVIDENCE
-        
+
         # 5. Matriz GQ01
         action = "MONITOR"
         justification = "Condição não coberta pela matriz, monitorando."
-        
+
         if bot_score > 0.9 and not high_engagement:
             action = "IGNORE"
             justification = "Alto bot score e baixo engajamento. Ignorado para evitar amplificação."
@@ -69,19 +75,20 @@ class PipelineService:
             justification = "Evidência insuficiente. Apenas monitoramento."
         elif high_engagement and is_adverse:
             action = "INTERVENE"
-            justification = "Alto engajamento e veredito adverso. Intervenção (quote) e rótulo aplicados."
-            
-            # Executa intervenção e rótulo
+            justification = (
+                "Alto engajamento e veredito adverso. Intervenção (quote) e rótulo aplicados."
+            )
             try:
                 await self.intervention.execute_intervention(post, author, verdict, bot_score)
-                label_val = "possivel-desinformacao"
-                await self.ozone.emit_label(post, label_val=label_val, action="create")
+                await self.ozone.emit_label(
+                    post, label_val="possivel-desinformacao", action="create"
+                )
             except Exception as e:
-                logger.error(f"Erro na intervenção/rótulo: {e}")
+                logger.error("Erro na intervenção/rótulo: %s", e)
                 action = "ERROR_INTERVENTION"
                 justification = str(e)
-                
-        # Gravar log imutável
+
+        evidences = verdict.evidences or []
         decision = DecisionLog(
             post_uri=post.uri,
             post_snapshot={
@@ -91,17 +98,17 @@ class PipelineService:
             },
             bot_score=bot_score,
             bot_features=assessment.features,
-            sources=[s.__dict__ for s in verdict.evidences] if verdict.evidences else [],
-            agent_outputs={}, # Pode ser preenchido se a verificação expuser
+            sources=[s.__dict__ for s in evidences],
+            agent_outputs=verdict.agent_outputs,
             verdict=verdict.label.value,
             confidence=verdict.confidence,
             crc_threshold_used=self.settings.crc_alpha,
             action=action,
             justification=justification,
         )
-        
+
         self.db.add(decision)
         self.db.commit()
         self.db.refresh(decision)
-        
+
         return decision

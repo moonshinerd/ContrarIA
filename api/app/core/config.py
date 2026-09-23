@@ -87,7 +87,6 @@ class Settings(BaseSettings):
     ozone_labeler_did: str = ""
 
 
-
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

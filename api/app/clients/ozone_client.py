@@ -47,7 +47,9 @@ class OzoneClient:
 
         try:
             # Emitimos o evento usando o proxy header pro atproto_labeler
-            client_proxied = self.client.with_proxy("atproto_labeler", self.settings.ozone_labeler_did)
+            client_proxied = self.client.with_proxy(
+                "atproto_labeler", self.settings.ozone_labeler_did
+            )
             await client_proxied.tools.ozone.moderation.emit_event(
                 data=models.ToolsOzoneModerationEmitEvent.Data(
                     event=event,

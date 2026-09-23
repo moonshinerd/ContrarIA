@@ -122,7 +122,7 @@ def test_review_decision_endpoint():
     decisions = client.get("/v1/decisions").json()
     decision_id = decisions[0]["id"]
     
-    response = client.post(f"/v1/{decision_id}/review?review_action=reverter")
+    response = client.post(f"/v1/decisions/{decision_id}/review?review_action=reverter")
     assert response.status_code == 200
     data = response.json()
     assert data["action"] == "MONITOR"
