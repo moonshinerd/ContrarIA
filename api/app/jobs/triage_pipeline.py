@@ -1,0 +1,85 @@
+"""Liga triagem, bot score, verificação e intervenção no worker."""
+
+import logging
+import math
+
+from app.core.config import Settings
+from app.domain.entities import VerdictLabel
+from app.domain.prioritization import evaluate_gq04_matrix
+from app.repositories.posts import PostRepository
+from app.services.bot_scoring import BotScoringService
+from app.services.intervention import InterventionService
+from app.services.verification import VerificationService
+
+logger = logging.getLogger("contraria.jobs.triage_pipeline")
+
+_PUBLIC_HARM_TERMS = (
+    "fraude eleitoral",
+    "saúde pública",
+    "saude publica",
+    "violência política",
+    "violencia politica",
+    "ataque institucional",
+)
+
+
+class TriagePipeline:
+    """Processa uma pequena fila para não ultrapassar orçamento de LLM."""
+
+    def __init__(
+        self,
+        settings: Settings,
+        posts: PostRepository,
+        bots: BotScoringService,
+        verification: VerificationService,
+        intervention: InterventionService,
+    ) -> None:
+        self.settings = settings
+        self.posts = posts
+        self.bots = bots
+        self.verification = verification
+        self.intervention = intervention
+        self._processed_uris: set[str] = set()
+
+    async def run_once(self) -> None:
+        candidates = self.posts.get_triage_candidates(self.settings.worker_pipeline_batch_size)
+        for post, base_relevance in candidates:
+            if post.uri in self._processed_uris:
+                continue
+            self._processed_uris.add(post.uri)
+            try:
+                author = await self.bots.bsky_client.get_profile(post.author_did)
+                assessment = await self.bots.get_assessment(post.author_did)
+                verdict = await self.verification.verify(post)
+                is_adverse = verdict.label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING)
+                relevance = base_relevance + (0.2 * math.log1p(author.followers_count))
+                harm = any(term in post.text.casefold() for term in _PUBLIC_HARM_TERMS)
+                triage = evaluate_gq04_matrix(
+                    is_political=True,
+                    relevance=relevance,
+                    bot_suspicion=assessment.score,
+                    falsehood_chance=verdict.confidence if is_adverse else 0.0,
+                    public_harm_risk=harm,
+                    threshold_relevance=self.settings.triage_threshold_relevance,
+                    threshold_bot=self.settings.triage_threshold_bot,
+                    threshold_falsehood=self.settings.triage_threshold_falsehood,
+                )
+                self.posts.update_triage(
+                    post.uri, status=triage.triage_status, priority=triage.priority
+                )
+                if triage.triage_status == "queued":
+                    await self.intervention.execute_intervention(
+                        post, author, verdict, assessment.score
+                    )
+                logger.info(
+                    "Candidato processado",
+                    extra={
+                        "uri": post.uri,
+                        "triage_status": triage.triage_status,
+                        "verdict": verdict.label.value,
+                    },
+                )
+            except Exception:
+                # Um candidato não pode encerrar o worker; fica elegível novamente após restart.
+                self._processed_uris.discard(post.uri)
+                logger.exception("Falha ao processar candidato %s", post.uri)

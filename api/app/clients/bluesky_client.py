@@ -362,8 +362,63 @@ class BlueskyClient:
         await self._authenticated(lambda: self._auth.com.atproto.repo.put_record(data))
         return True
 
-    async def quote_post(self, target: Post, text: str) -> str:
-        raise NotImplementedError  # issue #14
+    async def quote_post(
+        self, target_uri: str, target_cid: str, text: str, source_url: str | None = None
+    ) -> str:
+        """Cria um quote post para o alvo com o texto fornecido (e link opcional)."""
+        await self.login()
+
+        from atproto import client_utils, models
+
+        tb = client_utils.TextBuilder()
+        tb.text(text)
+        if source_url:
+            tb.text(" ")
+            tb.link("[Fonte]", source_url)
+
+        # O embed deve ser um embed record apontando pro alvo
+        embed = models.AppBskyEmbedRecord.Main(
+            record=models.ComAtprotoRepoStrongRef.Main(uri=target_uri, cid=target_cid)
+        )
+
+        response = await self._authenticated(lambda: self._auth.send_post(text=tb, embed=embed))
+        return response.uri
+
+    async def has_postgate_quote_disabled(self, post_uri: str) -> bool:
+        """Verifica se o autor do post desabilitou citações via postgate."""
+        parts = post_uri.split("/")
+        if len(parts) < 3:
+            return False
+        did = parts[2]
+        rkey = parts[-1]
+        try:
+            current = await self._call(
+                lambda: self._public.com.atproto.repo.get_record(
+                    {"repo": did, "collection": "app.bsky.feed.postgate", "rkey": rkey}
+                )
+            )
+            from atproto import models
+
+            record = models.get_model_as_dict(current.value)
+            rules = record.get("embeddingRules", [])
+            for rule in rules:
+                if rule.get("$type") == "app.bsky.feed.postgate#disableRule":
+                    return True
+        except BadRequestError as exc:
+            # A ausência do record é a forma normal de indicar que não há postgate.
+            if _xrpc_error(exc) == RECORD_NOT_FOUND:
+                return False
+            logger.warning(
+                "postgate check failed; blocking quote", extra={"error": _xrpc_error(exc)}
+            )
+            return True
+        except Exception as exc:
+            # Sem conseguir verificar o postgate, a escolha segura é não publicar.
+            logger.warning(
+                "postgate check failed; blocking quote", extra={"error": type(exc).__name__}
+            )
+            return True
+        return False
 
     async def close(self) -> None:
         await self._public.request.close()

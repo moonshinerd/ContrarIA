@@ -1,0 +1,78 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-contraria}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-contraria}
+      POSTGRES_DB: ${POSTGRES_DB:-contraria}
+    # No exposed ports to host for security
+    volumes:
+      - contraria-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-contraria} -d ${POSTGRES_DB:-contraria}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    mem_limit: 512m
+
+  api:
+    build: ../api
+    restart: unless-stopped
+    env_file: ../api/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-contraria}:${POSTGRES_PASSWORD:-contraria}@db:5432/${POSTGRES_DB:-contraria}
+      BLUESKY_SESSION_PATH: /srv/data/bluesky.session
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - contraria-model-cache:/root/.cache/huggingface
+      - contraria-app-data:/srv/data
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 1g
+
+  worker:
+    build: ../api
+    restart: unless-stopped
+    env_file: ../api/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-contraria}:${POSTGRES_PASSWORD:-contraria}@db:5432/${POSTGRES_DB:-contraria}
+      BLUESKY_SESSION_PATH: /srv/data/bluesky.session
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - contraria-model-cache:/root/.cache/huggingface
+      - contraria-app-data:/srv/data
+    command: python -m app.worker
+    mem_limit: 1g
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?Defina o domínio público da API}
+      OZONE_DOMAIN: ${OZONE_DOMAIN:?Defina o domínio público do Ozone}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    mem_limit: 256m
+
+volumes:
+  contraria-db-data:
+  contraria-model-cache:
+  contraria-app-data:
+  caddy_data:
+  caddy_config:

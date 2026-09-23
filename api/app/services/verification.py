@@ -80,10 +80,20 @@ class VerificationService:
         current_date: date | None = None,
     ) -> Verdict:
         """Produz um Verdict completo e abstém sempre que uma garantia falha."""
-        plan = await self.planner.plan(
-            PostContext(post=post.text, quoted=quoted_text, parent=parent_text),
-            current_date=current_date,
-        )
+        try:
+            plan = await self.planner.plan(
+                PostContext(post=post.text, quoted=quoted_text, parent=parent_text),
+                current_date=current_date,
+            )
+        except Exception as exc:
+            logger.exception("Falha ao planejar verificação para %s", post.uri)
+            return Verdict(
+                claim=post.text,
+                label=VerdictLabel.INSUFFICIENT_EVIDENCE,
+                confidence=0.0,
+                rationale="A verificação não produziu um plano estruturado confiável.",
+                agent_outputs={"verification.failure": type(exc).__name__},
+            )
         outputs = {"claim_extraction": plan.extraction.model_dump_json()}
         factual_claims = [item.text for item in plan.extraction.factual_claims]
         if not factual_claims or plan.cove is None:
@@ -96,7 +106,17 @@ class VerificationService:
             )
 
         outputs["cove_plan"] = plan.cove.model_dump_json()
-        rag = await self.self_rag.run(plan.cove, current_date=current_date)
+        try:
+            rag = await self.self_rag.run(plan.cove, current_date=current_date)
+        except Exception as exc:
+            logger.exception("Falha no Self-RAG para %s", post.uri)
+            return Verdict(
+                claim=post.text,
+                label=VerdictLabel.INSUFFICIENT_EVIDENCE,
+                confidence=0.0,
+                rationale="A recuperação de evidências não produziu uma resposta confiável.",
+                agent_outputs={"self_rag.failure": type(exc).__name__},
+            )
         outputs.update(rag.agent_outputs)
         outputs["self_rag.reflections"] = json.dumps(
             [item.model_dump(mode="json") for item in rag.reflections], ensure_ascii=False

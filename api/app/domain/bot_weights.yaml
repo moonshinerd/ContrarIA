@@ -1,0 +1,16 @@
+weights:
+  demographic_young_account: 1.0
+  demographic_digits_handle: 0.5
+  demographic_no_avatar: 1.5
+  demographic_no_description: 0.5
+  demographic_self_label_bot: 5.0
+
+  network_follower_ratio: 0.8
+  
+  temporal_posts_per_day: 1.2
+  temporal_interval_cv: -0.5
+  temporal_hour_entropy: -1.0
+
+  content_duplicate_ratio: 2.0
+  content_repost_ratio: 1.0
+  content_repeated_links: 1.5
