@@ -54,6 +54,7 @@ class TriagePipeline:
                 is_adverse = verdict.label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING)
                 relevance = base_relevance + (0.2 * math.log1p(author.followers_count))
                 harm = any(term in post.text.casefold() for term in _PUBLIC_HARM_TERMS)
+                from app.db.orm.decisions import DecisionLog
                 triage = evaluate_gq04_matrix(
                     is_political=True,
                     relevance=relevance,
@@ -67,10 +68,39 @@ class TriagePipeline:
                 self.posts.update_triage(
                     post.uri, status=triage.triage_status, priority=triage.priority
                 )
+                
+                action = "MONITOR"
+                justification = f"GQ04 determinou triage_status={triage.triage_status}"
+                
                 if triage.triage_status == "queued":
+                    action = "INTERVENE"
+                    justification = "Alto engajamento e risco, elegível para quote."
                     await self.intervention.execute_intervention(
                         post, author, verdict, assessment.score
                     )
+                elif triage.triage_status == "ignored":
+                    action = "IGNORE"
+                    justification = "Ignorado pela matriz GQ04"
+                
+                # Gravar decisão imutável (Issue #17)
+                from sqlalchemy.orm import Session
+                with Session(self.posts.engine) as session:
+                    decision = DecisionLog(
+                        post_uri=post.uri,
+                        post_snapshot={"text": post.text, "author_did": post.author_did, "created_at": post.created_at.isoformat()},
+                        bot_score=assessment.score,
+                        bot_features=assessment.features,
+                        sources=[s.model_dump() for s in verdict.sources] if verdict.sources else [],
+                        agent_outputs={},
+                        verdict=verdict.label.value,
+                        confidence=verdict.confidence,
+                        crc_threshold_used=self.settings.crc_alpha,
+                        action=action,
+                        justification=justification,
+                    )
+                    session.add(decision)
+                    session.commit()
+                
                 logger.info(
                     "Candidato processado",
                     extra={

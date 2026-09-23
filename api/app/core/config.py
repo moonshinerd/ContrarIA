@@ -84,6 +84,8 @@ class Settings(BaseSettings):
     triage_threshold_bot: float = 0.8
     triage_threshold_falsehood: float = 0.8
     worker_pipeline_batch_size: int = 5
+    ozone_labeler_did: str = ""
+
 
 
 @lru_cache
