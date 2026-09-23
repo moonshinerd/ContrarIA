@@ -86,3 +86,4 @@ As referências estão organizadas por áreas temáticas para facilitar a consul
 
 * **BERRIAI.** *LiteLLM: A Universal Library for Calling OpenAI, Anthropic, Bedrock, and OpenRouter APIs with a Standardized Interface*. 2023–2026. Disponível em: <https://docs.litellm.ai>.
   * *Aplicação no ContrarIA:* Camada de abstração de modelos de linguagem (`app/models/llm/litellm_model.py`), viabilizando a orquestração multi-provedor e o fallback resiliente sem refatoração de código de domínio.
+

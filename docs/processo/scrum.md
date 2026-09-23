@@ -125,3 +125,4 @@ A integridade do software é garantida por salvaguardas automatizadas:
 * **Branch Protection:** A branch `main` é estritamente protegida no GitHub. Nenhum commit entra sem PR aprovado e sem todos os checks do CI verdes (api, research, web, docker e docs com `mkdocs build --strict`).
 * **Isolamento de Segredos:** Credenciais do Bluesky, senhas de aplicação e chaves de API jamais entram no versionamento de código, sendo injetadas exclusivamente via variáveis de ambiente seguras (`.env`).
 * **Documentação Viva:** Qualquer decisão de arquitetura tomada durante a implementação é formalmente registrada em um novo documento ADR (`docs/adr/`), mantendo o histórico de engenharia auditável.
+
