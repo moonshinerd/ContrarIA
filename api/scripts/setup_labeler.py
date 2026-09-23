@@ -11,12 +11,12 @@ logger = logging.getLogger("setup_labeler")
 
 async def main() -> None:
     settings = get_settings()
-    if not settings.bluesky_handle or not settings.bluesky_app_password:
-        logger.error("Credenciais do bluesky não configuradas.")
+    if not settings.ozone_labeler_handle or not settings.ozone_labeler_app_password:
+        logger.error("Credenciais da conta Ozone Labeler não configuradas.")
         return
 
     client = AsyncClient(base_url=settings.bluesky_pds_url)
-    await client.login(settings.bluesky_handle, settings.bluesky_app_password)
+    await client.login(settings.ozone_labeler_handle, settings.ozone_labeler_app_password)
 
     # Declarar rótulos no app.bsky.labeler.service
     label_values = ["possivel-desinformacao", "provavel-bot", "evidencia-insuficiente"]

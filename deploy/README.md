@@ -9,7 +9,7 @@ labeler e preencha no `.env` do servidor: `OZONE_LABELER_DID`,
 `OZONE_ADMIN_PASSWORD`, `OZONE_SIGNING_KEY_HEX` e `OZONE_POSTGRES_PASSWORD`.
 O `OZONE_DOMAIN` deve apontar para a VPS antes da subida. Depois, entre em
 `https://$OZONE_DOMAIN`, conclua o anúncio do serviço no DID e publique o record
-`app.bsky.labeler.service` com `python api/scripts/setup_labeler.py`.
+`app.bsky.labeler.service` com `cd api && uv run python -m scripts.setup_labeler`.
 
 Mantenha `PIPELINE_LABELER_ENABLED=false` até testar um post autorizado; a
 emissão de rótulos é deliberadamente opt-in.
