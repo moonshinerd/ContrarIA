@@ -91,7 +91,7 @@ class PipelineService:
             },
             bot_score=bot_score,
             bot_features=assessment.features,
-            sources=[s.model_dump() for s in verdict.sources] if verdict.sources else [],
+            sources=[s.__dict__ for s in verdict.evidences] if verdict.evidences else [],
             agent_outputs={}, # Pode ser preenchido se a verificação expuser
             verdict=verdict.label.value,
             confidence=verdict.confidence,

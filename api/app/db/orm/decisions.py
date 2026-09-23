@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Float, Integer, String, func
+from sqlalchemy import Column, DateTime, Float, Integer, String, func, JSON
 from sqlalchemy.dialects.postgresql import JSONB
 
 from app.db.base import Base
@@ -15,15 +15,15 @@ class DecisionLog(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # Snapshot do post e conta
-    post_snapshot = Column(JSONB, nullable=False)
+    post_snapshot = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
     
     # Detalhes da avaliação
     bot_score = Column(Float, nullable=True)
-    bot_features = Column(JSONB, nullable=True)
+    bot_features = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
     
     # Verificação
-    sources = Column(JSONB, nullable=True)
-    agent_outputs = Column(JSONB, nullable=True)
+    sources = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
+    agent_outputs = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
     verdict = Column(String, nullable=True)  # INSUFFICIENT_EVIDENCE, FAKE, TRUE, etc
     confidence = Column(Float, nullable=True)
     crc_threshold_used = Column(Float, nullable=True)

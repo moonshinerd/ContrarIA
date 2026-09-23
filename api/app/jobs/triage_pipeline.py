@@ -90,7 +90,7 @@ class TriagePipeline:
                         post_snapshot={"text": post.text, "author_did": post.author_did, "created_at": post.created_at.isoformat()},
                         bot_score=assessment.score,
                         bot_features=assessment.features,
-                        sources=[s.model_dump() for s in verdict.sources] if verdict.sources else [],
+                        sources=[s.__dict__ for s in verdict.evidences] if verdict.evidences else [],
                         agent_outputs={},
                         verdict=verdict.label.value,
                         confidence=verdict.confidence,
