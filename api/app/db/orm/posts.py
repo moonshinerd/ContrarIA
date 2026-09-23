@@ -1,4 +1,3 @@
-
 from sqlalchemy import BigInteger, Column, DateTime, String, func
 from sqlalchemy.dialects.postgresql import ARRAY
 

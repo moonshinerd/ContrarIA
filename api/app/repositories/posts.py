@@ -14,11 +14,7 @@ class PostRepository:
             return 0
         with Session(self.engine) as session, session.begin():
             statement = insert(Post).values(posts_data)
-            session.execute(
-                statement.on_conflict_do_nothing(
-                    index_elements=[Post.uri]
-                )
-            )
+            session.execute(statement.on_conflict_do_nothing(index_elements=[Post.uri]))
         return len(posts_data)
 
     def get_cursor(self, stream: str) -> int:
@@ -33,12 +29,12 @@ class PostRepository:
             statement = insert(IngestCursor).values({"stream": stream, "cursor": cursor})
             session.execute(
                 statement.on_conflict_do_update(
-                    index_elements=[IngestCursor.stream],
-                    set_={"cursor": statement.excluded.cursor}
+                    index_elements=[IngestCursor.stream], set_={"cursor": statement.excluded.cursor}
                 )
             )
 
     def count_posts(self) -> int:
         from sqlalchemy import func
+
         with Session(self.engine) as session:
             return session.scalar(select(func.count()).select_from(Post))

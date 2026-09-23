@@ -26,19 +26,19 @@ async def main() -> None:
     configure_logging(settings)
     logger.info("worker started", extra={"tick_seconds": settings.worker_tick_seconds})
     engine = create_engine(settings.database_url, pool_pre_ping=True)
-    
+
     # Repositórios e Clientes
     bsky_client = BlueskyClient(settings)
     post_repo = PostRepository(engine)
-    
+
     ingestor = FeedIngestor(settings, FactArticleRepository(engine))
     jetstream = JetstreamConsumer(post_repo)
     poller = SearchPoller(post_repo, bsky_client, poll_interval_seconds=600)
-    
+
     # Inicia as tasks em background
     jetstream_task = asyncio.create_task(jetstream.run())
     poller_task = asyncio.create_task(poller.run())
-    
+
     next_ingestion = 0.0
     try:
         while True:

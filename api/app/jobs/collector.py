@@ -11,14 +11,26 @@ from app.repositories.posts import PostRepository
 logger = logging.getLogger("contraria.collector")
 
 POLITICAL_KEYWORDS = {
-    "política", "eleição", "eleicao", "governo", "presidente",
-    "urna", "voto", "stf", "deputado", "senador", "candidato",
-    "prefeito", "vereador"
+    "política",
+    "eleição",
+    "eleicao",
+    "governo",
+    "presidente",
+    "urna",
+    "voto",
+    "stf",
+    "deputado",
+    "senador",
+    "candidato",
+    "prefeito",
+    "vereador",
 }
+
 
 def _is_relevant(text: str) -> bool:
     text_lower = text.lower()
     return any(kw in text_lower for kw in POLITICAL_KEYWORDS)
+
 
 class JetstreamConsumer:
     def __init__(
@@ -33,7 +45,7 @@ class JetstreamConsumer:
         data = json.loads(msg)
         if data.get("kind") != "commit":
             return None
-        
+
         commit = data.get("commit", {})
         if commit.get("operation") != "create":
             return None
@@ -71,7 +83,7 @@ class JetstreamConsumer:
             "langs": langs,
             "created_at": created_at,
             "source": "jetstream",
-            "time_us": data.get("time_us")
+            "time_us": data.get("time_us"),
         }
 
     async def run(self):
@@ -86,6 +98,7 @@ class JetstreamConsumer:
         import ssl
 
         import certifi
+
         ssl_context = ssl.create_default_context(cafile=certifi.where())
 
         while True:
@@ -100,7 +113,7 @@ class JetstreamConsumer:
                             self.repo.upsert_posts([post_data])
                             if time_us:
                                 self.repo.set_cursor("jetstream", time_us)
-            
+
             except websockets.exceptions.ConnectionClosed:
                 logger.warning("Conexão Jetstream fechada, reconectando em 5s...")
                 await asyncio.sleep(5)
@@ -124,26 +137,24 @@ class SearchPoller:
                 # Buscar posts das últimas 24 horas
                 since = datetime.now(UTC) - timedelta(days=1)
                 query = " OR ".join(POLITICAL_KEYWORDS)
-                
+
                 posts = await self.bsky_client.search_posts(
-                    query=query,
-                    lang="pt",
-                    sort="top",
-                    since=since,
-                    limit=50
+                    query=query, lang="pt", sort="top", since=since, limit=50
                 )
 
                 posts_data = []
                 for p in posts:
-                    posts_data.append({
-                        "uri": p.uri,
-                        "cid": p.cid,
-                        "author_did": p.author_did,
-                        "text": p.text,
-                        "langs": p.langs,
-                        "created_at": p.created_at,
-                        "source": "search",
-                    })
+                    posts_data.append(
+                        {
+                            "uri": p.uri,
+                            "cid": p.cid,
+                            "author_did": p.author_did,
+                            "text": p.text,
+                            "langs": p.langs,
+                            "created_at": p.created_at,
+                            "source": "search",
+                        }
+                    )
 
                 if posts_data:
                     self.repo.upsert_posts(posts_data)
