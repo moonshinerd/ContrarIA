@@ -155,3 +155,4 @@ Refutação em massa de todos os posts      -->  Triagem por matriz de prioridad
 Modelo monolítico pesadíssimo             -->  CoVe + Self-RAG + Debate com abstenção (CRC)
 Interface web completa com dashboards     -->  Serviço headless com log imutável e Ozone
 ```
+

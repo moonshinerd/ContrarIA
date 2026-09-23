@@ -24,6 +24,9 @@ Agente de mitigação de desinformação política e detecção de bots no **Blu
 - [Guia de Uso](guia-de-uso.md): guia prático para usuários no Bluesky e operadores da infraestrutura.
 - [Arquitetura](arquitetura/index.md): pipeline e organização do código.
 - [Decisões (ADRs)](adr/index.md): por que Bluesky, quote post, LiteLLM etc.
+- [Atas](atas/index.md): registro das reuniões.
 - [Atas e Checkpoints](atas/index.md): registro formal das reuniões e acompanhamento de entregas.
 - [Referências](referencias.md): bibliografia acadêmica e referencial técnico do projeto.
 
+!!! note "Em construção"
+    Guiding questions, requisitos, benchmark e material do showcase entram pelas issues da dupla de documentação.
