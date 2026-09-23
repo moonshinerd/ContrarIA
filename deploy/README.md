@@ -13,3 +13,6 @@ O `OZONE_DOMAIN` deve apontar para a VPS antes da subida. Depois, entre em
 
 Mantenha `PIPELINE_LABELER_ENABLED=false` até testar um post autorizado; a
 emissão de rótulos é deliberadamente opt-in.
+
+O procedimento completo, incluindo geração de segredos, anúncio no DID e teste
+de emissão/reversão, está em [OZONE_RUNBOOK.md](OZONE_RUNBOOK.md).
