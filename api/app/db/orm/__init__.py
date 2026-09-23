@@ -2,6 +2,7 @@
 
 from app.db.orm.bots import AccountAssessment
 from app.db.orm.crc_calibration import CRCCalibrationRecord
+from app.db.orm.decisions import DecisionLog, DecisionReview
 from app.db.orm.fact_article import FactArticle
 from app.db.orm.interventions import InterventionLog
 from app.db.orm.llm_usage import LLMUsage
@@ -15,4 +16,6 @@ __all__ = [
     "LLMUsage",
     "Post",
     "InterventionLog",
+    "DecisionLog",
+    "DecisionReview",
 ]

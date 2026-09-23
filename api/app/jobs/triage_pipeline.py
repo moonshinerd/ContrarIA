@@ -3,7 +3,10 @@
 import logging
 import math
 
+from sqlalchemy.orm import Session
+
 from app.core.config import Settings
+from app.db.orm.decisions import DecisionLog
 from app.domain.entities import VerdictLabel
 from app.domain.prioritization import evaluate_gq04_matrix
 from app.repositories.posts import PostRepository
@@ -41,7 +44,7 @@ class TriagePipeline:
         self.intervention = intervention
         self._processed_uris: set[str] = set()
 
-    async def run_once(self) -> None:
+    async def run_once(self) -> None:  # noqa: C901
         candidates = self.posts.get_triage_candidates(self.settings.worker_pipeline_batch_size)
         for post, base_relevance in candidates:
             if post.uri in self._processed_uris:
@@ -67,10 +70,43 @@ class TriagePipeline:
                 self.posts.update_triage(
                     post.uri, status=triage.triage_status, priority=triage.priority
                 )
+
+                action = "MONITOR"
+                justification = f"GQ04 determinou triage_status={triage.triage_status}"
+
                 if triage.triage_status == "queued":
+                    action = "INTERVENE"
+                    justification = "Alto engajamento e risco, elegível para quote."
                     await self.intervention.execute_intervention(
                         post, author, verdict, assessment.score
                     )
+                elif triage.triage_status == "ignored":
+                    action = "IGNORE"
+                    justification = "Ignorado pela matriz GQ04"
+
+                # Gravar decisão imutável (Issue #17)
+                evidences = verdict.evidences or []
+                with Session(self.posts.engine) as session:
+                    decision = DecisionLog(
+                        post_uri=post.uri,
+                        post_snapshot={
+                            "text": post.text,
+                            "author_did": post.author_did,
+                            "created_at": post.created_at.isoformat(),
+                        },
+                        bot_score=assessment.score,
+                        bot_features=assessment.features,
+                        sources=[s.__dict__ for s in evidences],
+                        agent_outputs=verdict.agent_outputs,
+                        verdict=verdict.label.value,
+                        confidence=verdict.confidence,
+                        crc_threshold_used=self.settings.crc_alpha,
+                        action=action,
+                        justification=justification,
+                    )
+                    session.add(decision)
+                    session.commit()
+
                 logger.info(
                     "Candidato processado",
                     extra={

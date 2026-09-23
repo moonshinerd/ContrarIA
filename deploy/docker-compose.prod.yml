@@ -53,6 +53,65 @@ services:
     command: python -m app.worker
     mem_limit: 1g
 
+  # Serviço oficial de labeler AT Protocol. Usa banco próprio, conforme o guia
+  # de hospedagem do Ozone, para isolar seus dados de moderação da aplicação.
+  ozone-db:
+    image: postgres:14.11-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${OZONE_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${OZONE_POSTGRES_PASSWORD:?Defina OZONE_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${OZONE_POSTGRES_DB:-ozone}
+    volumes:
+      - ozone-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    mem_limit: 512m
+
+  ozone:
+    image: ghcr.io/bluesky-social/ozone:0.1
+    restart: unless-stopped
+    environment:
+      OZONE_SERVER_DID: ${OZONE_LABELER_DID:?Defina OZONE_LABELER_DID}
+      OZONE_PUBLIC_URL: https://${OZONE_DOMAIN:?Defina OZONE_DOMAIN}
+      OZONE_ADMIN_DIDS: ${OZONE_ADMIN_DIDS:-${OZONE_LABELER_DID}}
+      OZONE_ADMIN_PASSWORD: ${OZONE_ADMIN_PASSWORD:?Defina OZONE_ADMIN_PASSWORD}
+      OZONE_SIGNING_KEY_HEX: ${OZONE_SIGNING_KEY_HEX:?Defina OZONE_SIGNING_KEY_HEX}
+      OZONE_DB_POSTGRES_URL: postgresql://${OZONE_POSTGRES_USER:-postgres}:${OZONE_POSTGRES_PASSWORD}@ozone-db:5432/${OZONE_POSTGRES_DB:-ozone}
+      OZONE_DB_MIGRATE: "1"
+      OZONE_DID_PLC_URL: https://plc.directory
+      OZONE_APPVIEW_URL: https://api.bsky.app
+      OZONE_APPVIEW_DID: did:web:api.bsky.app
+      LOG_ENABLED: "1"
+    depends_on:
+      ozone-db:
+        condition: service_healthy
+    mem_limit: 1g
+
+  ozone-daemon:
+    image: ghcr.io/bluesky-social/ozone:0.1
+    restart: unless-stopped
+    command: ["node", "./service/daemon.js"]
+    environment:
+      OZONE_SERVER_DID: ${OZONE_LABELER_DID:?Defina OZONE_LABELER_DID}
+      OZONE_PUBLIC_URL: https://${OZONE_DOMAIN:?Defina OZONE_DOMAIN}
+      OZONE_ADMIN_DIDS: ${OZONE_ADMIN_DIDS:-${OZONE_LABELER_DID}}
+      OZONE_ADMIN_PASSWORD: ${OZONE_ADMIN_PASSWORD:?Defina OZONE_ADMIN_PASSWORD}
+      OZONE_SIGNING_KEY_HEX: ${OZONE_SIGNING_KEY_HEX:?Defina OZONE_SIGNING_KEY_HEX}
+      OZONE_DB_POSTGRES_URL: postgresql://${OZONE_POSTGRES_USER:-postgres}:${OZONE_POSTGRES_PASSWORD}@ozone-db:5432/${OZONE_POSTGRES_DB:-ozone}
+      OZONE_DB_MIGRATE: "1"
+      OZONE_DID_PLC_URL: https://plc.directory
+      OZONE_APPVIEW_URL: https://api.bsky.app
+      OZONE_APPVIEW_DID: did:web:api.bsky.app
+      LOG_ENABLED: "1"
+    depends_on:
+      ozone:
+        condition: service_started
+    mem_limit: 512m
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -74,5 +133,6 @@ volumes:
   contraria-db-data:
   contraria-model-cache:
   contraria-app-data:
+  ozone-db-data:
   caddy_data:
   caddy_config:

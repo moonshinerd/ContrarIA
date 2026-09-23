@@ -84,6 +84,17 @@ class Settings(BaseSettings):
     triage_threshold_bot: float = 0.8
     triage_threshold_falsehood: float = 0.8
     worker_pipeline_batch_size: int = 5
+    pipeline_bot_scoring_enabled: bool = True
+    pipeline_verification_enabled: bool = True
+    pipeline_intervention_enabled: bool = True
+    # A label is an externally visible moderation action. Keep it opt-in even
+    # when quote generation is configured as dry-run.
+    pipeline_labeler_enabled: bool = False
+    pipeline_bot_ignore_threshold: float = Field(default=0.9, ge=0, le=1)
+    pipeline_min_followers_for_intervention: int = Field(default=1000, ge=0)
+    ozone_labeler_handle: str = ""
+    ozone_labeler_app_password: str = ""
+    ozone_labeler_did: str = ""
 
 
 @lru_cache
