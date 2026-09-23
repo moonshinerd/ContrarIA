@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.clients.bluesky_client import BlueskyClient
 from app.db.orm.posts import Post, PostEngagementSnapshot
-from app.domain.prioritization import calculate_relevance
+from app.domain.prioritization import calculate_relevance, evaluate_gq04_matrix
 
 logger = logging.getLogger("contraria.jobs.refresh_engagement")
 
@@ -108,9 +108,25 @@ class EngagementRefresher:
                         followers=0,  # TODO: fetch author profile or adjust relevance calculation
                     )
 
-                    # Atualiza o post (apenas prioridade por enquanto)
-                    # Por enquanto, apenas priority:
-                    up_stmt = update(Post).where(Post.uri == p.uri).values(priority=relevance)
+                    triage_result = evaluate_gq04_matrix(
+                        is_political=True,  # Já foi filtrado antes na coleta
+                        relevance=relevance,
+                        bot_suspicion=0.0,  # Ainda não preenchido nesta etapa
+                        falsehood_chance=0.0,  # Ainda não preenchido nesta etapa
+                        public_harm_risk=False,  # Ainda não preenchido nesta etapa
+                        threshold_relevance=1.0,  # TODO: extrair da config
+                        threshold_bot=0.8,
+                        threshold_falsehood=0.8,
+                    )
+
+                    up_stmt = (
+                        update(Post)
+                        .where(Post.uri == p.uri)
+                        .values(
+                            priority=triage_result.priority,
+                            triage_status=triage_result.triage_status,
+                        )
+                    )
                     session.execute(up_stmt)
 
                 if snapshots:

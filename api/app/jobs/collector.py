@@ -1,30 +1,21 @@
 import asyncio
 import json
 import logging
+import os
 from datetime import UTC, datetime, timedelta
 
 import websockets
+import yaml
 
 from app.clients.bluesky_client import BlueskyClient
 from app.repositories.posts import PostRepository
 
 logger = logging.getLogger("contraria.collector")
 
-POLITICAL_KEYWORDS = {
-    "política",
-    "eleição",
-    "eleicao",
-    "governo",
-    "presidente",
-    "urna",
-    "voto",
-    "stf",
-    "deputado",
-    "senador",
-    "candidato",
-    "prefeito",
-    "vereador",
-}
+TOPICS_FILE = os.path.join(os.path.dirname(__file__), "..", "domain", "topics", "politica.yaml")
+with open(TOPICS_FILE, encoding="utf-8") as f:
+    _topic_data = yaml.safe_load(f)
+    POLITICAL_KEYWORDS = set(_topic_data.get("keywords", []))
 
 
 def _is_relevant(text: str) -> bool:
