@@ -1,4 +1,4 @@
-Relatório de Atividade Guiada
+Relatório de Atividade Guiada  
 Metodologia Scrum
 Projeto: ContrarIA (Agente de Mitigação de Desinformação e Detecção de Bots no Blueskyl)
 Grupo: 1
