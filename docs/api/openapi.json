@@ -145,6 +145,7 @@
           "decisions"
         ],
         "summary": "Analyze Post",
+        "description": "Roda o pipeline sob demanda para uma URL de post do Bluesky.\n\nPor padrão opera em dry-run (não publica). Ideal para demo do showcase.",
         "operationId": "analyze_post_v1_analyze_post",
         "requestBody": {
           "content": {
@@ -180,13 +181,67 @@
         }
       }
     },
+    "/v1/decisions/{decision_id}/review": {
+      "post": {
+        "tags": [
+          "decisions"
+        ],
+        "summary": "Review Decision",
+        "description": "Registra uma revisão e, quando aplicável, nega o rótulo Ozone.\n\nA decisão original nunca é atualizada: a revisão é um evento separado,\npreservando o requisito de auditoria insert-only.",
+        "operationId": "review_decision_v1_decisions__decision_id__review_post",
+        "parameters": [
+          {
+            "name": "decision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Decision Id"
+            }
+          },
+          {
+            "name": "review_action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Ação: confirmar | reverter",
+              "title": "Review Action"
+            },
+            "description": "Ação: confirmar | reverter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionReviewOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
           "infra"
         ],
         "summary": "Health",
-        "description": "Liveness: n\u00e3o toca banco, LLM nem Bluesky.",
+        "description": "Liveness: não toca banco, LLM nem Bluesky.",
         "operationId": "health_health_get",
         "responses": {
           "200": {
@@ -214,7 +269,7 @@
           "post_url": {
             "type": "string",
             "title": "Post Url",
-            "description": "URL p\u00fablica do post no Bluesky"
+            "description": "URL pública do post no Bluesky"
           }
         },
         "type": "object",
@@ -345,6 +400,40 @@
           "justification"
         ],
         "title": "DecisionLogOut"
+      },
+      "DecisionReviewOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "decision_id": {
+            "type": "integer",
+            "title": "Decision Id"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "justification": {
+            "type": "string",
+            "title": "Justification"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "decision_id",
+          "action",
+          "justification",
+          "created_at"
+        ],
+        "title": "DecisionReviewOut"
       },
       "HTTPValidationError": {
         "properties": {

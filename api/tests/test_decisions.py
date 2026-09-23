@@ -60,6 +60,13 @@ def override_get_pipeline():
     if _global_pipeline is None:
         settings = MagicMock()
         settings.crc_alpha = 0.05
+        settings.pipeline_bot_scoring_enabled = True
+        settings.pipeline_verification_enabled = True
+        settings.pipeline_intervention_enabled = True
+        settings.pipeline_labeler_enabled = False
+        settings.pipeline_bot_ignore_threshold = 0.9
+        settings.pipeline_min_followers_for_intervention = 1000
+        settings.intervention_dry_run = True
 
         bluesky = FakeBlueskyClient()
         ozone = FakeOzoneClient()
@@ -129,9 +136,9 @@ def test_analyze_endpoint():
     assert data["post_uri"] == post.uri
     assert data["action"] == "INTERVENE"
 
-    # Verificar se as chamadas de intervenção e rótulo foram feitas
+    # Dry-run gera a intervenção, mas não emite um rótulo público.
     pipeline.intervention.execute_intervention.assert_called_once()
-    pipeline.ozone.emit_label.assert_called_once()
+    pipeline.ozone.emit_label.assert_not_called()
 
 
 def test_list_decisions_endpoint():
@@ -149,5 +156,6 @@ def test_review_decision_endpoint():
     response = client.post(f"/v1/decisions/{decision_id}/review?review_action=reverter")
     assert response.status_code == 200
     data = response.json()
-    assert data["action"] == "MONITOR"
-    assert "REVERTIDO" in data["justification"]
+    assert data["decision_id"] == decision_id
+    assert data["action"] == "reverter"
+    assert "reverteu" in data["justification"]

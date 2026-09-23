@@ -51,14 +51,23 @@ class PipelineService:
 
         # 1. Bot score
         author = await self.bluesky.get_profile(post.author_did)
-        assessment = await self.bots.get_assessment(post.author_did)
-        bot_score = assessment.score
+        bot_scoring_enabled = getattr(self.settings, "pipeline_bot_scoring_enabled", True)
+        if bot_scoring_enabled:
+            assessment = await self.bots.get_assessment(post.author_did)
+        else:
+            assessment = None
+        bot_score = assessment.score if assessment else None
 
         # 2/3. Engajamento / Prioridade (simplificado)
         # Engajamento alto = ≥1000 seguidores
-        high_engagement = author.followers_count >= 1000
+        high_engagement = author.followers_count >= getattr(
+            self.settings, "pipeline_min_followers_for_intervention", 1000
+        )
 
         # 4. Verificação
+        verification_enabled = getattr(self.settings, "pipeline_verification_enabled", True)
+        if not verification_enabled:
+            raise RuntimeError("Pipeline de verificação está desabilitado")
         verdict = await self.verification.verify(post)
         is_adverse = verdict.label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING)
         is_insufficient = verdict.label == VerdictLabel.INSUFFICIENT_EVIDENCE
@@ -67,7 +76,11 @@ class PipelineService:
         action = "MONITOR"
         justification = "Condição não coberta pela matriz, monitorando."
 
-        if bot_score > 0.9 and not high_engagement:
+        if (
+            bot_score is not None
+            and bot_score > getattr(self.settings, "pipeline_bot_ignore_threshold", 0.9)
+            and not high_engagement
+        ):
             action = "IGNORE"
             justification = "Alto bot score e baixo engajamento. Ignorado para evitar amplificação."
         elif is_insufficient:
@@ -79,10 +92,23 @@ class PipelineService:
                 "Alto engajamento e veredito adverso. Intervenção (quote) e rótulo aplicados."
             )
             try:
-                await self.intervention.execute_intervention(post, author, verdict, bot_score)
-                await self.ozone.emit_label(
-                    post, label_val="possivel-desinformacao", action="create"
-                )
+                if not getattr(self.settings, "pipeline_intervention_enabled", True):
+                    action = "MONITOR"
+                    justification = (
+                        "Intervenção desabilitada por feature flag. Apenas monitoramento."
+                    )
+                else:
+                    intervention_result = await self.intervention.execute_intervention(
+                        post, author, verdict, bot_score or 0.0
+                    )
+                    if (
+                        intervention_result
+                        and not getattr(self.settings, "intervention_dry_run", True)
+                        and getattr(self.settings, "pipeline_labeler_enabled", False)
+                    ):
+                        await self.ozone.emit_label(
+                            post, label_val="possivel-desinformacao", action="create"
+                        )
             except Exception as e:
                 logger.error("Erro na intervenção/rótulo: %s", e)
                 action = "ERROR_INTERVENTION"
@@ -94,10 +120,11 @@ class PipelineService:
             post_snapshot={
                 "text": post.text,
                 "author_did": post.author_did,
+                "cid": post.cid,
                 "created_at": post.created_at.isoformat(),
             },
             bot_score=bot_score,
-            bot_features=assessment.features,
+            bot_features=assessment.features if assessment else None,
             sources=[s.__dict__ for s in evidences],
             agent_outputs=verdict.agent_outputs,
             verdict=verdict.label.value,

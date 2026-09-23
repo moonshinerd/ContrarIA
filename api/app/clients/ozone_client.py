@@ -27,8 +27,7 @@ class OzoneClient:
         Emite ou nega um rótulo usando tools.ozone.moderation.emitEvent.
         """
         if not self.settings.ozone_labeler_did:
-            logger.warning("OZONE_LABELER_DID não configurado, pulando emissão de rótulo.")
-            return
+            raise RuntimeError("OZONE_LABELER_DID não configurado; emissão de rótulo bloqueada")
 
         if isinstance(target, Post):
             subject = models.ComAtprotoRepoStrongRef.Main(

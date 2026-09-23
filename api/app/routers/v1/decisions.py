@@ -10,11 +10,11 @@ from sqlalchemy.orm import Session
 from app.clients.bluesky_client import BlueskyClient
 from app.clients.ozone_client import OzoneClient
 from app.core.config import get_settings
-from app.db.orm.decisions import DecisionLog
+from app.db.orm.decisions import DecisionLog, DecisionReview
 from app.domain.entities import Post
 from app.models.llm.litellm_model import LiteLLMModel
 from app.repositories.interventions import InterventionRepository
-from app.schemas.decisions import AnalyzeRequest, DecisionLogOut
+from app.schemas.decisions import AnalyzeRequest, DecisionLogOut, DecisionReviewOut
 from app.services.bot_scoring import BotScoringService
 from app.services.intervention import InterventionService
 from app.services.pipeline import PipelineService
@@ -110,22 +110,36 @@ async def analyze_post(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.post("/decisions/{decision_id}/review", response_model=DecisionLogOut)
+@router.post("/decisions/{decision_id}/review", response_model=DecisionReviewOut)
 async def review_decision(
     decision_id: int,
     review_action: str = Query(..., description="Ação: confirmar | reverter"),  # noqa: B008
     pipeline: PipelineService = Depends(get_pipeline),  # noqa: B008
 ):
-    """Revê uma decisão: se `reverter`, nega o rótulo Ozone emitido (#16)."""
+    """Registra uma revisão e, quando aplicável, nega o rótulo Ozone.
+
+    A decisão original nunca é atualizada: a revisão é um evento separado,
+    preservando o requisito de auditoria insert-only.
+    """
     decision = pipeline.db.query(DecisionLog).filter(DecisionLog.id == decision_id).first()
     if not decision:
         raise HTTPException(status_code=404, detail="Decisão não encontrada")
 
+    if review_action not in {"confirmar", "reverter"}:
+        raise HTTPException(status_code=422, detail="review_action deve ser confirmar ou reverter")
+
+    justification = "Revisão humana confirmou a decisão."
     if review_action == "reverter" and decision.action == "INTERVENE":
         try:
+            cid = decision.post_snapshot.get("cid")
+            if not cid:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Decisão legada sem CID; não é seguro negar o rótulo.",
+                )
             post = Post(
                 uri=decision.post_uri,
-                cid="",
+                cid=cid,
                 author_did=decision.post_snapshot.get("author_did", ""),
                 text=decision.post_snapshot.get("text", ""),
                 created_at=datetime.now(UTC),
@@ -133,11 +147,18 @@ async def review_decision(
             await pipeline.ozone.emit_label(
                 post, label_val="possivel-desinformacao", action="negate"
             )
-            decision.action = "MONITOR"
-            decision.justification += " [REVERTIDO MANUALMENTE]"
-            pipeline.db.commit()
-            pipeline.db.refresh(decision)
+            justification = "Revisão humana reverteu a decisão e negou o rótulo Ozone."
         except Exception as e:
+            if isinstance(e, HTTPException):
+                raise
             raise HTTPException(status_code=500, detail=str(e)) from e
 
-    return decision
+    review = DecisionReview(
+        decision_id=decision.id,
+        action=review_action,
+        justification=justification,
+    )
+    pipeline.db.add(review)
+    pipeline.db.commit()
+    pipeline.db.refresh(review)
+    return review

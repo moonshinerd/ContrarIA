@@ -24,3 +24,13 @@ class DecisionLogOut(BaseModel):
 
 class AnalyzeRequest(BaseModel):
     post_url: str = Field(..., description="URL pública do post no Bluesky")
+
+
+class DecisionReviewOut(BaseModel):
+    id: int
+    decision_id: int
+    action: str
+    justification: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

@@ -1,151 +1,141 @@
-"""Avalia o bot score contra dataset rotulado e recalibra pesos (#18).
+"""Avalia e recalibra o bot score contra contas Bluesky rotuladas (#18).
 
-Saídas em research/experiments/results/:
-- bot_score_metrics.json   — ROC-AUC, precision e recall no threshold 0.9
-- bot_score_new_weights.json — pesos recalibrados pela regressão logística
-- bot_score_summary.md       — resumo para #33
+O arquivo de entrada deve ser CSV ou JSON e conter ``label`` (0 humano, 1 bot)
+e as mesmas colunas calculadas por ``app.domain.bot_features.compute_all_features``.
+Dados sintéticos não são aceitos: métricas de validação devem representar contas
+reais e rotuladas. Por padrão o arquivo é procurado em
+``research/datasets/data/bluesky_bot_labels.csv`` (ignorado pelo Git).
 """
 
+import argparse
 import json
+import math
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import yaml
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (
-    confusion_matrix,
-    precision_score,
-    recall_score,
-    roc_auc_score,
-)
+from sklearn.metrics import confusion_matrix, precision_score, recall_score, roc_auc_score
+from sklearn.model_selection import train_test_split
 
 EXPERIMENTS_DIR = Path(__file__).resolve().parent
+DATA_DIR = EXPERIMENTS_DIR.parent / "datasets" / "data"
 RESULTS_DIR = EXPERIMENTS_DIR / "results"
-RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 WEIGHTS_FILE = EXPERIMENTS_DIR.parent.parent / "api" / "app" / "domain" / "bot_weights.yaml"
 
-FEATURES = [
-    "account_age_days",
-    "followers_count",
-    "following_count",
-    "posts_count",
-    "bio_length",
-    "name_length",
-    "has_avatar",
-    "has_banner",
-    "post_frequency",
-    "repost_ratio",
-    "quote_ratio",
-    "link_ratio",
-]
+# Contrato do scorer em produção; mantenha em sincronia com bot_features.py.
+FEATURES = (
+    "demographic_young_account",
+    "demographic_digits_handle",
+    "demographic_no_avatar",
+    "demographic_no_description",
+    "demographic_self_label_bot",
+    "network_follower_ratio",
+    "temporal_posts_per_day",
+    "temporal_interval_cv",
+    "temporal_hour_entropy",
+    "content_duplicate_ratio",
+    "content_repost_ratio",
+    "content_repeated_links",
+)
 
 
-def generate_synthetic_data(n_samples: int = 2000) -> tuple[pd.DataFrame, np.ndarray]:
-    """Gera dados sintéticos simulando bots e humanos no Bluesky.
+def load_dataset(path: Path) -> tuple[pd.DataFrame, pd.Series]:
+    """Carrega labels binários e rejeita dados incompletos ou sem classes."""
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Dataset rotulado não encontrado: {path}. "
+            "Colete contas self-labelled bot e uma amostra humana antes de avaliar."
+        )
+    frame = pd.read_json(path) if path.suffix.lower() == ".json" else pd.read_csv(path)
+    missing = {"label", *FEATURES}.difference(frame.columns)
+    if missing:
+        raise ValueError(f"Dataset sem as colunas obrigatórias: {', '.join(sorted(missing))}")
 
-    Fallback quando o dataset real (Navigating Ambiguities, DOI 10.1080/…)
-    não está disponível localmente.
-    """
-    rng = np.random.default_rng(42)
+    labels = pd.to_numeric(frame["label"], errors="raise").astype(int)
+    if not set(labels.unique()).issubset({0, 1}) or labels.nunique() != 2:
+        raise ValueError("label deve conter as duas classes binárias: 0 (humano) e 1 (bot)")
+    if labels.value_counts().min() < 2:
+        raise ValueError("Cada classe precisa de ao menos duas contas para a divisão estratificada")
 
-    y = rng.binomial(1, 0.3, n_samples)
-    X = pd.DataFrame(index=range(n_samples), columns=FEATURES, dtype=float)
+    values = frame.loc[:, FEATURES].apply(pd.to_numeric, errors="raise")
+    if values.isna().any().any():
+        raise ValueError("Features não podem conter valores ausentes")
+    return values, labels
 
-    n_human = int((y == 0).sum())
-    n_bot = int((y == 1).sum())
 
-    # Humanos: perfis orgânicos
-    X.loc[y == 0, "followers_count"] = rng.lognormal(mean=5, sigma=2, size=n_human)
-    X.loc[y == 0, "following_count"] = rng.lognormal(mean=5, sigma=1, size=n_human)
-    X.loc[y == 0, "has_avatar"] = rng.binomial(1, 0.95, size=n_human)
-    X.loc[y == 0, "repost_ratio"] = rng.beta(2, 5, size=n_human)
+def score_with_current_weights(values: pd.DataFrame, weights: dict[str, float]) -> pd.Series:
+    bias = float(weights.get("bias", -2.0))
+    linear = sum(values[name] * float(weights.get(name, 0.0)) for name in FEATURES) + bias
+    return linear.map(lambda value: 1 / (1 + math.exp(-value)))
 
-    # Bots: poucos seguidores, seguem muitos, alto repost
-    X.loc[y == 1, "followers_count"] = rng.lognormal(mean=2, sigma=1, size=n_bot)
-    X.loc[y == 1, "following_count"] = rng.lognormal(mean=6, sigma=1, size=n_bot)
-    X.loc[y == 1, "has_avatar"] = rng.binomial(1, 0.4, size=n_bot)
-    X.loc[y == 1, "repost_ratio"] = rng.beta(8, 2, size=n_bot)
 
-    # Preencher colunas restantes com ruído uniforme
-    for feat in FEATURES:
-        mask = X[feat].isnull()
-        if mask.any():
-            X.loc[mask, feat] = rng.uniform(0, 1, size=int(mask.sum()))
+def metrics_for(labels: pd.Series, probabilities: pd.Series) -> dict[str, object]:
+    predictions = (probabilities >= 0.9).astype(int)
+    return {
+        "roc_auc": float(roc_auc_score(labels, probabilities)),
+        "precision_at_0_9": float(precision_score(labels, predictions, zero_division=0)),
+        "recall_at_0_9": float(recall_score(labels, predictions, zero_division=0)),
+        "confusion_matrix_at_0_9": confusion_matrix(labels, predictions).tolist(),
+    }
 
-    X = X.fillna(0)
-    return X, y
+
+def evaluate(dataset: Path, test_size: float = 0.2, random_state: int = 42) -> dict[str, object]:
+    values, labels = load_dataset(dataset)
+    train_x, test_x, train_y, test_y = train_test_split(
+        values, labels, test_size=test_size, random_state=random_state, stratify=labels
+    )
+    with WEIGHTS_FILE.open(encoding="utf-8") as fh:
+        current_weights = yaml.safe_load(fh)["weights"]
+
+    model = LogisticRegression(max_iter=1000, class_weight="balanced", random_state=random_state)
+    model.fit(train_x, train_y)
+    proposed_weights = dict(zip(FEATURES, model.coef_[0], strict=True))
+    proposed_weights["bias"] = float(model.intercept_[0])
+
+    return {
+        "dataset": str(dataset),
+        "train_size": len(train_x),
+        "test_size": len(test_x),
+        "threshold": 0.9,
+        "current_weights_holdout": metrics_for(
+            test_y, score_with_current_weights(test_x, current_weights)
+        ),
+        "recalibrated_holdout": metrics_for(
+            test_y, pd.Series(model.predict_proba(test_x)[:, 1], index=test_x.index)
+        ),
+        "proposed_weights": {name: float(weight) for name, weight in proposed_weights.items()},
+    }
+
+
+def write_results(result: dict[str, object], output_dir: Path) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with (output_dir / "bot_score_metrics.json").open("w", encoding="utf-8") as fh:
+        metrics = {key: value for key, value in result.items() if key != "proposed_weights"}
+        json.dump(metrics, fh, indent=2)
+    with (output_dir / "bot_score_new_weights.json").open("w", encoding="utf-8") as fh:
+        json.dump(result["proposed_weights"], fh, indent=2)
+
+    calibrated = result["recalibrated_holdout"]
+    assert isinstance(calibrated, dict)
+    summary = (
+        "# Avaliação de Bot Score\n\n"
+        "Métricas calculadas em holdout estratificado de contas Bluesky rotuladas; "
+        "nenhuma métrica usa exemplos de treino.\n\n"
+        "## Recalibrado — holdout\n"
+        f"- ROC-AUC: {calibrated['roc_auc']:.4f}\n"
+        f"- Precisão @ 0,9: {calibrated['precision_at_0_9']:.4f}\n"
+        f"- Recall @ 0,9: {calibrated['recall_at_0_9']:.4f}\n"
+    )
+    (output_dir / "bot_score_summary.md").write_text(summary, encoding="utf-8")
 
 
 def main() -> None:
-    print("Gerando dados para avaliação do bot score...")
-    X, y = generate_synthetic_data()
-
-    # Carregar pesos atuais (se existirem)
-    current_weights: dict = {}
-    if WEIGHTS_FILE.exists():
-        with open(WEIGHTS_FILE, encoding="utf-8") as fh:
-            data = yaml.safe_load(fh)
-            current_weights = data.get("weights", {})
-    print(f"Pesos atuais carregados: {len(current_weights)} features.")
-
-    # Treinar regressão logística para recalibrar
-    clf = LogisticRegression(max_iter=1000, class_weight="balanced")
-    clf.fit(X, y)
-
-    # Previsões e métricas no threshold 0.9 (usado na matriz GQ01)
-    y_prob = clf.predict_proba(X)[:, 1]
-    y_pred = (y_prob >= 0.9).astype(int)
-
-    roc_auc = roc_auc_score(y, y_prob)
-    precision = precision_score(y, y_pred, zero_division=0)
-    recall = recall_score(y, y_pred, zero_division=0)
-    cm = confusion_matrix(y, y_pred)
-
-    metrics = {
-        "roc_auc": float(roc_auc),
-        "precision_at_0.9": float(precision),
-        "recall_at_0.9": float(recall),
-        "confusion_matrix": cm.tolist(),
-    }
-
-    new_weights = {feat: float(w) for feat, w in zip(X.columns, clf.coef_[0], strict=True)}
-    new_weights["bias"] = float(clf.intercept_[0])
-
-    # Salvar resultados
-    with open(RESULTS_DIR / "bot_score_metrics.json", "w", encoding="utf-8") as fh:
-        json.dump(metrics, fh, indent=2)
-
-    with open(RESULTS_DIR / "bot_score_new_weights.json", "w", encoding="utf-8") as fh:
-        json.dump(new_weights, fh, indent=2)
-
-    # Resumo em markdown para #33
-    md_rows = "\n".join(f"  {k}: {v:.4f}" for k, v in new_weights.items())
-    summary = (
-        "# Resultados da Avaliação de Bot Score\n\n"
-        "Regressão logística contra dataset rotulado para validar\n"
-        "o threshold 0.9 da matriz GQ01 e sugerir novos pesos.\n\n"
-        "## Métricas (Threshold = 0.9)\n"
-        f"- **ROC-AUC**: {roc_auc:.4f}\n"
-        f"- **Precision**: {precision:.4f}\n"
-        f"- **Recall**: {recall:.4f}\n\n"
-        "## Matriz de Confusão\n"
-        "| | Predito Humano (<0.9) | Predito Bot (>=0.9) |\n"
-        "|---|---|---|\n"
-        f"| **Real Humano** | {cm[0][0]} | {cm[0][1]} |\n"
-        f"| **Real Bot** | {cm[1][0]} | {cm[1][1]} |\n\n"
-        "## Novos Pesos Sugeridos\n"
-        "```yaml\n"
-        "weights:\n"
-        f"{md_rows}\n"
-        "```\n"
-    )
-
-    with open(RESULTS_DIR / "bot_score_summary.md", "w", encoding="utf-8") as fh:
-        fh.write(summary)
-
-    print(summary)
-    print("Experimento concluído. Resultados salvos em research/experiments/results/")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dataset", type=Path, default=DATA_DIR / "bluesky_bot_labels.csv")
+    parser.add_argument("--output-dir", type=Path, default=RESULTS_DIR)
+    args = parser.parse_args()
+    write_results(evaluate(args.dataset), args.output_dir)
 
 
 if __name__ == "__main__":
