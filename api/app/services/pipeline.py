@@ -125,7 +125,13 @@ class PipelineService:
             },
             bot_score=bot_score,
             bot_features=assessment.features if assessment else None,
-            sources=[s.__dict__ for s in evidences],
+            sources=[
+                {
+                    **s.__dict__,
+                    "published_at": s.published_at.isoformat() if s.published_at else None,
+                }
+                for s in evidences
+            ],
             agent_outputs=verdict.agent_outputs,
             verdict=verdict.label.value,
             confidence=verdict.confidence,

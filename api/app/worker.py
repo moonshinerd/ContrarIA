@@ -18,10 +18,12 @@ from app.core.logging import configure_logging
 from app.jobs.collector import JetstreamConsumer, SearchPoller
 from app.jobs.ingest_fact_articles import FeedIngestor
 from app.models.llm.litellm_model import LiteLLMModel
+from app.repositories.crc_calibration import CRCCalibrationRepository
 from app.repositories.fact_articles import FactArticleRepository
 from app.repositories.interventions import InterventionRepository
 from app.repositories.posts import PostRepository
 from app.services.bot_scoring import BotScoringService
+from app.services.crc_seed import ensure_calibration_seeded
 from app.services.intervention import InterventionService
 from app.services.pipeline import PipelineService
 from app.services.verification import VerificationService
@@ -34,6 +36,7 @@ async def main() -> None:
     configure_logging(settings)
     logger.info("worker started", extra={"tick_seconds": settings.worker_tick_seconds})
     engine = create_engine(settings.database_url, pool_pre_ping=True)
+    ensure_calibration_seeded(CRCCalibrationRepository(engine), settings)
 
     # Repositórios e Clientes
     bsky_client = BlueskyClient(settings)
@@ -80,6 +83,7 @@ async def main() -> None:
                     post_repo.update_triage(post.uri, status=status, priority=0.0)
                 except Exception:
                     logger.exception("Falha no pipeline GQ01 para %s", post.uri)
+                    pipeline.db.rollback()
             await asyncio.sleep(settings.worker_tick_seconds)
     finally:
         jetstream_task.cancel()
