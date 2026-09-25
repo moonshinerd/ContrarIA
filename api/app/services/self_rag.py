@@ -466,7 +466,7 @@ class SelfRAGService:
     ) -> ValidatedModel:
         system = load_prompt(prompt).replace("{{CURRENT_DATE}}", current_date.isoformat())
         validation_error: Exception | None = None
-        for attempt in range(2):
+        for attempt in range(3):
             retry = ""
             if attempt:
                 retry = (
@@ -487,7 +487,7 @@ class SelfRAGService:
             except (ValidationError, ValueError) as exc:
                 validation_error = exc
         raise StructuredSelfRAGOutputError(
-            f"Resposta inválida para {purpose} após 2 tentativas"
+            f"Resposta inválida para {purpose} após 3 tentativas"
         ) from validation_error
 
     @staticmethod

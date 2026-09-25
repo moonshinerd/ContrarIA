@@ -181,7 +181,6 @@ async def test_verify_returns_complete_calibrated_verdict_and_audit_log():
     [
         (FakeDebate(confidence=0.79), StaticCalibrations(0.80), "confiança"),
         (FakeDebate(p_ik=0.40), StaticCalibrations(), "P(IK)"),
-        (FakeDebate(consensus=False), StaticCalibrations(), "consenso"),
         (FakeDebate(), StaticCalibrations(available=False), "calibração"),
     ],
 )
@@ -190,6 +189,17 @@ async def test_verify_abstains_when_any_runtime_guard_fails(debate, calibrations
 
     assert verdict.label is VerdictLabel.INSUFFICIENT_EVIDENCE
     assert reason in verdict.rationale
+
+
+@pytest.mark.anyio
+async def test_verify_does_not_abstain_on_low_consensus_alone():
+    """Consenso é autorrelato binário do juiz; sozinho não deve mais vetar um
+    p_ik alto -- calibrado a pedido explícito (25/09/2026) após medir ao vivo
+    casos com p_ik=0.9 e consensus=false sendo descartados sem necessidade."""
+    debate = FakeDebate(consensus=False)
+    verdict = await build_service(debate, StaticCalibrations()).verify(sample_post())
+
+    assert verdict.label is VerdictLabel.FALSE
 
 
 @pytest.mark.anyio

@@ -305,7 +305,7 @@ class ClaimVerificationPlanner:
         self, *, system, user, response_type, purpose, post_validate=None
     ):
         validation_error: Exception | None = None
-        for attempt in range(2):
+        for attempt in range(3):
             retry_instruction = ""
             if attempt:
                 retry_instruction = (
@@ -327,5 +327,5 @@ class ClaimVerificationPlanner:
             except (ValidationError, ValueError) as exc:
                 validation_error = exc
         raise StructuredLLMOutputError(
-            f"Resposta inválida para {purpose} após 2 tentativas"
+            f"Resposta inválida para {purpose} após 3 tentativas"
         ) from validation_error

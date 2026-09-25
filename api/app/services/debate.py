@@ -269,10 +269,15 @@ class DebateService:
         consensus = self._parse_consensus(parsed.get("consensus", False))
         p_ik = float(parsed.get("p_ik", confidence))
 
-        # Aplicação das regras de Humildade Epistêmica P(IK) e Consenso
-        # Se não há consenso ou P(IK) está abaixo da margem de segurança, abstém-se
+        # Aplicação da regra de Humildade Epistêmica P(IK).
+        # "consensus" continua sendo registrado (é o autorrelato do juiz sobre
+        # ter havido divergência não resolvida no debate), mas não bloqueia
+        # mais sozinho: era um veto binário redundante sobre o próprio p_ik
+        # (medida contínua e mais proporcional), e na prática abstinha mesmo
+        # com p_ik alto (ex.: p_ik=0.9, consensus=false) -- calibrado a pedido
+        # explícito (25/09/2026) para reduzir esse excesso de cautela.
         abstained = False
-        if not consensus or p_ik < self.settings.debate_p_ik_threshold:
+        if p_ik < self.settings.debate_p_ik_threshold:
             label = VerdictLabel.INSUFFICIENT_EVIDENCE
             abstained = True
             if not rationale:
