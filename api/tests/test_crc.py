@@ -61,7 +61,9 @@ def test_ensure_calibration_seeded_persists_seed_for_configured_model():
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     repository = CRCCalibrationRepository(engine)
-    settings = Settings(_env_file=None)
+    # Fixado para bater com o modelo do seed, independente do LLM_MODEL_NAME
+    # do ambiente (api/.env muda de modelo com frequência durante testes ao vivo).
+    settings = Settings(_env_file=None, llm_model_name="openrouter/google/gemini-2.5-flash")
 
     ensure_calibration_seeded(repository, settings)
 
@@ -76,7 +78,7 @@ def test_ensure_calibration_seeded_does_not_override_existing_calibration():
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     repository = CRCCalibrationRepository(engine)
-    settings = Settings(_env_file=None)
+    settings = Settings(_env_file=None, llm_model_name="openrouter/google/gemini-2.5-flash")
     model = settings.crc_model_name or settings.llm_model_name
     repository.save(CRCCalibration(0.42, 0.05, 100, model, datetime.now(UTC)))
 

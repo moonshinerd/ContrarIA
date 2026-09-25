@@ -22,10 +22,20 @@ class BudgetExceeded(Exception):
 
 
 class UsageTracker:
-    """Rastreador de consumo e custos de chamadas a LLM."""
+    """Rastreador de consumo e custos de chamadas a LLM.
 
-    def __init__(self) -> None:
+    ``persist=False`` (padrão) mantém tudo em memória, sem tocar no banco --
+    é o que os testes esperam ao instanciar ``UsageTracker()`` puro. Só o
+    singleton real do processo (``default_usage_tracker``) usa
+    ``persist=True``: sem isso, testes gravavam custo de verdade na mesma
+    tabela ``llm_usage`` do Postgres de dev/showcase, inflando o orçamento
+    diário real a cada `pytest` rodado (medido ao vivo: 4 chamadas de teste
+    de $1.05 cada somaram $4.20 ao orçamento de produção do dia).
+    """
+
+    def __init__(self, persist: bool = False) -> None:
         self._records: list[dict[str, Any]] = []
+        self._persist = persist
 
     def record(
         self,
@@ -46,6 +56,9 @@ class UsageTracker:
             "cost_usd": cost_usd,
         }
         self._records.append(record_data)
+
+        if not self._persist:
+            return
 
         # Tenta persistir no banco se a tabela/conexão estiver disponível
         try:
@@ -73,6 +86,9 @@ class UsageTracker:
 
     def get_daily_cost(self, usage_date: date) -> float:
         """Calcula o custo total acumulado para a data fornecida."""
+        if not self._persist:
+            return sum(r["cost_usd"] for r in self._records if r["date"] == usage_date)
+
         # Se houver conexão com o banco, podemos consultar o total do dia
         try:
             from sqlalchemy import create_engine, func, select
