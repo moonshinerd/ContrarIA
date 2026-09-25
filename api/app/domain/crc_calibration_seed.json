@@ -1,0 +1,7 @@
+{
+  "lambda_hat": 0.0,
+  "alpha": 0.05,
+  "n": 52,
+  "model": "openrouter/google/gemini-2.5-flash",
+  "source": "research/datasets/crc_calibration_predictions_ptbr.csv (research/experiments/calibrate_crc.py)"
+}
