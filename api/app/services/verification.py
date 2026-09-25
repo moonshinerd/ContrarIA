@@ -153,6 +153,7 @@ class VerificationService:
                     post_text=post.text,
                     evidences=evidences,
                     verified_answers=[item.answer for item in answers],
+                    current_date=current_date,
                 )
             except Exception as exc:
                 logger.exception("Falha no debate da alegação %s", claim)

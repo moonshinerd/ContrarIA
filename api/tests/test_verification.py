@@ -101,7 +101,9 @@ class FakeDebate:
         self.p_ik = p_ik
         self.verified_answers = []
 
-    async def conduct_debate(self, claim, post_text, evidences, rounds=None, verified_answers=None):
+    async def conduct_debate(
+        self, claim, post_text, evidences, rounds=None, verified_answers=None, current_date=None
+    ):
         self.verified_answers = verified_answers or []
         return DebateVerdict(
             claim=claim,

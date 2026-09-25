@@ -38,6 +38,14 @@ class OzoneClient:
                     fetch_bsky_profile=False,
                 )
                 self._logged_in = True
+                # fetch_bsky_profile=False deixa client.me em None; emit_event
+                # abaixo usa client.me.did, então preenche sem custo de rede
+                # (mesmo problema e mesma correção do BlueskyClient.login).
+                session = self.client._session  # noqa: SLF001 -- SDK não expõe did/handle de outra forma
+                if session is not None:
+                    self.client.me = models.AppBskyActorDefs.ProfileViewDetailed(
+                        did=session.did, handle=session.handle
+                    )
 
     async def emit_label(
         self,

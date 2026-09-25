@@ -184,6 +184,7 @@ class BlueskyClient:
                         session_string=path.read_text().strip(), fetch_bsky_profile=False
                     )
                     self._logged_in = True
+                    self._populate_me()
                     logger.info("bluesky session resumed")
                     return self._did_from_session()
                 except (UnauthorizedError, ValueError):
@@ -197,6 +198,7 @@ class BlueskyClient:
                 )
             await self._auth.login(login=handle, password=password, fetch_bsky_profile=False)
             self._logged_in = True
+            self._populate_me()
             logger.info("bluesky session created", extra={"handle": handle})
             return self._did_from_session()
 
@@ -205,6 +207,25 @@ class BlueskyClient:
         if session is None:
             raise BlueskyAuthError("sessão ausente após login")
         return session.did
+
+    def _populate_me(self) -> None:
+        """Preenche ``self._auth.me`` sem round-trip de rede.
+
+        `login(..., fetch_bsky_profile=False)` deixa `self._auth.me = None` de
+        propósito, para não validar a sessão retomada contra a rede. Só que
+        métodos de conveniência do SDK como `send_post` (usado em
+        `quote_post`) checam `self.me and self.me.did` e levantam
+        `LoginRequiredError` incondicionalmente se `me` for `None` -- medido
+        ao vivo (25/09/2026): toda tentativa de publicar falhava por isso,
+        mesmo com sessão válida. DID e handle já vêm da sessão persistida,
+        então um `ProfileViewDetailed` mínimo resolve sem custo de rede.
+        """
+        session = self._auth._session  # noqa: SLF001 -- ver _did_from_session
+        if session is None:
+            return
+        self._auth.me = models.AppBskyActorDefs.ProfileViewDetailed(
+            did=session.did, handle=session.handle
+        )
 
     # ---- rate limit -----------------------------------------------------
 
