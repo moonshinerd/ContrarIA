@@ -1,5 +1,5 @@
 site_name: ContrarIA
-site_description: Agente de mitigação de desinformação e detecção de bots no Bluesky
+site_description: Agente autônomo de mitigação de desinformação e detecção de bots no Bluesky
 repo_url: https://github.com/moonshinerd/ContrarIA
 edit_uri: edit/main/docs/
 docs_dir: docs
@@ -7,24 +7,40 @@ docs_dir: docs
 theme:
   name: material
   language: pt-BR
+  logo: assets/logo.png
+  favicon: assets/logo.png
   features:
+    - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
+    - navigation.expand
     - navigation.top
-    - content.action.edit
     - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
   palette:
     - scheme: default
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-night
-        name: Modo escuro
+        name: Alternar para modo escuro
     - scheme: slate
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-sunny
-        name: Modo claro
+        name: Alternar para modo claro
+
+extra_css:
+  - stylesheets/extra.css
 
 markdown_extensions:
   - admonition
   - tables
+  - attr_list
+  - md_in_html
   - toc:
       permalink: true
   - pymdownx.details
@@ -33,17 +49,50 @@ markdown_extensions:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
 
 nav:
   - Início: index.md
   - Planejamento: planejamento.md
   - Requisitos: requisitos.md
   - Pesquisa:
+      - Perguntas Norteadoras: pesquisa/guiding-questions.md
+      - Ideias e Fontes: pesquisa/ideias-e-fontes.md
       - Matrizes de Decisão: pesquisa/matrizes.md
-  - Arquitetura: arquitetura/index.md
-  - Decisões (ADRs): adr/index.md
+  - Processo:
+      - Metodologia Scrum e Papéis: processo/scrum.md
+      - Avaliações da Equipe: processo/avaliacoes.md
+  - Guia de Uso: guia-de-uso.md
+  - Arquitetura:
+      - Visão Geral: arquitetura/index.md
+      - O Pipeline do Agente: arquitetura/pipeline.md
+  - Decisões (ADRs):
+      - Índice: adr/index.md
+      - "0001 – Bluesky": adr/0001-bluesky.md
+      - "0002 – Quote Post": adr/0002-quote-post.md
+      - "0003 – Labeler Ozone": adr/0003-labeler-ozone.md
+      - "0004 – LiteLLM e OpenRouter": adr/0004-litellm-openrouter.md
+      - "0005 – Fontes de Evidência": adr/0005-multiplas-fontes-evidencia.md
+      - "0006 – Bot Score Heurístico": adr/0006-bot-score-heuristico.md
+      - "0007 – Verificação Multiagente": adr/0007-verificacao-cove-selfrag-mad-crc.md
+      - "0008 – Pré-filtro Clássico": adr/0008-pre-filtro-classico.md
+      - "0009 – Coleta Híbrida": adr/0009-coleta-hibrida-jetstream-searchposts.md
+      - "0010 – Frontend fora do MVP": adr/0010-frontend-fora-do-mvp.md
+      - "0011 – Deploy em VPS": adr/0011-deploy-vps-caddy-cloudflare.md
+      - "0012 – Organização sem Sprints": adr/0012-organizacao-sem-sprints.md
+  - Glossário: glossario.md
   - Atas:
       - Índice: atas/index.md
       - "09/09 – Alinhamento (Engage)": atas/ata01.md
       - "16/09 – Planejamento do MVP": atas/ata02.md
       - Checkpoints do MVP: atas/checkpoints.md
+  - Referências: referencias.md
