@@ -14,14 +14,20 @@ Registro formal das decisões técnicas de engenharia e arquitetura do projeto *
 | [**0004**](0004-litellm-openrouter.md) | Abstração de Provedores de LLM com LiteLLM, OpenRouter e Ollama | `Aceita` | 16/09/2026 | RNF05, Issue #19 |
 | [**0005**](0005-multiplas-fontes-evidencia.md) | Cesta Diversificada de Fontes de Evidência com Adapters Desacoplados | `Aceita` | 16/09/2026 | RF11, RNF02, Issues #20, #21 |
 | [**0006**](0006-bot-score-heuristico.md) | Detecção de Contas Automatizadas via Bot Score Heurístico Ponderado | `Aceita` | 16/09/2026 | RF02, RF12, RNF05, Issue #13 |
-| [**0007**](0007-verificacao-cove-selfrag-mad-crc.md) | Pipeline de Verificação com CoVe, Self-RAG e Debate Multiagente (MAD/CRC) | `Aceita` | 16/09/2026 | RF03, RF15, RF16, RNF01, Issues #22–#25 |
-| [**0008**](0008-pre-filtro-classico.md) | Pré-filtro Clássico Supervisionado em Datasets PT-BR | `Aceita` | 16/09/2026 | RF09, RNF05, Issue #26 |
+| [**0007**](0007-verificacao-cove-selfrag-mad-crc.md) | Verificação com CoVe, Self-RAG, Debate Multiagente e Conformal Risk Control | `Aceita` | 16/09/2026 | RF03, RF15, RF16, RNF01, Issues #22–#25 |
+| [**0008**](0008-pre-filtro-classico.md) | Pré-filtro Clássico Supervisionado em Datasets PT-BR | `Aceita` | 16/09/2026 | RNF01, RNF05, Issue #26 |
 | [**0009**](0009-coleta-hibrida-jetstream-searchposts.md) | Coleta Híbrida de Publicações via Jetstream e API searchPosts | `Aceita` | 16/09/2026 | RF01, RF08, RNF07, Issue #11 |
 | [**0010**](0010-frontend-fora-do-mvp.md) | Postergação de Interface Web (Frontend React) para Pós-MVP | `Aceita` | 16/09/2026 | RF13, Épico #8 |
 | [**0011**](0011-deploy-vps-caddy-cloudflare.md) | Infraestrutura de Deploy em VPS com Docker Compose, Caddy e Cloudflare | `Aceita` | 16/09/2026 | RNF03, RNF05, RNF07, Issue #15 |
 | [**0012**](0012-organizacao-sem-sprints.md) | Organização de Trabalho sem Sprints: Duplas Paralelas e Dependências Explícitas | `Aceita` | 16/09/2026 | docs/planejamento.md, Épico #7 |
 
 ---
+
+## Revisão exigida para conclusão
+
+A [issue #31](https://github.com/moonshinerd/ContrarIA/issues/31) exige que cada um dos 12 ADRs seja revisado por alguém de uma dupla de código (Victor/Marlon ou Raissa/Samantha). O status `Aceita` registra a decisão arquitetural e não substitui essa revisão.
+
+A revisão dos ADRs 0001 a 0012 está **pendente de registro no PR #45**. A pessoa revisora deve indicar explicitamente quais ADRs revisou, podendo cobrir os 12 em uma única revisão. A issue só deve ser considerada concluída após essa revisão e a publicação dos documentos.
 
 ## Template Padrão de ADR
 

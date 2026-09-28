@@ -3,24 +3,25 @@
 - **Status:** Aceita
 - **Data:** 16/09/2026
 - **Requisitos / GQs:** RF05, RF06, RF14, RNF03, RNF04, GQ01, GQ07
+- **Origem:** [Issue #14](https://github.com/moonshinerd/ContrarIA/issues/14)
 
 ## Contexto
-A forma como um agente autônomo interage nas redes sociais determina sua aceitação comunitária e eficácia contra a desinformação. O projeto precisava resolver dois dilemas fundamentais de interação:
-1. **Risco de Spam e Rejeição**: A comunidade do Bluesky valoriza diretrizes de *opt-in* e rejeita veementemente bots que poluem tópicos de discussão alheios com respostas intrusivas (*replies* não solicitadas).
-2. **Efeito Backfire Psicológico**: A literatura científica comprova que confrontar diretamente um usuário radicalizado no seu próprio fio tende a aumentar a sua resistência cognitiva e gerar polarização defensiva.
+A intervenção deve apresentar evidências aos espectadores da conversa sem iniciar um diálogo automático no fio do autor. A escolha precisa registrar o risco de interação não solicitada, e não presumir que uma citação elimina esse risco.
 
 ## Decisão
-A intervenção pública do ContrarIA ocorrerá exclusivamente através de **Quote Post** (postagem no perfil do próprio bot citando a publicação analisada). O agente **nunca responderá diretamente no fio da postagem original** (*reply*) e **não marcará o autor original via menção (@)**.
+Publicar **quote posts no perfil do bot**, sem replies nem menções ao autor. O tom será empático e socrático para humanos prováveis e clínico, descrevendo os sinais de automação, para bots prováveis. A publicação cita a alegação falsa ou enganosa e inclui um link de evidência, respeitando o limite de 300 grafemas.
+
+**Risco aceito:** conforme registrado na issue #14, a diretriz de bots do Bluesky condiciona interações ao usuário ter marcado o bot. Quote posts notificam o autor e permanecem nessa zona cinzenta de opt-in. A decisão não garante conformidade integral nem elimina denúncias ou bloqueios.
+
+O probing conversacional da GQ07 fica fora do MVP, pois depende de diálogo, incompatível com a escolha de não responder no fio.
 
 ## Alternativas consideradas
-- **Resposta Direta no Fio (*Reply*)**: Descartada por violar a expectativa de moderação e privacidade do autor do post, elevando o risco de denúncias em massa por spam e bloqueio do bot.
-- **Menção Direta com @**: Descartada porque notificações invasivas provocam reações beligerantes e facilitam que redes de bots adversários coordenem ataques de negação de serviço contra o agente.
-- **Mensagem Direta Privada (DM)**: Descartada porque anularia o benefício educativo para a audiência observadora (*bystanders*).
+- **Reply ou menção direta:** descartados para evitar intervenções no fio e conversas automáticas com o autor.
+- **Mensagem privada:** descartada por não alcançar os espectadores.
+- **Probing conversacional:** adiado por exigir trocas sucessivas com o usuário.
 
 ## Consequências
-- **Positivas**:
-  - Respeito integral às normas comunitárias e termos de uso do Bluesky (RNF03).
-  - O agente comunica-se prioritariamente com a audiência espectadora (*bystanders*), que possui maior propensão a absorver a checagem factual reflexiva.
-  - Imunidade a loops recursivos de réplicas e ataques de spam orquestrados em tópicos de comentários.
-- **Negativas / Riscos assumidos**:
-  - O autor original da postagem desinformativa pode não tomar conhecimento imediato da checagem reflexiva, a menos que visualize as citações ao seu post.
+- A checagem fica visível no perfil do bot e prioriza os espectadores.
+- Quote posts continuam sujeitos ao risco de opt-in descrito acima; não há imunidade a loops ou spam.
+- Guardrails limitam a uma citação por post e uma por autor a cada 24 horas, impedem autocitação e loops com bots que citaram o ContrarIA, e respeitam postgate que proíbe citações. Nesse caso, apenas a rotulagem elegível pode prosseguir.
+- O texto deve ser neutro, conter fonte e passar pelas travas de orçamento e intervenções diárias. O dry-run é o padrão fora de produção.

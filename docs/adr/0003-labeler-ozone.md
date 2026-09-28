@@ -3,21 +3,24 @@
 - **Status:** Aceita
 - **Data:** 16/09/2026
 - **Requisitos / GQs:** RF07, RNF03, RNF07, GQ07
+- **Origem:** [Issue #16](https://github.com/moonshinerd/ContrarIA/issues/16)
 
 ## Contexto
-Além da intervenção pedagógica textual via Quote Post, o desafio exige mecanismos formais de sinalização técnica de contas automatizadas e conteúdos desinformativos. O protocolo AT Protocol introduziu o conceito de **Labelers independentes**: serviços federados que emitem etiquetas criptograficamente assinadas para perfis e publicações, permitindo que os usuários escolham quais provedores de moderação desejam seguir no aplicativo oficial.
+O MVP precisa emitir e remover rótulos após a análise completa, com rastreabilidade. A biblioteca leve `@skyware/labeler` foi descartada porque estava arquivada, conforme registrado na issue #16. Ozone é o servidor oficial de moderação do Bluesky, distinto dessa biblioteca.
 
 ## Decisão
-Fazer o deploy e manter uma instância oficial do **Ozone** (software de moderação do Bluesky/Skyware), configurando a conta do ContrarIA como um *Labeler* oficial da rede. O serviço emitirá rótulos padronizados (ex.: `bot-score-high`, `desinformacao-eleitoral`) que aparecem diretamente na interface do aplicativo para os usuários que subscreverem o serviço.
+Manter uma instância do **Ozone oficial** no MVP, com uma **segunda conta Bluesky dedicada ao labeler**, separada da conta que publica quote posts. O serviço ficará atrás do Caddy, com HTTPS, Postgres próprio, chave de assinatura e serviço `#atproto_labeler` configurados no DID.
+
+Declarar no record `app.bsky.labeler.service` os rótulos `possivel-desinformacao` e `provavel-bot`; `evidencia-insuficiente` é opcional. As definições usam locale `pt-BR`, `severity: inform` e `blurs: none`. Os usuários escolhem assinar o labeler para visualizar sua sinalização.
+
+O pipeline aplica rótulos somente após a análise completa, em posts ou contas conforme a decisão. Usa `tools.ozone.moderation.emitEvent` com `createLabelVals` e nega rótulos com `negateLabelVals` quando um veredito é revisto, preservando o histórico. Abstenção não autoriza ação penalizadora.
 
 ## Alternativas consideradas
-- **Armazenamento de Rótulos em Banco Proprietário**: Descartado porque os rótulos ficariam confinados ao banco de dados interno da aplicação, sem qualquer visibilidade ou utilidade direta para os usuários do Bluesky.
-- **Sinalização Apenas por Texto nos Posts**: Descartada por não permitir aos usuários configurarem preferências de ocultação ou advertência automática na interface do cliente AT Protocol.
+- **`@skyware/labeler`:** descartada por arquivamento, evitando depender de uma implementação sem manutenção.
+- **Rótulos apenas no banco interno:** não alcançam os clientes da rede.
+- **Avisos apenas em texto:** não oferecem as preferências de moderação nativas dos clientes.
 
 ## Consequências
-- **Positivas**:
-  - O projeto ContrarIA atua como uma autoridade de moderação descentralizada nativa e auditável.
-  - Conformidade perfeita com o ecossistema e com os requisitos RF07 e RNF07.
-  - Usuários do Bluesky podem voluntariamente assinar o serviço de moderação do ContrarIA para filtrar seu feed.
-- **Negativas / Riscos assumidos**:
-  - Exige a administração de um serviço contínuo adicional em infraestrutura de produção (VPS dedicada com proxy reverso e certificados TLS).
+- A sinalização é distribuída pelo AT Protocol e pode ser revogada sem apagar o histórico.
+- A conta do labeler deve ser assinada pelo usuário; publicar rótulos não os torna visíveis para toda a rede.
+- A equipe mantém um serviço público adicional, sua conta, banco, chave de assinatura e certificados.
