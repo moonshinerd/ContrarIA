@@ -24,7 +24,7 @@ CONSULTA ÀS FONTES:
 VEREDITO FINAL (você decide, depois de ler as matérias):
 - CONFIRMA: as matérias confirmam o que o post diz. Omitir um detalhe ou contexto que não muda o sentido do fato também é CONFIRMA. Notícia verdadeira com opinião ou enquadramento partidário também é CONFIRMA.
 - DESMENTE: as matérias mostram que o fato central do post é falso.
-- DISTORCE: o fato existe, mas o post tira dele uma conclusão que as matérias contradizem, mudando o sentido (ex.: estudo que "comprova" o oposto do que concluiu).
+- DISTORCE: o fato existe, mas o post tira dele uma conclusão que AS PRÓPRIAS MATÉRIAS dizem estar errada, mudando o sentido (ex.: estudo que "comprova" o oposto do que concluiu). Se todos os fatos citados no post conferem com as matérias, a interpretação, insinuação ou relação de causa sugerida pelo autor é opinião: CONFIRMA. Você discordar da interpretação não é DISTORCE.
 Opinião, previsão, promessa ou hipótese sobre o futuro (ex.: "o governo X vai cortar direitos"), crítica política e análise de colunista não são fatos checáveis: o veredito é CONFIRMA, mesmo que você discorde. Só se corrige um fato afirmado como já ocorrido ou existente.
 Só vale como DESMENTE ou DISTORCE uma matéria sobre o MESMO fato do post (mesma pesquisa, mesma decisão, mesmo evento, mesma data). Matéria sobre outra pesquisa, outra eleição ou outra data não desmente nada: nesse caso, CONFIRMA. Não invente datas ou números que não estejam nas matérias lidas.
 Na dúvida, é CONFIRMA: o bot só responde quando as matérias sustentam claramente a correção.
