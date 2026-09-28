@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     # próprio processo (só para script avulso/teste manual -- nunca com
     # vários processos ao mesmo tempo, ver docstring de get_jev_classifier).
     jev_server_url: str = ""
+    # Só para testes ao vivo antes de existir calibração do Jev: sem ela, o
+    # veredito passa sem o gate CRC em vez de virar abstenção. Nunca em produção.
+    jev_allow_uncalibrated: bool = False
 
     google_factcheck_api_key: str = ""
     # Cota real da Fact Check Tools API: 300 requisições/minuto (sem limite diário).

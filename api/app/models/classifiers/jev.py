@@ -135,7 +135,9 @@ class JevClassifier:
 class RemoteJevClassifier:
     """Cliente HTTP pro serviço `jev` -- uma cópia do modelo, todo mundo usa."""
 
-    def __init__(self, base_url: str, *, timeout: float = 60.0) -> None:
+    # O serviço atende uma requisição por vez: o tempo inclui a espera na fila, e
+    # um prompt com matéria completa leva >60 s só de avaliação em CPU.
+    def __init__(self, base_url: str, *, timeout: float = 600.0) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 

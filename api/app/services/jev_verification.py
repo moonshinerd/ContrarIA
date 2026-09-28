@@ -301,9 +301,10 @@ class JevVerificationService:
     ) -> tuple[VerdictLabel, float, str]:
         calibration = self.calibration_repo.get_latest(self.model_key())
         reasons: list[str] = []
-        if calibration is None:
+        uncalibrated = calibration is None and self.settings.jev_allow_uncalibrated
+        if calibration is None and not uncalibrated:
             reasons.append("não há calibração CRC para o modelo Jev")
-        elif confidence < calibration.lambda_hat:
+        elif calibration is not None and confidence < calibration.lambda_hat:
             reasons.append("confiança abaixo de lambda_hat (Jev)")
 
         if reasons:
@@ -316,6 +317,8 @@ class JevVerificationService:
             f"Classificado localmente (Jev) como '{label.value}' com confiança "
             f"{confidence:.0%}, com base em {evidence_count} evidência(s) relevante(s)."
         )
+        if uncalibrated:
+            rationale += " Sem calibração CRC (JEV_ALLOW_UNCALIBRATED)."
         return label, confidence, rationale
 
     async def _search(self, query: str) -> tuple[list[Evidence], dict[str, str]]:
