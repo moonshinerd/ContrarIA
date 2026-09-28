@@ -7,6 +7,7 @@ docs_dir: docs
 theme:
   name: material
   language: pt-BR
+  logo: assets/logo.png
   features:
     - navigation.sections
     - navigation.top
@@ -39,7 +40,13 @@ nav:
   - Planejamento: planejamento.md
   - Requisitos: requisitos.md
   - Pesquisa:
+      - Perguntas Norteadoras: pesquisa/guiding-questions.md
+      - Ideias e Fontes: pesquisa/ideias-e-fontes.md
       - Matrizes de Decisão: pesquisa/matrizes.md
+  - Processo:
+      - Metodologia Scrum e Papéis: processo/scrum.md
+      - Avaliações da Equipe: processo/avaliacoes.md
+  - Guia de Uso: guia-de-uso.md
   - Arquitetura: arquitetura/index.md
   - Decisões (ADRs): adr/index.md
   - Atas:
@@ -47,3 +54,5 @@ nav:
       - "09/09 – Alinhamento (Engage)": atas/ata01.md
       - "16/09 – Planejamento do MVP": atas/ata02.md
       - Checkpoints do MVP: atas/checkpoints.md
+  - Referências: referencias.md
+
