@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 import pytest
 
 from app.core.config import Settings
-from app.domain.entities import Evidence, VerdictLabel
+from app.domain.entities import Evidence, Post, VerdictLabel
 from app.services.crc import CRCCalibration
 from app.services.jev_verification import JevVerificationService
 
@@ -130,3 +130,48 @@ async def test_verdict_packs_full_articles_until_the_context_limit(monkeypatch):
     assert "matéria completa de https://e1" not in prompt
     assert all(f"trecho {i}" in prompt for i in range(1, 5))
     assert "trecho 5" not in prompt
+
+
+class EmptySource:
+    name = "empty"
+
+    async def search(self, query: str, *, limit: int = 5):
+        return []
+
+
+class ContextClassifier:
+    def __init__(self) -> None:
+        self.questions: list[str] = []
+
+    async def classify(self, question: str, options: list[str]) -> dict[str, float]:
+        self.questions.append(question)
+        if options == ["factual", "opiniao"]:
+            factual = "221 bi em depósitos" in question
+            return {"factual": 0.9 if factual else 0.1, "opiniao": 0.1 if factual else 0.9}
+        return dict.fromkeys(options, 1 / len(options))
+
+    async def count_tokens(self, texts: list[str]) -> list[int]:
+        return [10 for _ in texts]
+
+
+async def test_jev_considers_limited_thread_context_as_candidate_claim():
+    classifier = ContextClassifier()
+    service = build_service(None)
+    service.classifier = classifier
+    service.sources = [EmptySource()]
+    post = Post(
+        uri="at://did:plc:a/app.bsky.feed.post/1",
+        cid="c",
+        author_did="did:plc:a",
+        text="Acho esse assunto estranho.",
+        created_at=datetime.now(UTC),
+    )
+
+    verdict = await service.verify(
+        post,
+        parent_text="continuação do autor: Os valores chegaram a 221 bi em depósitos.",
+    )
+
+    assert verdict.label == VerdictLabel.INSUFFICIENT_EVIDENCE
+    assert "221 bi em depósitos" in verdict.claim
+    assert any("221 bi em depósitos" in question for question in classifier.questions)

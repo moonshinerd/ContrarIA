@@ -30,6 +30,7 @@ class FakeBlueskyClient:
     def __init__(self):
         self.get_profile = AsyncMock()
         self.get_posts = AsyncMock()
+        self.get_thread_context = AsyncMock()
 
 
 class FakeOzoneClient:
@@ -67,6 +68,8 @@ def override_get_pipeline():
         settings.pipeline_bot_ignore_threshold = 0.9
         settings.pipeline_min_followers_for_intervention = 1000
         settings.intervention_dry_run = True
+        settings.thread_context_max_posts = 4
+        settings.thread_context_max_chars = 3000
 
         bluesky = FakeBlueskyClient()
         ozone = FakeOzoneClient()
@@ -111,6 +114,7 @@ def test_analyze_endpoint():
         created_at=datetime.now(UTC),
     )
     pipeline.bluesky.get_posts.return_value = [post]
+    pipeline.bluesky.get_thread_context.return_value = "continuação do autor: detalhe factual"
 
     # Mock Bot Scoring
     assessment = BotAssessment(did="did:plc:fake", score=0.95, features={"followers_count": 5000})
@@ -139,6 +143,10 @@ def test_analyze_endpoint():
     # Dry-run gera a intervenção, mas não emite um rótulo público.
     pipeline.intervention.execute_intervention.assert_called_once()
     pipeline.ozone.emit_label.assert_not_called()
+    pipeline.verification.verify.assert_awaited_once_with(
+        post, parent_text="continuação do autor: detalhe factual"
+    )
+    assert data["post_snapshot"]["thread_context"] == "continuação do autor: detalhe factual"
 
 
 def test_list_decisions_endpoint():

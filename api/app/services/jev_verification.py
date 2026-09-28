@@ -183,7 +183,10 @@ class JevVerificationService:
         current_date: date | None = None,
     ) -> Verdict:
         agent_outputs: dict[str, str] = {}
-        candidates = _candidate_sentences(post.text)
+        context_text = f"{post.text}\n{parent_text}" if parent_text else post.text
+        candidates = _candidate_sentences(context_text)
+        if parent_text:
+            agent_outputs["jev.thread_context"] = parent_text
 
         classification_log = []
         factual_claims: list[str] = []

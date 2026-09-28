@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     bluesky_session_path: str = "data/bluesky.session"
     bluesky_max_retries: int = 3
     bluesky_max_backoff_seconds: float = 60.0
+    thread_context_max_posts: int = Field(default=4, ge=0, le=20)
+    thread_context_max_chars: int = Field(default=3000, ge=0, le=12000)
 
     llm_model_name: str = "openrouter/google/gemini-2.5-flash"
     llm_api_key: str = ""

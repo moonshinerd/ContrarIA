@@ -90,6 +90,10 @@ def _post_from_view(view: Any, *, is_repost: bool = False) -> Post:
     )
 
 
+def _post_text_from_view(view: Any) -> str:
+    return (getattr(view.record, "text", "") or "").strip()
+
+
 def _account_from_profile(profile: Any) -> Account:
     labels = profile.labels or []
     return Account(
@@ -316,6 +320,72 @@ class BlueskyClient:
             if not cursor or not response.feed:
                 break
         return posts[:limit]
+
+    async def get_thread_context(
+        self, uri: str, *, max_posts: int = 4, max_chars: int = 3000
+    ) -> str | None:
+        """Resumo limitado do fio ao redor do post para dar contexto à verificação.
+
+        Inclui posts anteriores do fio e continuações do mesmo autor. O próprio
+        post alvo não entra aqui, porque ele já é passado separadamente como
+        `post.text`.
+        """
+        if max_posts <= 0 or max_chars <= 0:
+            return None
+        response = await self._call(
+            lambda: self._public.app.bsky.feed.get_post_thread(
+                {"uri": uri, "depth": max_posts, "parentHeight": max_posts}
+            )
+        )
+        thread = response.thread
+        if not hasattr(thread, "post"):
+            return None
+
+        target_author = thread.post.author.did
+        parts: list[tuple[str, str]] = []
+
+        ancestors = []
+        parent = getattr(thread, "parent", None)
+        while parent is not None and hasattr(parent, "post"):
+            ancestors.append(parent)
+            parent = getattr(parent, "parent", None)
+        for item in reversed(ancestors):
+            text = _post_text_from_view(item.post)
+            if text:
+                parts.append(("post anterior", text))
+
+        def collect_same_author_replies(node: Any) -> None:
+            if len(parts) >= max_posts:
+                return
+            for reply in getattr(node, "replies", None) or []:
+                if len(parts) >= max_posts:
+                    return
+                post = getattr(reply, "post", None)
+                if post is None:
+                    continue
+                if post.author.did != target_author:
+                    continue
+                text = _post_text_from_view(post)
+                if text:
+                    parts.append(("continuação do autor", text))
+                collect_same_author_replies(reply)
+
+        collect_same_author_replies(thread)
+
+        if not parts:
+            return None
+        selected: list[str] = []
+        total = 0
+        for label, text in parts[:max_posts]:
+            block = f"{label}: {text}"
+            remaining = max_chars - total
+            if remaining <= 0:
+                break
+            if len(block) > remaining:
+                block = block[: max(0, remaining - 1)].rstrip() + "…"
+            selected.append(block)
+            total += len(block) + 1
+        return "\n".join(selected) or None
 
     # ---- autenticado ----------------------------------------------------
 

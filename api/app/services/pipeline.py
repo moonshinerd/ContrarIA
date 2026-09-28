@@ -73,7 +73,8 @@ class PipelineService:
         verification_enabled = getattr(self.settings, "pipeline_verification_enabled", True)
         if not verification_enabled:
             raise RuntimeError("Pipeline de verificação está desabilitado")
-        verdict = await self.verification.verify(post)
+        thread_context = await self._thread_context(post)
+        verdict = await self.verification.verify(post, parent_text=thread_context)
         is_adverse = verdict.label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING)
         is_insufficient = verdict.label == VerdictLabel.INSUFFICIENT_EVIDENCE
 
@@ -130,6 +131,7 @@ class PipelineService:
                 "author_did": post.author_did,
                 "cid": post.cid,
                 "created_at": post.created_at.isoformat(),
+                "thread_context": thread_context,
             },
             bot_score=bot_score,
             bot_features=assessment.features if assessment else None,
@@ -158,3 +160,16 @@ class PipelineService:
             )
 
         return decision
+
+    async def _thread_context(self, post: Post) -> str | None:
+        try:
+            return await self.bluesky.get_thread_context(
+                post.uri,
+                max_posts=self.settings.thread_context_max_posts,
+                max_chars=self.settings.thread_context_max_chars,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Falha ao buscar contexto do fio para %s: %s", post.uri, type(exc).__name__
+            )
+            return None
