@@ -99,6 +99,9 @@ class Settings(BaseSettings):
     daily_write_points_budget: int = 60
     intervention_write_points: int = 3
     intervention_dry_run: bool = True
+    # Worker: a cada N minutos publica só o candidato mais confiante da rodada
+    # (diretriz de bots do Bluesky contra volume de interações não solicitadas).
+    intervention_round_minutes: int = 10
     worker_tick_seconds: int = 30
     triage_threshold_relevance: float = 1.0
     triage_threshold_bot: float = 0.8

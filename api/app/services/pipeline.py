@@ -15,6 +15,7 @@ from app.db.orm.decisions import DecisionLog
 from app.domain.entities import Post, VerdictLabel
 from app.services.bot_scoring import BotScoringService
 from app.services.intervention import InterventionService
+from app.services.intervention_queue import InterventionCandidate, InterventionQueue
 from app.services.jev_verification import JevVerificationService
 from app.services.verification import VerificationService
 
@@ -37,6 +38,7 @@ class PipelineService:
         bots: BotScoringService,
         verification: VerificationService | JevVerificationService,
         intervention: InterventionService,
+        intervention_queue: InterventionQueue | None = None,
     ) -> None:
         self.settings = settings
         self.db = db_session
@@ -45,6 +47,8 @@ class PipelineService:
         self.bots = bots
         self.verification = verification
         self.intervention = intervention
+        # Com fila (worker), o candidato espera a rodada em vez de ser publicado já.
+        self.intervention_queue = intervention_queue
 
     async def analyze(self, post: Post) -> DecisionLog:  # noqa: C901
         """Processa um post sob demanda (POST /analyze ou pelo worker)."""
@@ -98,6 +102,9 @@ class PipelineService:
                     justification = (
                         "Intervenção desabilitada por feature flag. Apenas monitoramento."
                     )
+                elif self.intervention_queue is not None:
+                    action = "INTERVENE_QUEUED"
+                    justification = "Veredito adverso: candidato à próxima rodada de intervenção."
                 else:
                     intervention_result = await self.intervention.execute_intervention(
                         post, author, verdict, bot_score or 0.0
@@ -144,5 +151,10 @@ class PipelineService:
         self.db.add(decision)
         self.db.commit()
         self.db.refresh(decision)
+
+        if action == "INTERVENE_QUEUED" and self.intervention_queue is not None:
+            self.intervention_queue.add(
+                InterventionCandidate(decision.id, post, author, verdict, bot_score or 0.0)
+            )
 
         return decision

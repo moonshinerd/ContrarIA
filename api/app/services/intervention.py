@@ -23,7 +23,9 @@ _SOURCE_LABEL = " [Fonte]"
 _MAX_SOURCES_LISTED = 8
 _MAX_ARTICLE_READS = 3
 _ARTICLE_MAX_CHARS = 15000
+_VERDICT_LINE = re.compile(r"\s*VEREDITO:\s*(\w+)[^\n]*\n?", re.IGNORECASE)
 _SOURCE_LINE = re.compile(r"\s*FONTE:\s*(\d+)[^\n]*\n?", re.IGNORECASE)
+_ACTIONABLE_VERDICTS = {"DESMENTE", "DISTORCE"}
 _READ_ARTICLE_TOOL: dict[str, Any] = {
     "type": "function",
     "function": {
@@ -66,19 +68,24 @@ def _format_sources(sources: list[Evidence]) -> str:
     )
 
 
-def _extract_source(text: str, sources: list[Evidence]) -> tuple[str, str | None]:
-    """Separa a linha `FONTE: n` do texto; sem ela (ou inválida), cita a mais relevante.
+def _parse_agent_output(text: str, sources: list[Evidence]) -> tuple[str, str | None]:
+    """Lê `VEREDITO:` e `FONTE: n` e devolve (texto, url da fonte).
 
-    `FONTE: 0` é o veto do agente (as matérias confirmam o post): url None.
+    url None = não publicar: o agente, que leu as matérias, concluiu CONFIRMA,
+    ou não seguiu o formato (na dúvida, não responde).
     """
-    match = _SOURCE_LINE.match(text)
-    if not match:
-        return text, sources[0].url
-    number = int(match.group(1))
+    verdict = _VERDICT_LINE.match(text)
+    if not verdict or verdict.group(1).upper() not in _ACTIONABLE_VERDICTS:
+        return "", None
+    rest = text[verdict.end() :]
+    source = _SOURCE_LINE.match(rest)
+    if not source:
+        return rest, sources[0].url
+    number = int(source.group(1))
     if number == 0:
         return "", None
     url = sources[number - 1].url if 1 <= number <= len(sources) else sources[0].url
-    return text[match.end() :], url
+    return rest[source.end() :], url
 
 
 def _split_for_thread(text: str, limit: int = _BLUESKY_LIMIT) -> list[str]:
@@ -221,7 +228,8 @@ class InterventionService:
             max_tool_calls=_MAX_ARTICLE_READS,
             purpose="quote_post",
         )
-        generated_text, source_url = _extract_source(generated_text, sources)
+        agent_output = generated_text
+        generated_text, source_url = _parse_agent_output(agent_output, sources)
         if source_url is None:
             logger.info(
                 "Agente de consulta vetou a intervenção em %s: fontes confirmam o post", post.uri

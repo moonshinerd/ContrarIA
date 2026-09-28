@@ -26,6 +26,7 @@ from app.services import build_verification_service
 from app.services.bot_scoring import BotScoringService
 from app.services.crc_seed import ensure_calibration_seeded
 from app.services.intervention import InterventionService
+from app.services.intervention_queue import InterventionQueue
 from app.services.pipeline import PipelineService
 
 logger = logging.getLogger("contraria.worker")
@@ -46,14 +47,18 @@ async def main() -> None:
     jetstream = JetstreamConsumer(post_repo)
     poller = SearchPoller(post_repo, bsky_client, poll_interval_seconds=600)
     llm = LiteLLMModel(settings)
+    ozone = OzoneClient(settings=settings)
+    intervention = InterventionService(InterventionRepository(engine), bsky_client, llm)
+    queue = InterventionQueue(settings, Session(engine), intervention, ozone)
     pipeline = PipelineService(
         settings=settings,
         db_session=Session(engine),
         bluesky=bsky_client,
-        ozone=OzoneClient(settings=settings),
+        ozone=ozone,
         bots=BotScoringService(engine, bsky_client),
         verification=build_verification_service(llm, settings=settings, engine=engine),
-        intervention=InterventionService(InterventionRepository(engine), bsky_client, llm),
+        intervention=intervention,
+        intervention_queue=queue,
     )
 
     # Inicia as tasks em background
@@ -66,6 +71,8 @@ async def main() -> None:
     refresher_task = asyncio.create_task(refresher.run())
 
     next_ingestion = 0.0
+    round_seconds = settings.intervention_round_minutes * 60
+    next_round = monotonic() + round_seconds
     try:
         while True:
             if settings.rss_checkers_enabled and monotonic() >= next_ingestion:
@@ -84,6 +91,13 @@ async def main() -> None:
                 except Exception:
                     logger.exception("Falha no pipeline GQ01 para %s", post.uri)
                     pipeline.db.rollback()
+            if monotonic() >= next_round:
+                try:
+                    await queue.run_round()
+                except Exception:
+                    logger.exception("Falha na rodada de intervenção")
+                    queue.db.rollback()
+                next_round = monotonic() + round_seconds
             await asyncio.sleep(settings.worker_tick_seconds)
     finally:
         jetstream_task.cancel()

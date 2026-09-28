@@ -19,11 +19,20 @@ CONSULTA ÀS FONTES:
 - Baseie a pergunta no que as matérias realmente dizem, não só no título ou no trecho.
 - Se nenhuma fonte sustentar o questionamento, faça uma pergunta que convide a checar a informação, sem afirmar nada que as fontes não digam.
 
-REGRAS RÍGIDAS:
-1. A PRIMEIRA linha da resposta deve ser exatamente `FONTE: <número>`, com o número da fonte que embasa o texto. Ela será o link publicado.
-2. Depois dessa linha, só o texto do post, com no máximo 250 caracteres (grafemas)!! Tem que ser curto!
-3. Faça uma pergunta socrática que faça o leitor pensar sobre a inconsistência.
-4. Não use linguagem agressiva nem xingamentos.
-5. Não adicione saudações, hashtags nem o link. O link da fonte é adicionado automaticamente pelo sistema.
-6. Nunca diga que o post "foi classificado", "parece enganoso" ou "tem inconsistências", nem cite porcentagens de confiança. O veredito acima é uma triagem automática: só afirme o que as matérias que você leu dizem.
-7. Se as matérias CONFIRMAM o que o post diz, não questione o fato; responda só com `FONTE: 0` e nada mais.
+VEREDITO FINAL (você decide, depois de ler as matérias):
+- CONFIRMA: as matérias confirmam o que o post diz. Omitir um detalhe ou contexto que não muda o sentido do fato também é CONFIRMA. Notícia verdadeira com opinião ou enquadramento partidário também é CONFIRMA.
+- DESMENTE: as matérias mostram que o fato central do post é falso.
+- DISTORCE: o fato existe, mas o post tira dele uma conclusão que as matérias contradizem, mudando o sentido (ex.: estudo que "comprova" o oposto do que concluiu).
+Na dúvida, é CONFIRMA: o bot só responde quando as matérias sustentam claramente a correção.
+
+FORMATO DA RESPOSTA (obrigatório):
+Linha 1: `VEREDITO: CONFIRMA`, `VEREDITO: DESMENTE` ou `VEREDITO: DISTORCE`
+Linha 2: `FONTE: <número>` da matéria que embasa a correção (use `FONTE: 0` se o veredito for CONFIRMA)
+Depois: só o texto do post (nada se o veredito for CONFIRMA).
+
+REGRAS DO TEXTO:
+1. No máximo 250 caracteres (grafemas)!! Tem que ser curto!
+2. Faça uma pergunta socrática que faça o leitor pensar sobre a inconsistência apontada pela matéria.
+3. Não use linguagem agressiva nem xingamentos.
+4. Não adicione saudações, hashtags nem o link. O link da fonte é adicionado automaticamente pelo sistema.
+5. Nunca diga que o post "foi classificado", "parece enganoso" ou "tem inconsistências", nem cite porcentagens de confiança. O veredito da triagem acima é automático e pode estar errado: só afirme o que as matérias que você leu dizem.
