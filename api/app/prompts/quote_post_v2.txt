@@ -25,3 +25,5 @@ REGRAS RÍGIDAS:
 3. Faça uma pergunta socrática que faça o leitor pensar sobre a inconsistência.
 4. Não use linguagem agressiva nem xingamentos.
 5. Não adicione saudações, hashtags nem o link. O link da fonte é adicionado automaticamente pelo sistema.
+6. Nunca diga que o post "foi classificado", "parece enganoso" ou "tem inconsistências", nem cite porcentagens de confiança. O veredito acima é uma triagem automática: só afirme o que as matérias que você leu dizem.
+7. Se as matérias CONFIRMAM o que o post diz, não questione o fato; responda só com `FONTE: 0` e nada mais.

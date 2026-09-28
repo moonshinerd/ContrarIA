@@ -66,13 +66,18 @@ def _format_sources(sources: list[Evidence]) -> str:
     )
 
 
-def _extract_source(text: str, sources: list[Evidence]) -> tuple[str, str]:
-    """Separa a linha `FONTE: n` do texto; sem ela (ou inválida), cita a mais relevante."""
+def _extract_source(text: str, sources: list[Evidence]) -> tuple[str, str | None]:
+    """Separa a linha `FONTE: n` do texto; sem ela (ou inválida), cita a mais relevante.
+
+    `FONTE: 0` é o veto do agente (as matérias confirmam o post): url None.
+    """
     match = _SOURCE_LINE.match(text)
     if not match:
         return text, sources[0].url
-    index = int(match.group(1)) - 1
-    url = sources[index].url if 0 <= index < len(sources) else sources[0].url
+    number = int(match.group(1))
+    if number == 0:
+        return "", None
+    url = sources[number - 1].url if 1 <= number <= len(sources) else sources[0].url
     return text[match.end() :], url
 
 
@@ -217,6 +222,11 @@ class InterventionService:
             purpose="quote_post",
         )
         generated_text, source_url = _extract_source(generated_text, sources)
+        if source_url is None:
+            logger.info(
+                "Agente de consulta vetou a intervenção em %s: fontes confirmam o post", post.uri
+            )
+            return None
 
         # Guardrails pós-geração (sobre o texto completo, antes de dividir em thread)
         generated_text = generated_text.strip()

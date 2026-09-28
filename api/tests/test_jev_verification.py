@@ -68,7 +68,8 @@ class ScriptedClassifier:
         if options == ["relevante", "irrelevante"]:
             score = next(v for title, v in self.relevance_by_title.items() if title in question)
             return {"relevante": score, "irrelevante": 1 - score}
-        return {"verdadeira": 0.1, "falsa": 0.7, "enganosa": 0.2}
+        # Veredito: confirmam=0.1, desmentem=0.7, distorcem=0.2 (ordem de _LABEL_BY_OPTION).
+        return dict(zip(options, [0.1, 0.7, 0.2], strict=True))
 
     async def count_tokens(self, texts: list[str]) -> list[int]:
         # Matéria completa "pesa" 3000 tokens; o resto, 10.

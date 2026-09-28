@@ -47,15 +47,24 @@ from app.repositories.crc_calibration import CRCCalibrationRepository
 
 logger = logging.getLogger("contraria.services.jev_verification")
 
+# Perguntar "o que as evidências dizem" em vez de "é verdadeira, falsa ou
+# enganosa": com a definição de "enganosa" na pergunta, o modelo escolhia essa
+# opção com ~100% até para fatos confirmados e para falsos, nas duas ordens.
+# Com esta formulação acertou 4 de 4 casos de teste, também nas duas ordens.
 _LABEL_BY_OPTION = {
-    "verdadeira": VerdictLabel.TRUE,
-    "falsa": VerdictLabel.FALSE,
-    "enganosa": VerdictLabel.MISLEADING,
+    "confirmam a alegação": VerdictLabel.TRUE,
+    "desmentem a alegação": VerdictLabel.FALSE,
+    "confirmam o fato, mas desmentem a conclusão ou o exagero da alegação": (
+        VerdictLabel.MISLEADING
+    ),
 }
 _MAX_CANDIDATE_CLAIMS = 6
 _MIN_SENTENCE_LEN = 15
 _RELEVANCE_MARGIN = 0.15
-_URL_PATTERN = re.compile(r"https?://\S+|\bwww\.\S+", re.IGNORECASE)
+# URLs com esquema, com www e também domínio solto ("x.com/fulano/st...").
+_URL_PATTERN = re.compile(
+    r"https?://\S+|\bwww\.\S+|\b[\w-]+(?:\.[\w-]+)*\.[a-z]{2,}/\S*", re.IGNORECASE
+)
 # Cada chamada ao modelo é um prompt lido inteiro em CPU: menos evidências e
 # matéria mais curta são o que mais reduz o tempo por post.
 _MAX_EVIDENCE_FOR_RELEVANCE = 8
@@ -66,6 +75,12 @@ _MAX_EVIDENCE_FOR_VERDICT = 5
 _ARTICLE_MAX_CHARS = 8000
 _SNIPPET_MAX_CHARS = 400
 _WORD_PATTERN = re.compile(r"\w{4,}")
+
+
+def _url_key(url: str) -> str:
+    """Mesma matéria com e sem www/https/barra final conta uma vez só."""
+    key = re.sub(r"^https?://(www\.)?", "", url.strip().casefold())
+    return key.rstrip("/")
 
 
 def _word_overlap(claim: str, evidence: Evidence) -> int:
@@ -289,10 +304,7 @@ class JevVerificationService:
         candidates = relevant[:_MAX_EVIDENCE_FOR_VERDICT]
         articles = await asyncio.gather(*(_fetch_article_text(item.url) for item in candidates))
         head = f'Alegação: "{claim}"\nEvidências encontradas:\n'
-        tail = (
-            "Considerando as evidências acima, a alegação é verdadeira, falsa, ou "
-            "enganosa (mistura um fato real com uma conclusão distorcida)?"
-        )
+        tail = "O que as evidências acima dizem sobre a alegação?"
         evidence_summary = await self._pack_evidence(head + tail, candidates, articles)
         options = list(_LABEL_BY_OPTION)
         probs = await self.classifier.classify(
@@ -367,9 +379,14 @@ class JevVerificationService:
         results = await asyncio.gather(*(search_one(source) for source in self.sources))
         evidences: list[Evidence] = []
         errors: dict[str, str] = {}
+        seen_urls: set[str] = set()
         for name, found, error in results:
             if error:
                 errors[name] = error
-            else:
-                evidences.extend(found)
+                continue
+            for item in found:
+                key = _url_key(item.url)
+                if key not in seen_urls:
+                    seen_urls.add(key)
+                    evidences.append(item)
         return evidences, errors

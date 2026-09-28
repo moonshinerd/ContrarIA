@@ -121,7 +121,14 @@ class JevClassifier:
         llm = await self._ensure_loaded()
         letters = ascii_uppercase[: len(options)]
         menu = "\n".join(f"{letter}) {opt}" for letter, opt in zip(letters, options, strict=True))
-        prompt = f"{question}\n{menu}\nResponda só com a letra.\nResposta:"
+        # Formato de chat do Qwen3 com o bloco de raciocínio já fechado: o
+        # próximo token é a resposta. Em texto cru, medido ao vivo, o modelo
+        # ficava em cara ou coroa na relevância (46% x 54% para uma evidência
+        # sem relação) e o veredito saía distorcido.
+        prompt = (
+            f"<|im_start|>user\n{question}\n{menu}\nResponda só com a letra.<|im_end|>\n"
+            "<|im_start|>assistant\n<think>\n\n</think>\n\n"
+        )
 
         def _infer():
             return llm(

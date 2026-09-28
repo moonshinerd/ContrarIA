@@ -364,3 +364,34 @@ async def test_intervention_without_source_line_cites_the_most_relevant(
 
     _, kwargs = mock_bsky.quote_post.call_args
     assert kwargs["source_url"] == "https://a"
+
+
+@pytest.mark.asyncio
+async def test_intervention_vetoed_when_agent_says_sources_confirm_the_post(
+    mock_repo, mock_bsky, mock_llm
+):
+    mock_llm.complete_with_tools.return_value = "FONTE: 0"
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    service.settings.intervention_dry_run = False
+    post = Post(
+        uri="at://did:1/post/1",
+        cid="cid1",
+        author_did="did:1",
+        text="post",
+        created_at=datetime.now(UTC),
+    )
+    verdict = Verdict(
+        claim="c",
+        label=VerdictLabel.MISLEADING,
+        confidence=0.9,
+        rationale="r",
+        evidences=[Evidence("t", "https://a", "A", "a")],
+    )
+
+    result = await service.execute_intervention(
+        post, Account(did="did:1", handle="user"), verdict, 0.1
+    )
+
+    assert result is None
+    mock_bsky.quote_post.assert_not_called()
+    mock_repo.record_intervention.assert_not_called()
