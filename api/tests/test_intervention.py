@@ -302,6 +302,7 @@ async def test_intervention_consults_sources_and_cites_the_chosen_one(
 
     async def agent(system, user, *, tools, call_tool, max_tool_calls, purpose):
         assert max_tool_calls == 3
+        assert "DATA E HORA ATUAIS: " in system and "horário de Brasília" in system
         assert "1. Fonte A (https://a)" in system and "2. Fonte B (https://b)" in system
         tool_results.append(await call_tool("ler_materia", {"numero": 2}))
         tool_results.append(await call_tool("ler_materia", {"numero": 9}))

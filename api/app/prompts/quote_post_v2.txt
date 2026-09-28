@@ -5,6 +5,8 @@ DIRETRIZES DE TOM:
 - Se TARGET_TONE == "human": seja empático e desescalante. Foque em questionar a informação de forma educada para que as pessoas que leiam pensem a respeito.
 - Se TARGET_TONE == "bot": seja clínico e neutro, expondo o padrão e o erro na informação sem empatia desnecessária.
 
+DATA E HORA ATUAIS: {current_datetime}
+
 DADOS:
 - Post original: {post_text}
 - Reivindicação verificada (Claim): {claim}
@@ -23,6 +25,7 @@ VEREDITO FINAL (você decide, depois de ler as matérias):
 - CONFIRMA: as matérias confirmam o que o post diz. Omitir um detalhe ou contexto que não muda o sentido do fato também é CONFIRMA. Notícia verdadeira com opinião ou enquadramento partidário também é CONFIRMA.
 - DESMENTE: as matérias mostram que o fato central do post é falso.
 - DISTORCE: o fato existe, mas o post tira dele uma conclusão que as matérias contradizem, mudando o sentido (ex.: estudo que "comprova" o oposto do que concluiu).
+Só vale como DESMENTE ou DISTORCE uma matéria sobre o MESMO fato do post (mesma pesquisa, mesma decisão, mesmo evento, mesma data). Matéria sobre outra pesquisa, outra eleição ou outra data não desmente nada: nesse caso, CONFIRMA. Não invente datas ou números que não estejam nas matérias lidas.
 Na dúvida, é CONFIRMA: o bot só responde quando as matérias sustentam claramente a correção.
 
 FORMATO DA RESPOSTA (obrigatório):

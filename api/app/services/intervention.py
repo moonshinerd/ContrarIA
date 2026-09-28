@@ -1,6 +1,7 @@
 import logging
 import re
 import unicodedata
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.clients.articles import fetch_article_text
@@ -18,6 +19,8 @@ _AGGRESSIVE_TERMS = ("idiota", "burro", "imbecil", "estúpido", "estupido", "lix
 _BLUESKY_LIMIT = 300
 _THREAD_MARK = " 🧵"
 _SOURCE_LABEL = " [Fonte]"
+
+_BRASILIA = timezone(timedelta(hours=-3))
 
 # Agente de consulta: o LLM vê a lista de fontes e abre na íntegra as que quiser.
 _MAX_SOURCES_LISTED = 8
@@ -210,7 +213,9 @@ class InterventionService:
             text = await fetch_article_text(source.url, max_chars=_ARTICLE_MAX_CHARS)
             return text or f"Não foi possível abrir a matéria. Trecho da busca: {source.snippet}"
 
+        now = datetime.now(_BRASILIA)
         prompt = load_prompt("quote_post", version=2).format(
+            current_datetime=f"{now:%d/%m/%Y %H:%M} (horário de Brasília)",
             post_text=post.text,
             claim=verdict.claim,
             rationale=verdict.rationale,
