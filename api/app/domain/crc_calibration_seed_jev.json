@@ -1,0 +1,7 @@
+{
+  "lambda_hat": 0.0,
+  "alpha": 0.05,
+  "n": 40,
+  "model": "jev:Qwen/Qwen3-4B-GGUF:Qwen3-4B-Q4_K_M.gguf",
+  "source": "research/datasets/crc_calibration_predictions_jev.csv (research/experiments/calibrate_crc.py)"
+}
