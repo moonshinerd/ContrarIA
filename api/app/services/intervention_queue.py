@@ -9,6 +9,7 @@ confiança; os demais são descartados.
 
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta, timezone
 
 from sqlalchemy import update
 from sqlalchemy.orm import Session
@@ -20,6 +21,9 @@ from app.domain.entities import Account, Post, Verdict
 from app.services.intervention import InterventionService
 
 logger = logging.getLogger("contraria.services.intervention_queue")
+
+# Brasil sem horário de verão desde 2019: offset fixo, sem depender de tzdata.
+_BRASILIA = timezone(timedelta(hours=-3))
 
 
 @dataclass
@@ -51,11 +55,24 @@ class InterventionQueue:
     def __len__(self) -> int:
         return len(self._candidates)
 
-    async def run_round(self) -> str | None:
+    def in_quiet_hours(self, now: datetime | None = None) -> bool:
+        hour = (now or datetime.now(UTC)).astimezone(_BRASILIA).hour
+        start = self.settings.intervention_quiet_start_hour
+        end = self.settings.intervention_quiet_end_hour
+        return start <= hour < end if start <= end else hour >= start or hour < end
+
+    async def run_round(self, now: datetime | None = None) -> str | None:
         """Tenta publicar o melhor candidato; os demais da rodada são descartados."""
         candidates = sorted(self._candidates, key=lambda c: c.verdict.confidence, reverse=True)
         self._candidates = []
         if not candidates:
+            return None
+        if self.in_quiet_hours(now):
+            for candidate in candidates:
+                self._set_action(candidate, "MONITOR", "Horário de silêncio: sem intervenções.")
+            logger.info(
+                "Rodada no horário de silêncio: %d candidato(s) descartado(s)", len(candidates)
+            )
             return None
 
         published: str | None = None

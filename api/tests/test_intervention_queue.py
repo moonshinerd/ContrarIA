@@ -70,3 +70,21 @@ async def test_empty_round_does_nothing():
     queue, _, intervention = make_queue([])
     assert await queue.run_round() is None
     intervention.execute_intervention.assert_not_called()
+
+
+async def test_round_in_quiet_hours_publishes_nothing():
+    queue, session, intervention = make_queue(["at://bot/1"])
+    add(queue, session, "at://a", 0.95)
+    three_am_brasilia = datetime(2026, 9, 28, 6, 0, tzinfo=UTC)
+
+    assert await queue.run_round(now=three_am_brasilia) is None
+    intervention.execute_intervention.assert_not_called()
+    assert actions(session) == {"at://a": "MONITOR"}
+
+
+def test_quiet_hours_boundaries():
+    queue, _, _ = make_queue([])
+    assert queue.in_quiet_hours(datetime(2026, 9, 28, 3, 0, tzinfo=UTC))  # 0h BRT
+    assert queue.in_quiet_hours(datetime(2026, 9, 28, 9, 59, tzinfo=UTC))  # 6h59 BRT
+    assert not queue.in_quiet_hours(datetime(2026, 9, 28, 10, 0, tzinfo=UTC))  # 7h BRT
+    assert not queue.in_quiet_hours(datetime(2026, 9, 28, 2, 59, tzinfo=UTC))  # 23h59 BRT
