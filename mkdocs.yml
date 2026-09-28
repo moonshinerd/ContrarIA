@@ -49,6 +49,7 @@ nav:
   - Guia de Uso: guia-de-uso.md
   - Arquitetura: arquitetura/index.md
   - Decisões (ADRs): adr/index.md
+  - Glossário: glossario.md
   - Atas:
       - Índice: atas/index.md
       - "09/09 – Alinhamento (Engage)": atas/ata01.md
