@@ -98,7 +98,7 @@ class UngatedCalibrationRepository:
         from app.services.crc import CRCCalibration
 
         return CRCCalibration(
-            lambda_hat=0.0, alpha=1.0, n=0, model=model, created_at=datetime.now(UTC)
+            lambda_hat=0.0, alpha=0.05, n=1, model=model, created_at=datetime.now(UTC)
         )
 
 
