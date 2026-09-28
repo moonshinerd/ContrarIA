@@ -32,6 +32,25 @@ from app.services.pipeline import PipelineService
 logger = logging.getLogger("contraria.worker")
 
 
+async def run_due_intervention_round(
+    queue: InterventionQueue,
+    next_round: float,
+    round_seconds: float,
+    *,
+    now: float | None = None,
+) -> float:
+    """Publica a rodada vencida sem deixar um lote lento segurar a fila."""
+    current = monotonic() if now is None else now
+    if current < next_round:
+        return next_round
+    try:
+        await queue.run_round()
+    except Exception:
+        logger.exception("Falha na rodada de intervenção")
+        queue.db.rollback()
+    return current + round_seconds
+
+
 async def main() -> None:
     settings = get_settings()
     configure_logging(settings)
@@ -79,6 +98,7 @@ async def main() -> None:
     next_round = monotonic() + round_seconds
     try:
         while True:
+            next_round = await run_due_intervention_round(queue, next_round, round_seconds)
             if settings.rss_checkers_enabled and monotonic() >= next_ingestion:
                 try:
                     report = await ingestor.run()
@@ -88,6 +108,7 @@ async def main() -> None:
                 next_ingestion = monotonic() + settings.rss_poll_seconds
             candidates = post_repo.get_triage_candidates(settings.worker_pipeline_batch_size)
             for post, _relevance in candidates:
+                next_round = await run_due_intervention_round(queue, next_round, round_seconds)
                 try:
                     decision = await pipeline.analyze(post)
                     status = "ignored" if decision.action == "IGNORE" else "processed"
@@ -95,13 +116,8 @@ async def main() -> None:
                 except Exception:
                     logger.exception("Falha no pipeline GQ01 para %s", post.uri)
                     pipeline.db.rollback()
-            if monotonic() >= next_round:
-                try:
-                    await queue.run_round()
-                except Exception:
-                    logger.exception("Falha na rodada de intervenção")
-                    queue.db.rollback()
-                next_round = monotonic() + round_seconds
+                next_round = await run_due_intervention_round(queue, next_round, round_seconds)
+            next_round = await run_due_intervention_round(queue, next_round, round_seconds)
             await asyncio.sleep(settings.worker_tick_seconds)
     finally:
         jetstream_task.cancel()
