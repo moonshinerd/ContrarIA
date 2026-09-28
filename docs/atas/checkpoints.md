@@ -75,10 +75,52 @@ Na ausência de sprints tradicionais de longa duração, a equipe realiza **chec
 
 ---
 
+## Checkpoint 3 – 22/09 e 23/09/2026 (Terça e Quarta-feira)
+
+* **Marco temporal**: Conclusão da esteira central de IA de verificação, chegada da coleta massiva em tempo real via Jetstream e consolidação integral do portfólio de pesquisa e decisões arquiteturais.
+
+### Status por Dupla
+
+#### 1. Victor + Marlon (Infraestrutura, Coleta e Ações)
+- **Entregas Concluídas**:
+  - **PR [#41](https://github.com/moonshinerd/ContrarIA/pull/41) mergeado na `main`**: Conclusão da Issue [#26](https://github.com/moonshinerd/ContrarIA/issues/26) (Pré-filtro clássico treinado em PT-BR para descarte rápido com custo zero de inferência).
+  - **PR [#50](https://github.com/moonshinerd/ContrarIA/pull/50) mergeado na `main`**: Conclusão da Issue [#11](https://github.com/moonshinerd/ContrarIA/issues/11) (Coletor assíncrono em tempo real via WebSocket do *Jetstream* do Bluesky, com filtragem temática e snapshots de engajamento).
+- **Próximas Atividades**:
+  - Finalização da integração E2E do orquestrador do pipeline (Issue [#17](https://github.com/moonshinerd/ContrarIA/issues/17)), conectando a coleta e o bot score com o VerificationService.
+  - Finalização dos módulos de *Bot Score* heurístico (Issue [#13](https://github.com/moonshinerd/ContrarIA/issues/13)) e intervenção socrática via *Quote Post* (Issue [#14](https://github.com/moonshinerd/ContrarIA/issues/14)).
+- **Bloqueios**: Nenhum.
+
+#### 2. Raissa + Samantha (Verificação, Raciocínio Epistêmico e Benchmarks)
+- **Entregas Concluídas**:
+  - **PR [#49](https://github.com/moonshinerd/ContrarIA/pull/49) mergeado na `main`**: Conclusão da Issue [#23](https://github.com/moonshinerd/ContrarIA/issues/23) (Implementação do *Self-RAG* com recuperação adaptativa de evidências e tokens de reflexão crítica para eliminação de alucinações).
+  - **PR [#51](https://github.com/moonshinerd/ContrarIA/pull/51) mergeado na `main`**: Conclusão da Issue [#24](https://github.com/moonshinerd/ContrarIA/issues/24) (Debate Multiagente — MAD com Promotor, Defensor, Juiz epistêmico e cálculo da métrica de certeza $P(IK)$).
+  - **PR [#52](https://github.com/moonshinerd/ContrarIA/pull/52) mergeado na `main`**: Conclusão da Issue [#25](https://github.com/moonshinerd/ContrarIA/issues/25) (Calibração estatística via *Conformal Risk Control* — CRC em runtime e `VerificationService`, garantindo abstenção formal com taxa de falsos positivos controlada a $\alpha \le 0.05$).
+- **Entregas em Revisão (PRs Abertos)**:
+  - **PR [#54](https://github.com/moonshinerd/ContrarIA/pull/54)**: Conclusão da Issue [#27](https://github.com/moonshinerd/ContrarIA/issues/27) (Benchmark reproduzível de veredito com 150 ClaimReviews PT-BR, 17 cenários de ablação e medição de custo e latência).
+- **Próximas Atividades**:
+  - Suporte à amarração E2E na Issue [#17](https://github.com/moonshinerd/ContrarIA/issues/17).
+- **Bloqueios**: Nenhum. Toda a trilha de inteligência de verificação entregue e testada no prazo previsto!
+
+#### 3. Kyara + Antonio (Documentação, Governança e Decisões)
+- **Entregas Concluídas**:
+  - **PR [#42](https://github.com/moonshinerd/ContrarIA/pull/42) mergeado na `main`**: Especificação completa de Requisitos (RF01–RF16, RNF01–RNF07) com rastreabilidade formal e documentação das Matrizes de Decisão (Intervenção e Priorização) em `docs/pesquisa/matrizes.md`.
+  - **PR [#43](https://github.com/moonshinerd/ContrarIA/pull/43) mergeado na `main`**: Publicação formal da Ata 02 de Planejamento do MVP e registro dos Checkpoints 1 e 2.
+- **Entregas em Revisão (PRs Abertos e Aprovados)**:
+  - **PR [#45](https://github.com/moonshinerd/ContrarIA/pull/45)**: Documentação detalhada da arquitetura do pipeline (`docs/arquitetura/pipeline.md`) e os 12 Registros de Decisão Arquitetural (`docs/adr/0001` a `0012`) (Antonio - Issue [#31](https://github.com/moonshinerd/ContrarIA/issues/31)).
+  - **PR [#48](https://github.com/moonshinerd/ContrarIA/pull/48)**: Glossário Técnico formal com 18 conceitos-chave categorizados em 4 eixos temáticos (Antonio - Issue [#32](https://github.com/moonshinerd/ContrarIA/issues/32)).
+  - **PR [#53](https://github.com/moonshinerd/ContrarIA/pull/53) (Aprovado por Antonio)**: Portfólio de pesquisa com as 7 Guiding Questions (GQ01–GQ07), levantamento de Ideias e Fontes, Metodologia Scrum e Papéis, Autoavaliações da equipe no modelo CBL, Referências Bibliográficas e Guia Prático de Uso (Kyara - Issue [#29](https://github.com/moonshinerd/ContrarIA/issues/29) e [#32](https://github.com/moonshinerd/ContrarIA/issues/32)).
+- **Próximas Atividades**:
+  - Merge dos PRs #45, #48 e #53 na `main`, fechando formalmente as tarefas [#29](https://github.com/moonshinerd/ContrarIA/issues/29) e [#31](https://github.com/moonshinerd/ContrarIA/issues/31).
+  - Publicação dos resultados de benchmark de veredito no MkDocs (Issue [#33](https://github.com/moonshinerd/ContrarIA/issues/33)).
+  - Estruturação do material do Showcase final e roteiro de demonstração (Issue [#34](https://github.com/moonshinerd/ContrarIA/issues/34)).
+- **Bloqueios**: Nenhum.
+
+---
+
 ## Síntese de Saúde do Projeto
 
 | Indicador | Situação | Observações |
 |---|---|---|
-| **Aderência ao Cronograma** | 🟢 Verde (No prazo) | Todas as duplas estão entregando as tarefas da janela 17/09–21/09. |
-| **Contratos de Interface** | 🟢 Estável | As entidades de `domain/entities.py` mantiveram-se consistentes. |
-| **Prontidão para Integração** | 🟡 Monitorando | A integração E2E (Issue [#17](https://github.com/moonshinerd/ContrarIA/issues/17)) segue prevista para 24/09 conforme planejado. |
+| **Aderência ao Cronograma** | 🟢 Verde (Excelente) | Todas as duplas cumpriram 100% de seus objetivos prévios à integração final. |
+| **Contratos de Interface** | 🟢 Estável | Zero quebra de contratos de domínio; testes unitários das três trilhas executam sem fricção. |
+| **Prontidão para Integração** | 🟢 Verde (Pronto para E2E) | Com a verificação (PR #52) e a coleta Jetstream (PR #50) mergeadas, a integração E2E ([#17](https://github.com/moonshinerd/ContrarIA/issues/17)) conta com todos os blocos prontos para o fechamento. |

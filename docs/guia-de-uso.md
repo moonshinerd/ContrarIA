@@ -26,21 +26,13 @@ O ContrarIA **nunca responde diretamente dentro do seu fio de comentários (*rep
 
 Quando o sistema identifica uma alegação comprovadamente falsa com alto alcance, ele publica um **Quote Post** em seu próprio perfil com a seguinte estrutura:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  @contraria-bot.bsky.social (Bot verificado)                │
-│                                                             │
-│  "Ao avaliar esta alegação, você já conferiu se há          │
-│   registros oficiais sobre esse procedimento no portal do   │
-│   TSE? O documento da checagem indica que a contagem é     │
-│   auditável publicamente: https://fatoouboato.tse.jus.br"   │
-│                                                             │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │ [Post Original Citado]                                │  │
-│  │ "Urgente: urnas foram programadas sem fiscalização..."│  │
-│  └───────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-```
+!!! quote "Estrutura do Quote Post Socrático no Bluesky"
+    :material-robot:{ .middle } **@contraria-bot.bsky.social** · *Agente Verificado*  
+    *"Ao avaliar esta alegação, você já conferiu se há registros oficiais sobre esse procedimento no portal do TSE? O documento da checagem indica que a contagem é auditável publicamente: https://www.justicaeleitoral.jus.br/fato-ou-boato/"*
+
+    > :material-format-quote-close:{ .middle } **Post Original Citado:**  
+    > *"Urgente: urnas foram programadas sem fiscalização..."*
+
 
 #### Características da Mensagem Socrática:
 * **Tom Respeitoso e Não-Polarizador:** Ausência de adjetivos acusatórios ("mentira", "fake news criminosa").
@@ -196,4 +188,3 @@ O serviço HTTP do ContrarIA é construído em **FastAPI** e roda por padrão na
 * **Rate Limits do Google Fact Check:** A cota da API é de 300 chamadas por minuto. O cliente nativo do ContrarIA (`app/clients/evidence/ratelimit.py`) aplica automaticamente uma janela deslizante calibrada para 240 chamadas/minuto com margem de segurança de 20%.
 * **Limite de Sessões no Bluesky:** O AT Protocol permite até 300 criações de sessão por dia e 30 a cada 5 minutos. O sistema armazena a sessão ativa em arquivo (`BLUESKY_SESSION_PATH`). Nunca delete esse arquivo sem necessidade.
 * **Princípio do Silêncio em Falhas:** Se uma API externa cair ou a rede falhar momentaneamente, o ContrarIA **não interrompe o fluxo com exceções fatais**; ele adota o princípio da abstenção fundamentada (`insufficient_evidence`), garantindo que nenhum post seja rotulado erroneamente por falta de dados.
-

@@ -9,13 +9,20 @@ Este documento reúne a avaliação reflexiva dos papéis, a dinâmica de cooper
 A atuação dos membros e das duplas ao longo das fases *Engage*, *Investigate* e *Act* foi avaliada segundo **quatro dimensões fundamentais**:
 
 ```mermaid
-radar-chart
-    title Dimensões de Avaliação da Equipe
-    "Rigor Técnico & Qualidade" : 9
-    "Comunicação & Parcerias" : 9.5
-    "Gestão do Tempo (Janela 10d)" : 8.5
-    "Pensamento Crítico & Ética" : 9.5
+xychart-beta
+    title "Dimensões de Avaliação da Equipe (Escala 0 a 10)"
+    x-axis ["Rigor Técnico", "Comunicação", "Gestão do Tempo", "Pensamento Crítico"]
+    y-axis "Nota" 0 --> 10
+    bar [9.0, 9.5, 8.5, 9.5]
 ```
+
+| Dimensão de Competência | Nota Autoavaliada | Evidência Prática no Projeto |
+|---|:---:|---|
+| **Rigor Técnico & Qualidade** | **9.0 / 10** | Contratos imutáveis de domínio, cobertura de testes automatizados e CI em modo strict. |
+| **Comunicação & Parcerias** | **9.5 / 10** | Atas estruturadas, revisões por pares mútuas e transparência contínua via GitHub. |
+| **Gestão do Tempo (Janela 10d)** | **8.5 / 10** | Execução concorrente em trilhas paralelas; antecipação de requisitos em janela crítica. |
+| **Pensamento Crítico & Ética** | **9.5 / 10** | Foco na mitigação do efeito *backfire*, moderação federada voluntária (Ozone) e abstenção mandatória. |
+
 
 1. **Rigor Técnico e Qualidade da Entrega:** Aderência aos contratos de dados, conformidade com os linters e testes automatizados (`ruff`, `pytest`, `mkdocs strict`), robustez arquitetural e ausência de atalhos frágeis.
 2. **Colaboração Interdisciplinar e Comunicação:** Eficácia na comunicação assíncrona via GitHub (Issues, PRs, revisões por pares e atas), transparência sobre bloqueios e respeito irrestrito aos contratos entre trilhas.
