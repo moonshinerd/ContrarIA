@@ -43,6 +43,13 @@ _MAX_OPTIONS = len(ascii_uppercase)
 class JevClassifierPort(Protocol):
     async def classify(self, question: str, options: list[str]) -> dict[str, float]: ...
 
+    async def count_tokens(self, texts: list[str]) -> list[int]: ...
+
+
+# Tokens do menu de opções, da instrução final e do token da resposta, somados
+# à pergunta em _classify_ordered. Quem monta a pergunta reserva essa folga.
+PROMPT_OVERHEAD_TOKENS = 64
+
 
 def _validate_options(options: list[str]) -> None:
     if not 2 <= len(options) <= _MAX_OPTIONS:
@@ -105,6 +112,11 @@ class JevClassifier:
         async with self._infer_lock:
             return await self._classify_ordered(question, options)
 
+    async def count_tokens(self, texts: list[str]) -> list[int]:
+        """Tokens de cada texto no vocabulário do próprio modelo (não é tiktoken)."""
+        llm = await self._ensure_loaded()
+        return [len(llm.tokenize(text.encode("utf-8"), add_bos=False)) for text in texts]
+
     async def _classify_ordered(self, question: str, options: list[str]) -> dict[str, float]:
         llm = await self._ensure_loaded()
         letters = ascii_uppercase[: len(options)]
@@ -148,6 +160,12 @@ class RemoteJevClassifier:
             )
             response.raise_for_status()
         return response.json()["probabilities"]
+
+    async def count_tokens(self, texts: list[str]) -> list[int]:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(f"{self.base_url}/count_tokens", json={"texts": texts})
+            response.raise_for_status()
+        return response.json()["counts"]
 
 
 _default_classifier: JevClassifierPort | None = None

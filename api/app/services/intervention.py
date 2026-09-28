@@ -1,9 +1,12 @@
 import logging
+import re
 import unicodedata
+from typing import Any
 
+from app.clients.articles import fetch_article_text
 from app.clients.bluesky_client import BlueskyClient
 from app.core.config import get_settings
-from app.domain.entities import Account, Post, Verdict, VerdictLabel
+from app.domain.entities import Account, Evidence, Post, Verdict, VerdictLabel
 from app.models.llm.base import LLMPort
 from app.repositories.interventions import InterventionRepository
 from app.services.prompts_loader import load_prompt
@@ -15,6 +18,26 @@ _AGGRESSIVE_TERMS = ("idiota", "burro", "imbecil", "estúpido", "estupido", "lix
 _BLUESKY_LIMIT = 300
 _THREAD_MARK = " 🧵"
 _SOURCE_LABEL = " [Fonte]"
+
+# Agente de consulta: o LLM vê a lista de fontes e abre na íntegra as que quiser.
+_MAX_SOURCES_LISTED = 8
+_MAX_ARTICLE_READS = 3
+_ARTICLE_MAX_CHARS = 15000
+_SOURCE_LINE = re.compile(r"\s*FONTE:\s*(\d+)[^\n]*\n?", re.IGNORECASE)
+_READ_ARTICLE_TOOL: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "ler_materia",
+        "description": "Abre e devolve o texto completo de uma das fontes listadas.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "numero": {"type": "integer", "description": "Número da fonte na lista."}
+            },
+            "required": ["numero"],
+        },
+    },
+}
 
 
 def _grapheme_len(text: str) -> int:
@@ -34,6 +57,23 @@ def _truncate_graphemes(text: str, limit: int) -> str:
             break
         result.append(char)
     return "".join(result).rstrip() + "…"
+
+
+def _format_sources(sources: list[Evidence]) -> str:
+    return "\n".join(
+        f"{index}. {item.title} ({item.url})\n   {item.snippet[:300]}"
+        for index, item in enumerate(sources, start=1)
+    )
+
+
+def _extract_source(text: str, sources: list[Evidence]) -> tuple[str, str]:
+    """Separa a linha `FONTE: n` do texto; sem ela (ou inválida), cita a mais relevante."""
+    match = _SOURCE_LINE.match(text)
+    if not match:
+        return text, sources[0].url
+    index = int(match.group(1)) - 1
+    url = sources[index].url if 0 <= index < len(sources) else sources[0].url
+    return text[match.end() :], url
 
 
 def _split_for_thread(text: str, limit: int = _BLUESKY_LIMIT) -> list[str]:
@@ -145,19 +185,38 @@ class InterventionService:
         if not verdict.evidences:
             logger.info("Sem evidências para citar a fonte")
             return None
-        source_url = verdict.evidences[0].url
+        sources = verdict.evidences[:_MAX_SOURCES_LISTED]
 
-        prompt_template = load_prompt("quote_post")
-        prompt = prompt_template.format(
-            claim=verdict.claim, rationale=verdict.rationale, tone=target_tone
+        async def read_article(name: str, arguments: dict[str, Any]) -> str:
+            number = arguments.get("numero")
+            if name != "ler_materia" or not isinstance(number, int):
+                return "Chamada inválida: use ler_materia com o número de uma fonte."
+            if not 1 <= number <= len(sources):
+                return f"Não existe fonte {number}; escolha entre 1 e {len(sources)}."
+            source = sources[number - 1]
+            logger.info("Agente de consulta lendo a fonte %d: %s", number, source.url)
+            text = await fetch_article_text(source.url, max_chars=_ARTICLE_MAX_CHARS)
+            return text or f"Não foi possível abrir a matéria. Trecho da busca: {source.snippet}"
+
+        prompt = load_prompt("quote_post", version=2).format(
+            post_text=post.text,
+            claim=verdict.claim,
+            rationale=verdict.rationale,
+            tone=target_tone,
+            sources=_format_sources(sources),
+            max_reads=_MAX_ARTICLE_READS,
         )
 
-        logger.info("Gerando texto de intervenção (LLM)...")
-        generated_text = await self.llm.complete(
+        logger.info("Gerando texto de intervenção (LLM com consulta às fontes)...")
+        generated_text = await self.llm.complete_with_tools(
             system=prompt,
-            user="Gere apenas o texto final do quote post.",
+            user="Consulte as fontes que precisar e gere o quote post.",
+            tools=[_READ_ARTICLE_TOOL],
+            call_tool=read_article,
+            max_tool_calls=_MAX_ARTICLE_READS,
             purpose="quote_post",
         )
+        generated_text, source_url = _extract_source(generated_text, sources)
 
         # Guardrails pós-geração (sobre o texto completo, antes de dividir em thread)
         generated_text = generated_text.strip()

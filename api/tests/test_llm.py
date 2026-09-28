@@ -188,3 +188,58 @@ async def test_litellm_completion_execution_and_usage_recording():
 
         # Verifica se o uso e custo foram computados
         assert pytest.approx(tracker.get_daily_cost(date.today()), 0.0001) == 0.0012
+
+
+def _tool_call(call_id: str, numero: int):
+    call = MagicMock()
+    call.id = call_id
+    call.function.name = "ler_materia"
+    call.function.arguments = f'{{"numero": {numero}}}'
+    return call
+
+
+def _response(content: str | None, tool_calls: list | None = None):
+    response = MagicMock()
+    response.choices[0].message.content = content
+    response.choices[0].message.tool_calls = tool_calls
+    response.usage = None
+    return response
+
+
+@pytest.mark.anyio
+async def test_complete_with_tools_runs_tools_until_limit_then_forces_answer():
+    model = LiteLLMModel(settings=Settings(daily_llm_budget_usd=1.00), tracker=UsageTracker())
+    calls: list[dict] = []
+
+    async def call_tool(name, arguments):
+        calls.append(arguments)
+        return f"matéria {arguments['numero']}"
+
+    with (
+        patch("litellm.acompletion", new_callable=AsyncMock) as mock_acompletion,
+        patch("litellm.completion_cost", return_value=0.0),
+    ):
+        mock_acompletion.side_effect = [
+            _response(None, [_tool_call("a", 1), _tool_call("b", 2)]),
+            _response(None, [_tool_call("c", 3)]),
+            _response("FONTE: 2\nPergunta final?"),
+        ]
+
+        result = await model.complete_with_tools(
+            system="sys",
+            user="usr",
+            tools=[{"type": "function", "function": {"name": "ler_materia"}}],
+            call_tool=call_tool,
+            max_tool_calls=2,
+        )
+
+    assert result == "FONTE: 2\nPergunta final?"
+    assert calls == [{"numero": 1}, {"numero": 2}]
+    third_kwargs = mock_acompletion.call_args_list[2].kwargs
+    assert third_kwargs["tool_choice"] == "none"
+    tool_messages = [m for m in third_kwargs["messages"] if m["role"] == "tool"]
+    assert [m["content"] for m in tool_messages] == [
+        "matéria 1",
+        "matéria 2",
+        "Limite de consultas atingido; responda com o que já leu.",
+    ]

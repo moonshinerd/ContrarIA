@@ -70,6 +70,10 @@ class ScriptedClassifier:
             return {"relevante": score, "irrelevante": 1 - score}
         return {"verdadeira": 0.1, "falsa": 0.7, "enganosa": 0.2}
 
+    async def count_tokens(self, texts: list[str]) -> list[int]:
+        # Matéria completa "pesa" 3000 tokens; o resto, 10.
+        return [3000 if "matéria completa" in text else 10 for text in texts]
+
 
 def evidence(url: str, title: str) -> Evidence:
     return Evidence(source="test", url=url, title=title, snippet="")
@@ -99,7 +103,7 @@ async def test_filter_relevant_shortlists_by_word_overlap_and_sorts_by_margin():
     assert len(relevant) == sum(margin >= 0.15 for margin in margins)
 
 
-async def test_verdict_uses_top_evidences_with_full_article_only_for_the_best(monkeypatch):
+async def test_verdict_packs_full_articles_until_the_context_limit(monkeypatch):
     from app.services import jev_verification
 
     async def article(url: str):
@@ -107,20 +111,21 @@ async def test_verdict_uses_top_evidences_with_full_article_only_for_the_best(mo
 
     monkeypatch.setattr(jev_verification, "_fetch_article_text", article)
     classifier = ScriptedClassifier({})
-    service = build_service(None)
+    service = build_service(None, jev_n_ctx=4096)
     service.classifier = classifier
-    best = Evidence(source="t", url="https://best", title="Melhor", snippet="trecho melhor")
-    others = [
-        Evidence(source="t", url=f"https://o{i}", title=f"Outra {i}", snippet=f"trecho {i}")
-        for i in range(3)
+    relevant = [
+        Evidence(source="t", url=f"https://e{i}", title=f"Fonte {i}", snippet=f"trecho {i}")
+        for i in range(7)
     ]
 
-    label, confidence, _ = await service._classify_verdict("alegação", [best, *others])
+    label, confidence, _ = await service._classify_verdict("alegação", relevant)
 
     prompt = classifier.questions[-1]
     assert label == VerdictLabel.FALSE
     assert confidence == 0.7
-    assert "matéria completa de https://best" in prompt
-    assert "trecho 0" in prompt and "trecho 1" in prompt
-    assert "trecho 2" not in prompt
-    assert "matéria completa de https://o0" not in prompt
+    # 4096 de contexto: só a primeira matéria cabe inteira (3000); as outras
+    # entram com o trecho da busca, até o teto de 5 evidências.
+    assert "matéria completa de https://e0" in prompt
+    assert "matéria completa de https://e1" not in prompt
+    assert all(f"trecho {i}" in prompt for i in range(1, 5))
+    assert "trecho 5" not in prompt

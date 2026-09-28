@@ -30,15 +30,19 @@ import logging
 import re
 from datetime import date
 
-import httpx
 from sqlalchemy import create_engine
 
+from app.clients.articles import fetch_article_text
 from app.clients.evidence import get_evidence_source
 from app.clients.evidence.base import EvidenceSource
 from app.clients.evidence.google_factcheck import GoogleFactCheckClient
 from app.core.config import Settings, get_settings
 from app.domain.entities import Evidence, Post, Verdict, VerdictLabel
-from app.models.classifiers.jev import JevClassifierPort, get_jev_classifier
+from app.models.classifiers.jev import (
+    PROMPT_OVERHEAD_TOKENS,
+    JevClassifierPort,
+    get_jev_classifier,
+)
 from app.repositories.crc_calibration import CRCCalibrationRepository
 
 logger = logging.getLogger("contraria.services.jev_verification")
@@ -55,10 +59,13 @@ _URL_PATTERN = re.compile(r"https?://\S+|\bwww\.\S+", re.IGNORECASE)
 # Cada chamada ao modelo é um prompt lido inteiro em CPU: menos evidências e
 # matéria mais curta são o que mais reduz o tempo por post.
 _MAX_EVIDENCE_FOR_RELEVANCE = 8
-_MAX_EVIDENCE_FOR_VERDICT = 3
-_ARTICLE_MAX_CHARS = 3000
+# O veredito recebe matérias completas até encher o contexto do modelo
+# (contado com o tokenizador dele); as que não cabem inteiras entram só com o
+# trecho da busca.
+_MAX_EVIDENCE_FOR_VERDICT = 5
+_ARTICLE_MAX_CHARS = 8000
+_SNIPPET_MAX_CHARS = 400
 _WORD_PATTERN = re.compile(r"\w{4,}")
-_ARTICLE_USER_AGENT = "ContrarIA/1.0 (+https://github.com/moonshinerd/ContrarIA)"
 
 
 def _word_overlap(claim: str, evidence: Evidence) -> int:
@@ -75,25 +82,7 @@ def jev_model_key(settings: Settings) -> str:
 
 
 async def _fetch_article_text(url: str) -> str | None:
-    """Busca o texto completo da matéria pra dar mais contexto ao veredito.
-
-    Best-effort: alguns sites bloqueiam scraping ou têm paywall -- qualquer
-    falha aqui só significa que o snippet da busca é usado no lugar.
-    """
-    try:
-        from bs4 import BeautifulSoup
-
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-            response = await client.get(url, headers={"User-Agent": _ARTICLE_USER_AGENT})
-            response.raise_for_status()
-        soup = BeautifulSoup(response.text, "lxml")
-        for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form"]):
-            tag.decompose()
-        text = " ".join(soup.get_text(" ").split())
-        return text[:_ARTICLE_MAX_CHARS] if text else None
-    except Exception as exc:
-        logger.info("Não foi possível buscar a página completa de %s: %s", url, type(exc).__name__)
-        return None
+    return await fetch_article_text(url, max_chars=_ARTICLE_MAX_CHARS)
 
 
 def _clean_query(text: str) -> str:
@@ -297,23 +286,45 @@ class JevVerificationService:
     async def _classify_verdict(
         self, claim: str, relevant: list[Evidence]
     ) -> tuple[VerdictLabel, float, dict[str, float]]:
-        # Matéria completa só da mais relevante (a fonte que a intervenção cita);
-        # as seguintes entram com o trecho da busca.
-        best, *others = relevant[:_MAX_EVIDENCE_FOR_VERDICT]
-        best_body = await _fetch_article_text(best.url) or best.snippet[:400]
-        evidence_summary = "\n".join(
-            [f"- {best.title}: {best_body}"]
-            + [f"- {item.title}: {item.snippet[:400]}" for item in others]
+        candidates = relevant[:_MAX_EVIDENCE_FOR_VERDICT]
+        articles = await asyncio.gather(*(_fetch_article_text(item.url) for item in candidates))
+        head = f'Alegação: "{claim}"\nEvidências encontradas:\n'
+        tail = (
+            "Considerando as evidências acima, a alegação é verdadeira, falsa, ou "
+            "enganosa (mistura um fato real com uma conclusão distorcida)?"
         )
+        evidence_summary = await self._pack_evidence(head + tail, candidates, articles)
         options = list(_LABEL_BY_OPTION)
         probs = await self.classifier.classify(
-            f'Alegação: "{claim}"\nEvidências encontradas:\n{evidence_summary}\n'
-            "Considerando as evidências acima, a alegação é verdadeira, falsa, ou "
-            "enganosa (mistura um fato real com uma conclusão distorcida)?",
+            f"{head}{evidence_summary}{tail}",
             options,
         )
         best_option = max(probs, key=probs.get)
         return _LABEL_BY_OPTION[best_option], probs[best_option], probs
+
+    async def _pack_evidence(
+        self, fixed_text: str, candidates: list[Evidence], articles: list[str | None]
+    ) -> str:
+        """Blocos de evidência em ordem de relevância até o limite de contexto do Jev."""
+        full_blocks = [
+            f"- {item.title}: {article}\n" if article else None
+            for item, article in zip(candidates, articles, strict=True)
+        ]
+        short_blocks = [
+            f"- {item.title}: {item.snippet[:_SNIPPET_MAX_CHARS]}\n" for item in candidates
+        ]
+        texts = [fixed_text, *short_blocks, *(block for block in full_blocks if block)]
+        counts = dict(zip(texts, await self.classifier.count_tokens(texts), strict=True))
+
+        budget = self.settings.jev_n_ctx - PROMPT_OVERHEAD_TOKENS - counts[fixed_text]
+        packed: list[str] = []
+        for full, short in zip(full_blocks, short_blocks, strict=True):
+            block = full if full and counts[full] <= budget else short
+            if counts[block] > budget:
+                continue
+            packed.append(block)
+            budget -= counts[block]
+        return "".join(packed)
 
     def _apply_calibration(
         self, label: VerdictLabel, confidence: float, evidence_count: int

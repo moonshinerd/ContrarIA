@@ -4,6 +4,7 @@ Implementa LLMPort com suporte a modo JSON, retries com backoff, timeout,
 configuração de modelos por papel e trava de orçamento diário (RNF05).
 """
 
+import json
 import logging
 import os
 from datetime import date
@@ -12,7 +13,7 @@ from typing import Any
 import litellm
 
 from app.core.config import Settings, get_settings
-from app.models.llm.base import LLMPort
+from app.models.llm.base import LLMPort, ToolHandler
 
 logger = logging.getLogger(__name__)
 
@@ -183,17 +184,8 @@ class LiteLLMModel(LLMPort):
         purpose: str = "general",
     ) -> str:
         """Executa a conclusão do modelo via LiteLLM com verificação de orçamento."""
-        today = date.today()
-        current_spent = self.tracker.get_daily_cost(today)
-        if current_spent >= self.settings.daily_llm_budget_usd:
-            raise BudgetExceeded(
-                f"Orçamento diário de LLM excedido: ${current_spent:.4f} consumidos de um limite "
-                f"de ${self.settings.daily_llm_budget_usd:.2f}."
-            )
-
+        self._check_budget()
         model = self._resolve_model(role)
-        api_params = self._resolve_api_params(model)
-
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
@@ -205,15 +197,92 @@ class LiteLLMModel(LLMPort):
             # Saídas estruturadas precisam ser reprodutíveis e fáceis de validar.
             extra_kwargs["temperature"] = 0
 
+        response = await self._acompletion(model, messages, purpose, **extra_kwargs)
+        content = response.choices[0].message.content or ""
+        return content
+
+    async def complete_with_tools(
+        self,
+        system: str,
+        user: str,
+        *,
+        tools: list[dict[str, Any]],
+        call_tool: ToolHandler,
+        max_tool_calls: int,
+        purpose: str = "general",
+    ) -> str:
+        model = self._resolve_model(None)
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+        calls_done = 0
+        # Depois do limite, o modelo às vezes ainda pede ferramenta sem responder:
+        # cada pedido recebe "limite atingido" e há no máximo 2 rodadas a mais.
+        for _ in range(max_tool_calls + 2):
+            self._check_budget()
+            allow_tools = calls_done < max_tool_calls
+            response = await self._acompletion(
+                model,
+                messages,
+                purpose,
+                tools=tools,
+                tool_choice="auto" if allow_tools else "none",
+            )
+            message = response.choices[0].message
+            tool_calls = getattr(message, "tool_calls", None) or []
+            if not tool_calls:
+                return message.content or ""
+
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": message.content,
+                    "tool_calls": [
+                        {
+                            "id": call.id,
+                            "type": "function",
+                            "function": {
+                                "name": call.function.name,
+                                "arguments": call.function.arguments,
+                            },
+                        }
+                        for call in tool_calls
+                    ],
+                }
+            )
+            for call in tool_calls:
+                if calls_done >= max_tool_calls:
+                    result = "Limite de consultas atingido; responda com o que já leu."
+                else:
+                    try:
+                        arguments = json.loads(call.function.arguments or "{}")
+                    except json.JSONDecodeError:
+                        arguments = {}
+                    result = await call_tool(call.function.name, arguments)
+                    calls_done += 1
+                messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
+        return ""
+
+    def _check_budget(self) -> None:
+        current_spent = self.tracker.get_daily_cost(date.today())
+        if current_spent >= self.settings.daily_llm_budget_usd:
+            raise BudgetExceeded(
+                f"Orçamento diário de LLM excedido: ${current_spent:.4f} consumidos de um limite "
+                f"de ${self.settings.daily_llm_budget_usd:.2f}."
+            )
+
+    async def _acompletion(
+        self, model: str, messages: list[dict[str, Any]], purpose: str, **kwargs: Any
+    ):
         response = await litellm.acompletion(
             model=model,
             messages=messages,
             timeout=self.settings.llm_timeout_seconds,
             num_retries=self.settings.llm_max_retries,
-            **api_params,
-            **extra_kwargs,
+            **self._resolve_api_params(model),
+            **kwargs,
         )
-
         try:
             cost = litellm.completion_cost(completion_response=response)
         except Exception:
@@ -228,13 +297,11 @@ class LiteLLMModel(LLMPort):
             tokens_out = getattr(response.usage, "completion_tokens", 0) or 0
 
         self.tracker.record(
-            usage_date=today,
+            usage_date=date.today(),
             model=model,
             purpose=purpose,
             tokens_in=tokens_in,
             tokens_out=tokens_out,
             cost_usd=cost,
         )
-
-        content = response.choices[0].message.content or ""
-        return content
+        return response

@@ -29,7 +29,9 @@ def mock_bsky():
 @pytest.fixture
 def mock_llm():
     llm = AsyncMock()
-    llm.complete.return_value = "Isso não confere com os dados públicos. O que acha?"
+    llm.complete_with_tools.return_value = (
+        "FONTE: 1\nIsso não confere com os dados públicos. O que acha?"
+    )
     return llm
 
 
@@ -57,7 +59,7 @@ async def test_intervention_dry_run(mock_repo, mock_bsky, mock_llm, monkeypatch)
     res = await service.execute_intervention(post, author, verdict, bot_score=0.1)
 
     assert res == "dry_run_uri"
-    mock_llm.complete.assert_called_once()
+    mock_llm.complete_with_tools.assert_called_once()
     mock_bsky.quote_post.assert_not_called()
     mock_repo.record_intervention.assert_not_called()
 
@@ -241,7 +243,7 @@ async def test_intervention_splits_long_text_into_thread(mock_repo, mock_bsky, m
     """Texto acima do limite do Bluesky vira quote + replies encadeadas, com
     🧵 nos pedaços intermediários e o link da fonte só no último."""
     long_text = " ".join(f"palavra{i}" for i in range(120))  # bem acima de 300 grafemas
-    mock_llm.complete.return_value = long_text
+    mock_llm.complete_with_tools.return_value = long_text
     mock_bsky.reply_post.side_effect = [
         (f"at://did:bot:self/app.bsky.feed.post/{124 + i}", f"cid_reply_{i}") for i in range(10)
     ]
@@ -281,3 +283,84 @@ async def test_intervention_splits_long_text_into_thread(mock_repo, mock_bsky, m
     first_reply_call = mock_bsky.reply_post.call_args_list[0]
     assert first_reply_call.kwargs["root_uri"] == "at://did:bot:self/app.bsky.feed.post/123"
     assert first_reply_call.kwargs["parent_uri"] == "at://did:bot:self/app.bsky.feed.post/123"
+
+
+@pytest.mark.asyncio
+async def test_intervention_consults_sources_and_cites_the_chosen_one(
+    mock_repo, mock_bsky, mock_llm, monkeypatch
+):
+    from app.services import intervention
+
+    opened: list[str] = []
+
+    async def fake_fetch(url: str, *, max_chars: int):
+        opened.append(url)
+        return f"texto completo de {url}"
+
+    monkeypatch.setattr(intervention, "fetch_article_text", fake_fetch)
+    tool_results: list[str] = []
+
+    async def agent(system, user, *, tools, call_tool, max_tool_calls, purpose):
+        assert max_tool_calls == 3
+        assert "1. Fonte A (https://a)" in system and "2. Fonte B (https://b)" in system
+        tool_results.append(await call_tool("ler_materia", {"numero": 2}))
+        tool_results.append(await call_tool("ler_materia", {"numero": 9}))
+        return "FONTE: 2\nSerá que a matéria B diz isso mesmo?"
+
+    mock_llm.complete_with_tools.side_effect = agent
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    service.settings.intervention_dry_run = False
+    post = Post(
+        uri="at://did:1/post/1",
+        cid="cid1",
+        author_did="did:1",
+        text="post",
+        created_at=datetime.now(UTC),
+    )
+    verdict = Verdict(
+        claim="c",
+        label=VerdictLabel.MISLEADING,
+        confidence=0.9,
+        rationale="r",
+        evidences=[
+            Evidence("t", "https://a", "Fonte A", "trecho a"),
+            Evidence("t", "https://b", "Fonte B", "trecho b"),
+        ],
+    )
+
+    await service.execute_intervention(post, Account(did="did:1", handle="user"), verdict, 0.1)
+
+    assert opened == ["https://b"]
+    assert tool_results[0] == "texto completo de https://b"
+    assert "Não existe fonte 9" in tool_results[1]
+    _, kwargs = mock_bsky.quote_post.call_args
+    assert kwargs["text"] == "Será que a matéria B diz isso mesmo?"
+    assert kwargs["source_url"] == "https://b"
+
+
+@pytest.mark.asyncio
+async def test_intervention_without_source_line_cites_the_most_relevant(
+    mock_repo, mock_bsky, mock_llm
+):
+    mock_llm.complete_with_tools.return_value = "Será que isso confere?"
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    service.settings.intervention_dry_run = False
+    post = Post(
+        uri="at://did:1/post/1",
+        cid="cid1",
+        author_did="did:1",
+        text="post",
+        created_at=datetime.now(UTC),
+    )
+    verdict = Verdict(
+        claim="c",
+        label=VerdictLabel.FALSE,
+        confidence=0.9,
+        rationale="r",
+        evidences=[Evidence("t", "https://a", "A", "a"), Evidence("t", "https://b", "B", "b")],
+    )
+
+    await service.execute_intervention(post, Account(did="did:1", handle="user"), verdict, 0.1)
+
+    _, kwargs = mock_bsky.quote_post.call_args
+    assert kwargs["source_url"] == "https://a"

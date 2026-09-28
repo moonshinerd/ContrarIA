@@ -40,6 +40,19 @@ async def classify(req: ClassifyRequest) -> ClassifyResponse:
     return ClassifyResponse(probabilities=probabilities)
 
 
+class CountTokensRequest(BaseModel):
+    texts: list[str] = Field(min_length=1)
+
+
+class CountTokensResponse(BaseModel):
+    counts: list[int]
+
+
+@app.post("/count_tokens", response_model=CountTokensResponse)
+async def count_tokens(req: CountTokensRequest) -> CountTokensResponse:
+    return CountTokensResponse(counts=await _classifier.count_tokens(req.texts))
+
+
 @app.get("/health", tags=["infra"])
 def health() -> dict[str, str]:
     """Liveness: não carrega o modelo (isso só acontece na 1ª classificação)."""
