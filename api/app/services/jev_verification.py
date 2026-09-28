@@ -38,7 +38,7 @@ from app.clients.evidence.base import EvidenceSource
 from app.clients.evidence.google_factcheck import GoogleFactCheckClient
 from app.core.config import Settings, get_settings
 from app.domain.entities import Evidence, Post, Verdict, VerdictLabel
-from app.models.classifiers.jev import JevClassifier, get_jev_classifier
+from app.models.classifiers.jev import JevClassifierPort, get_jev_classifier
 from app.repositories.crc_calibration import CRCCalibrationRepository
 
 logger = logging.getLogger("contraria.services.jev_verification")
@@ -117,7 +117,7 @@ class JevVerificationService:
 
     def __init__(
         self,
-        classifier: JevClassifier,
+        classifier: JevClassifierPort,
         sources: list[EvidenceSource],
         calibration_repo: CRCCalibrationRepository,
         *,
@@ -168,7 +168,7 @@ class JevVerificationService:
         classification_log = []
         factual_claims: list[str] = []
         for sentence in candidates:
-            judgment = self.classifier.classify(
+            judgment = await self.classifier.classify(
                 f'Frase: "{sentence}"\n'
                 "Essa frase é uma alegação factual verificável -- descreve um fato, "
                 "número, evento ou declaração que pode ser checado contra a "
@@ -226,7 +226,7 @@ class JevVerificationService:
                 agent_outputs=agent_outputs,
             )
 
-        relevant, relevance_log = self._filter_relevant(claim, evidences)
+        relevant, relevance_log = await self._filter_relevant(claim, evidences)
         agent_outputs[f"{prefix}.relevance"] = json.dumps(relevance_log, ensure_ascii=False)
         if not relevant:
             return Verdict(
@@ -251,14 +251,14 @@ class JevVerificationService:
             agent_outputs=agent_outputs,
         )
 
-    def _filter_relevant(
+    async def _filter_relevant(
         self, claim: str, evidences: list[Evidence]
     ) -> tuple[list[Evidence], list[dict]]:
         relevant: list[Evidence] = []
         log: list[dict] = []
         for evidence in evidences:
             snippet = f"{evidence.title}. {evidence.snippet}"[:800]
-            judgment = self.classifier.classify(
+            judgment = await self.classifier.classify(
                 f'Alegação a verificar: "{claim}"\nTrecho de fonte: "{snippet}"\n'
                 "O trecho cita os MESMOS fatos, pessoas, números ou eventos específicos "
                 "da alegação (não conta só por ser sobre o mesmo tema genérico, como "
@@ -287,7 +287,7 @@ class JevVerificationService:
             for item in relevant[:5]
         )
         options = list(_LABEL_BY_OPTION)
-        probs = self.classifier.classify(
+        probs = await self.classifier.classify(
             f'Alegação: "{claim}"\nEvidências encontradas:\n{evidence_summary}\n'
             "Considerando as evidências acima, a alegação é verdadeira, falsa, ou "
             "enganosa (mistura um fato real com uma conclusão distorcida)?",

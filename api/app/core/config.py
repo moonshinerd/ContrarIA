@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     jev_model_file: str = "Qwen3-4B-Q4_K_M.gguf"
     jev_n_ctx: int = 4096
     jev_n_threads: int = 0  # 0 = deixa o llama.cpp escolher (nº de cores)
+    # URL do serviço `jev` (app/jev_server.py): uma cópia única do modelo
+    # compartilhada por api/worker/scripts. Vazio = carrega o modelo no
+    # próprio processo (só para script avulso/teste manual -- nunca com
+    # vários processos ao mesmo tempo, ver docstring de get_jev_classifier).
+    jev_server_url: str = ""
 
     google_factcheck_api_key: str = ""
     # Cota real da Fact Check Tools API: 300 requisições/minuto (sem limite diário).
