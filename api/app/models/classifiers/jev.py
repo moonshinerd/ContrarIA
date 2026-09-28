@@ -115,7 +115,14 @@ class JevClassifier:
     async def count_tokens(self, texts: list[str]) -> list[int]:
         """Tokens de cada texto no vocabulário do próprio modelo (não é tiktoken)."""
         llm = await self._ensure_loaded()
-        return [len(llm.tokenize(text.encode("utf-8"), add_bos=False)) for text in texts]
+
+        def _count():
+            return [len(llm.tokenize(text.encode("utf-8"), add_bos=False)) for text in texts]
+
+        # Mesma trava da inferência: a instância do llama.cpp não aceita chamadas
+        # simultâneas, e antes a contagem rodava junto com uma classificação.
+        async with self._infer_lock:
+            return await to_thread(_count)
 
     async def _classify_ordered(self, question: str, options: list[str]) -> dict[str, float]:
         llm = await self._ensure_loaded()

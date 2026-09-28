@@ -4,6 +4,7 @@
 services:
   db:
     image: pgvector/pgvector:pg16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: contraria
       POSTGRES_PASSWORD: contraria
@@ -23,6 +24,7 @@ services:
   # de cada um carregar sua própria cópia (~3-4GB), o que estourava a RAM
   # do Docker Desktop com os dois rodando ao mesmo tempo.
   jev:
+    restart: unless-stopped
     build:
       context: ./api
       args:
@@ -42,6 +44,7 @@ services:
 
   api:
     build: ./api
+    restart: unless-stopped
     env_file: ./api/.env
     environment:
       DATABASE_URL: postgresql+psycopg://contraria:contraria@db:5432/contraria
@@ -68,6 +71,7 @@ services:
 
   worker:
     build: ./api
+    restart: unless-stopped
     env_file: ./api/.env
     environment:
       DATABASE_URL: postgresql+psycopg://contraria:contraria@db:5432/contraria
