@@ -100,8 +100,11 @@ async def main_async(args: argparse.Namespace) -> None:
         print(f"[{index}/{len(claims)}] {claim_row['claim'][:70]!r}", file=sys.stderr)
         row = await run_one(service, claim_row)
         rows.append(row)
-        print(f"  -> esperado={row['expected_label']} previsto={row['predicted_label']} "
-              f"confiança={row['confidence']:.2f} ({row['latency_seconds']}s)", file=sys.stderr)
+        print(
+            f"  -> esperado={row['expected_label']} previsto={row['predicted_label']} "
+            f"confiança={row['confidence']:.2f} ({row['latency_seconds']}s)",
+            file=sys.stderr,
+        )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8", newline="") as handle:
