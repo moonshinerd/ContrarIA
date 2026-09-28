@@ -1,0 +1,49 @@
+{
+    "type": "standard",
+    "title": "Urna eletrônica (Brasil)",
+    "displaytitle": "<span lang=\"pt\" dir=\"ltr\"><span class=\"mw-page-title-main\">Urna eletrônica (Brasil)</span></span>",
+    "namespace": {
+        "id": 0,
+        "text": ""
+    },
+    "wikibase_item": "Q28220154",
+    "titles": {
+        "canonical": "Urna_eletrônica_(Brasil)",
+        "normalized": "Urna eletrônica (Brasil)",
+        "display": "<span lang=\"pt\" dir=\"ltr\"><span class=\"mw-page-title-main\">Urna eletrônica (Brasil)</span></span>"
+    },
+    "pageid": 112772,
+    "thumbnail": {
+        "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/Urna_eletr%C3%B4nica_brasileira_UE2020.jpg/330px-Urna_eletr%C3%B4nica_brasileira_UE2020.jpg?utm_source=pt.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+        "width": 330,
+        "height": 220
+    },
+    "originalimage": {
+        "source": "https://upload.wikimedia.org/wikipedia/commons/6/62/Urna_eletr%C3%B4nica_brasileira_UE2020.jpg?utm_source=pt.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+        "width": 3543,
+        "height": 2362
+    },
+    "lang": "pt",
+    "dir": "ltr",
+    "revision": "72774531",
+    "tid": "aef267d8-91c2-11f1-a55c-5db7f4cc0e0f",
+    "timestamp": "2026-08-06T18:14:37Z",
+    "description": "urnas eletrônicas em eleições no Brasil",
+    "description_source": "central",
+    "content_urls": {
+        "desktop": {
+            "page": "https://pt.wikipedia.org/wiki/Urna_eletr%C3%B4nica_(Brasil)",
+            "revisions": "https://pt.wikipedia.org/wiki/Urna_eletr%C3%B4nica_(Brasil)?action=history",
+            "edit": "https://pt.wikipedia.org/wiki/Urna_eletr%C3%B4nica_(Brasil)?action=edit",
+            "talk": "https://pt.wikipedia.org/wiki/Discuss%C3%A3o:Urna_eletr%C3%B4nica_(Brasil)"
+        },
+        "mobile": {
+            "page": "https://pt.wikipedia.org/wiki/Urna_eletr%C3%B4nica_(Brasil)",
+            "revisions": "https://pt.wikipedia.org/wiki/Special:History/Urna_eletr%C3%B4nica_(Brasil)",
+            "edit": "https://pt.wikipedia.org/wiki/Urna_eletr%C3%B4nica_(Brasil)?action=edit",
+            "talk": "https://pt.wikipedia.org/wiki/Discuss%C3%A3o:Urna_eletr%C3%B4nica_(Brasil)"
+        }
+    },
+    "extract": "No Brasil, a urna eletrônica foi implantada em 1996.\nAcabou com várias das antigas fraudes externas da votação em papel. Apesar de controvérsias sobre seu nível de segurança e a impressão dos votos, o sistema passa por auditorias antes e depois das eleições e é testado contra hackers periodicamente pelo Tribunal Superior Eleitoral (TSE) e organizações convidadas, sendo que nunca foi comprovada corrupção.",
+    "extract_html": "<p>No Brasil, a <b>urna eletrônica</b> foi implantada em 1996.\nAcabou com várias das antigas fraudes externas da votação em papel. Apesar de controvérsias sobre seu nível de segurança e a impressão dos votos, o sistema passa por auditorias antes e depois das eleições e é testado contra hackers periodicamente pelo Tribunal Superior Eleitoral (TSE) e organizações convidadas, sendo que nunca foi comprovada corrupção.</p>"
+}

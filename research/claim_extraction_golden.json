@@ -1,0 +1,71 @@
+[
+  {
+    "id": "factual_eleicao",
+    "context": {"post": "O TSE marcou o primeiro turno das eleições para 4 de outubro de 2026."},
+    "expected": [{"source": "post", "classification": "factual", "keywords": ["TSE", "4 de outubro", "2026"]}]
+  },
+  {
+    "id": "opiniao_governo",
+    "context": {"post": "Na minha opinião, este é o pior governo da história."},
+    "expected": [{"source": "post", "classification": "opiniao", "keywords": ["pior governo"]}]
+  },
+  {
+    "id": "opiniao_politica",
+    "context": {"post": "Eu prefiro candidatos que priorizem educação pública."},
+    "expected": [{"source": "post", "classification": "opiniao", "keywords": ["prefiro", "educação"]}]
+  },
+  {
+    "id": "satira_santos",
+    "context": {"post": "Claro, nossos políticos são todos santos: nunca mentem e vivem de luz."},
+    "expected": [{"source": "post", "classification": "satira_ironia", "keywords": ["políticos", "santos"]}]
+  },
+  {
+    "id": "satira_sensacionalista",
+    "context": {"post": "Notícia do Sensacionalista: Congresso aprova semana de dois dias para aumentar a produtividade."},
+    "expected": [{"source": "post", "classification": "satira_ironia", "keywords": ["Congresso", "dois dias"]}]
+  },
+  {
+    "id": "hiperbole_fila",
+    "context": {"post": "Esperei um século na fila para votar."},
+    "expected": [{"source": "post", "classification": "hiperbole", "keywords": ["século", "fila"]}]
+  },
+  {
+    "id": "pergunta_urna",
+    "context": {"post": "As urnas eletrônicas imprimem uma cópia do voto?"},
+    "expected": [{"source": "post", "classification": "pergunta", "keywords": ["urnas", "imprimem"]}]
+  },
+  {
+    "id": "factual_citado",
+    "context": {
+      "post": "Esse dado está correto?",
+      "quoted": "O desemprego caiu para 5% no segundo trimestre de 2026."
+    },
+    "expected": [{"source": "citado", "classification": "factual", "keywords": ["desemprego", "5%", "2026"]}]
+  },
+  {
+    "id": "factual_misto",
+    "context": {"post": "O Senado aprovou o projeto ontem. Considero a proposta injusta."},
+    "expected": [
+      {"source": "post", "classification": "factual", "keywords": ["Senado", "aprovou", "projeto"]},
+      {"source": "post", "classification": "opiniao", "keywords": ["proposta", "injusta"]}
+    ]
+  },
+  {
+    "id": "pergunta_recente",
+    "context": {"post": "O ministro renunciou hoje?"},
+    "expected": [{"source": "post", "classification": "pergunta", "keywords": ["ministro", "renunciou"]}]
+  },
+  {
+    "id": "factual_pai",
+    "context": {
+      "post": "A informação do post anterior está correta?",
+      "parent": "A Câmara cancelou a votação do orçamento prevista para 21 de setembro de 2026."
+    },
+    "expected": [{"source": "pai", "classification": "factual", "keywords": ["Câmara", "cancelou", "21 de setembro"]}]
+  },
+  {
+    "id": "ironia_pergunta",
+    "context": {"post": "Que ótima ideia: resolver a inflação imprimindo dinheiro sem limite, né?"},
+    "expected": [{"source": "post", "classification": "satira_ironia", "keywords": ["inflação", "dinheiro"]}]
+  }
+]

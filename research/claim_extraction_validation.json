@@ -1,0 +1,244 @@
+{
+  "checked_at": "2026-09-21T18:08:40.328810+00:00",
+  "model": "ollama/qwen2.5:3b",
+  "cases": [
+    {
+      "id": "factual_eleicao",
+      "passed": true,
+      "extraction_passed": true,
+      "cove_passed": true,
+      "actual": [
+        {
+          "text": "O TSE marcou o primeiro turno das eleições para 4 de outubro de 2026.",
+          "source": "post",
+          "classification": "factual",
+          "rationale": "Datas de eleições são afirmações objetivas que podem ser confirmadas por fontes oficiais."
+        }
+      ],
+      "cove": {
+        "claims": [
+          {
+            "claim": "O TSE marcou o primeiro turno das eleições para 4 de outubro de 2026.",
+            "questions": [
+              {
+                "question": "Qual fonte oficial registra que o TSE marcou o primeiro turno das eleições para 4 de outubro de 2026?",
+                "purpose": "Localizar o registro primário."
+              },
+              {
+                "question": "Em qual ano ocorreu a marcação do primeiro turno das eleições marcada pelo TSE em 4 de outubro de 2026?",
+                "purpose": "Confirmar o contexto temporal."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "opiniao_governo",
+      "passed": true,
+      "extraction_passed": true,
+      "cove_passed": true,
+      "actual": [
+        {
+          "text": "Na minha opinião, este é o pior governo da história.",
+          "source": "post",
+          "classification": "opiniao",
+          "rationale": "A frase expressa uma preferência pessoal sobre a qualidade do governo."
+        }
+      ],
+      "cove": null
+    },
+    {
+      "id": "opiniao_politica",
+      "passed": true,
+      "extraction_passed": true,
+      "cove_passed": true,
+      "actual": [
+        {
+          "text": "Eu prefiro candidatos que priorizem educação pública.",
+          "source": "post",
+          "classification": "opiniao",
+          "rationale": "A frase expressa uma preferência pessoal sobre candidatos."
+        }
+      ],
+      "cove": null
+    },
+    {
+      "id": "satira_santos",
+      "passed": true,
+      "extraction_passed": true,
+      "cove_passed": true,
+      "actual": [
+        {
+          "text": "Claro, nossos políticos são todos santos: nunca mentem e vivem de luz.",
+          "source": "post",
+          "classification": "satira_ironia",
+          "rationale": "A frase sugere uma ironia sobre a imagem dos políticos como santos, usando um tom irônico para criticar essa visão."
+        }
+      ],
+      "cove": null
+    },
+    {
+      "id": "satira_sensacionalista",
+      "passed": false,
+      "extraction_passed": false,
+      "cove_passed": true,
+      "actual": [
+        {
+          "text": "Congresso aprova semana de dois dias para aumentar a produtividade.",
+          "source": "post",
+          "classification": "pergunta",
+          "rationale": "A frase é uma pergunta indireta sobre o que foi decidido pelo Congresso."
+        }
+      ],
+      "cove": null
+    },
+    {
+      "id": "hiperbole_fila",
+      "passed": true,
+      "extraction_passed": true,
+      "cove_passed": true,
+      "actual": [
+        {
+          "text": "Esperei um século na fila para votar.",
+          "source": "post",
+          "classification": "hiperbole",
+          "rationale": "A duração é obviamente exagerada e não pode ser verificada."
+        }
+      ],
+      "cove": null
+    },
+    {
+      "id": "pergunta_urna",
+      "passed": true,
+      "extraction_passed": true,
+      "cove_passed": true,
+      "actual": [
+        {
+          "text": "As urnas eletrônicas imprimam uma cópia do voto?",
+          "source": "post",
+          "classification": "pergunta",
+          "rationale": "O texto é uma pergunta sobre a capacidade das urnas eletrônicas de imprimir cópias dos votos."
+        }
+      ],
+      "cove": null
+    },
+    {
+      "id": "factual_citado",
+      "passed": true,
+      "extraction_passed": true,
+      "cove_passed": true,
+      "actual": [
+        {
+          "text": "Esse dado está correto?",
+          "source": "post",
+          "classification": "pergunta",
+          "rationale": "A pergunta pede uma verificação do desemprego informado, não afirma que o dado seja falso."
+        },
+        {
+          "text": "O desemprego caiu para 5% no segundo trimestre de 2026.",
+          "source": "citado",
+          "classification": "factual",
+          "rationale": "Esta é uma afirmação objetiva sobre um dado verificável em fontes externas."
+        }
+      ],
+      "cove": {
+        "claims": [
+          {
+            "claim": "O desemprego caiu para 5% no segundo trimestre de 2026.",
+            "questions": [
+              {
+                "question": "Qual fonte oficial registra que o desemprego caiu para 5% no segundo trimestre de 2026?",
+                "purpose": "Localizar o registro primário."
+              },
+              {
+                "question": "Em que ano ocorreu a queda do desemprego para 5% no segundo trimestre de 2026?",
+                "purpose": "Confirmar o contexto temporal."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "factual_misto",
+      "passed": false,
+      "extraction_passed": false,
+      "cove_passed": false,
+      "actual": [
+        {
+          "text": "Considero a proposta injusta.",
+          "source": "post",
+          "classification": "opiniao",
+          "rationale": "A frase expressa uma opinião pessoal sobre a proposta de projeto."
+        }
+      ],
+      "cove": null
+    },
+    {
+      "id": "pergunta_recente",
+      "passed": true,
+      "extraction_passed": true,
+      "cove_passed": true,
+      "actual": [
+        {
+          "text": "O ministro renunciou hoje?",
+          "source": "post",
+          "classification": "pergunta",
+          "rationale": "A frase é uma pergunta solicitando informações sobre um evento que pode ou não ter ocorrido."
+        }
+      ],
+      "cove": null
+    },
+    {
+      "id": "factual_pai",
+      "passed": true,
+      "extraction_passed": true,
+      "cove_passed": true,
+      "actual": [
+        {
+          "text": "A Câmara cancelou a votação do orçamento prevista para 21 de setembro de 2026.",
+          "source": "pai",
+          "classification": "factual",
+          "rationale": "Esta é uma afirmação objetiva sobre um evento que pode ser verificado por fontes externas."
+        }
+      ],
+      "cove": {
+        "claims": [
+          {
+            "claim": "A Câmara cancelou a votação do orçamento prevista para 21 de setembro de 2026.",
+            "questions": [
+              {
+                "question": "Qual fonte oficial registra que a Câmara cancelou a votação do orçamento em 21 de setembro de 2026?",
+                "purpose": "Localizar o registro primário."
+              },
+              {
+                "question": "Em qual ano ocorreu a votação do orçamento prevista para 21 de setembro de 2026?",
+                "purpose": "Confirmar o contexto temporal."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ironia_pergunta",
+      "passed": true,
+      "extraction_passed": true,
+      "cove_passed": true,
+      "actual": [
+        {
+          "text": "Que ótima ideia: resolver a inflação imprimindo dinheiro sem limite, né?",
+          "source": "post",
+          "classification": "satira_ironia",
+          "rationale": "A frase sugere uma solução absurda e irônica para a inflação."
+        }
+      ],
+      "cove": null
+    }
+  ],
+  "passed_count": 10,
+  "total": 12,
+  "required_pass_count": 10,
+  "passed": true
+}

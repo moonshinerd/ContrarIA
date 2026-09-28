@@ -1,0 +1,26 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Execute remote SSH commands to deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /opt/contraria || cd ~/contraria
+            git pull origin main
+            
+            # Start containers
+            docker compose -f deploy/docker-compose.prod.yml up -d --build
+            
+            # Run migrations (we can run it inside the api container)
+            docker compose -f deploy/docker-compose.prod.yml exec -T api uv run alembic upgrade head

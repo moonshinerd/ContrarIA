@@ -9,5 +9,13 @@ from abc import ABC, abstractmethod
 
 class LLMPort(ABC):
     @abstractmethod
-    async def complete(self, system: str, user: str, *, json_mode: bool = False) -> str:
+    async def complete(
+        self,
+        system: str,
+        user: str,
+        *,
+        json_mode: bool = False,
+        role: str | None = None,
+        purpose: str = "general",
+    ) -> str:
         """Retorna o texto (ou JSON serializado, se json_mode) gerado pelo modelo."""
