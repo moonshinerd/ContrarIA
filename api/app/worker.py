@@ -26,7 +26,7 @@ from app.services import build_verification_service
 from app.services.bot_scoring import BotScoringService
 from app.services.crc_seed import ensure_calibration_seeded
 from app.services.intervention import InterventionService
-from app.services.intervention_queue import InterventionQueue
+from app.services.intervention_queue import InterventionQueue, expire_stale_candidates
 from app.services.pipeline import PipelineService
 
 logger = logging.getLogger("contraria.worker")
@@ -49,7 +49,11 @@ async def main() -> None:
     llm = LiteLLMModel(settings)
     ozone = OzoneClient(settings=settings)
     intervention = InterventionService(InterventionRepository(engine), bsky_client, llm)
-    queue = InterventionQueue(settings, Session(engine), intervention, ozone)
+    queue_session = Session(engine)
+    expired = expire_stale_candidates(queue_session)
+    if expired:
+        logger.warning("%d candidato(s) de intervenção expirado(s) ao iniciar", expired)
+    queue = InterventionQueue(settings, queue_session, intervention, ozone)
     pipeline = PipelineService(
         settings=settings,
         db_session=Session(engine),

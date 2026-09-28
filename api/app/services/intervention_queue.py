@@ -35,6 +35,27 @@ class InterventionCandidate:
     bot_score: float
 
 
+def expire_stale_candidates(session: Session) -> int:
+    """Fecha candidatos que ficaram presos em INTERVENE_QUEUED.
+
+    A fila vive só na memória do processo: um restart do worker (ex.: para
+    aplicar um prompt novo) a esvazia, mas o registro no banco continuava
+    parado em INTERVENE_QUEUED para sempre. Reconstituir o candidato para
+    publicar depois do restart exigiria refazer a verificação (dados
+    incompletos no log), então em vez disso ele só é fechado como MONITOR.
+    """
+    result = session.execute(
+        update(DecisionLog)
+        .where(DecisionLog.action == "INTERVENE_QUEUED")
+        .values(
+            action="MONITOR",
+            justification="Candidato expirado: worker reiniciado antes da rodada.",
+        )
+    )
+    session.commit()
+    return result.rowcount
+
+
 class InterventionQueue:
     def __init__(
         self,

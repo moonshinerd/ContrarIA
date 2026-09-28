@@ -88,3 +88,28 @@ def test_quiet_hours_boundaries():
     assert queue.in_quiet_hours(datetime(2026, 9, 28, 9, 59, tzinfo=UTC))  # 6h59 BRT
     assert not queue.in_quiet_hours(datetime(2026, 9, 28, 10, 0, tzinfo=UTC))  # 7h BRT
     assert not queue.in_quiet_hours(datetime(2026, 9, 28, 2, 59, tzinfo=UTC))  # 23h59 BRT
+
+
+def test_expire_stale_candidates_closes_them_as_monitor():
+    from app.services.intervention_queue import expire_stale_candidates
+
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+    stuck = DecisionLog(
+        post_uri="at://a", post_snapshot={}, action="INTERVENE_QUEUED", justification="q"
+    )
+    already_done = DecisionLog(
+        post_uri="at://b", post_snapshot={}, action="INTERVENE", justification="ok"
+    )
+    session.add_all([stuck, already_done])
+    session.commit()
+
+    expired = expire_stale_candidates(session)
+
+    assert expired == 1
+    session.refresh(stuck)
+    session.refresh(already_done)
+    assert stuck.action == "MONITOR"
+    assert "expirado" in stuck.justification
+    assert already_done.action == "INTERVENE"
