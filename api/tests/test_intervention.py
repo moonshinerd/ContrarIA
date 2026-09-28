@@ -30,7 +30,8 @@ def mock_bsky():
 def mock_llm():
     llm = AsyncMock()
     llm.complete_with_tools.return_value = (
-        "VEREDITO: DESMENTE\nFONTE: 1\nIsso não confere com os dados públicos. O que acha?"
+        "TIPO: FATO\nVEREDITO: DESMENTE\nFONTE: 1\n"
+        "Isso não confere com os dados públicos. O que acha?"
     )
     return llm
 
@@ -243,7 +244,9 @@ async def test_intervention_splits_long_text_into_thread(mock_repo, mock_bsky, m
     """Texto acima do limite do Bluesky vira quote + replies encadeadas, com
     🧵 nos pedaços intermediários e o link da fonte só no último."""
     long_text = " ".join(f"palavra{i}" for i in range(120))  # bem acima de 300 grafemas
-    mock_llm.complete_with_tools.return_value = "VEREDITO: DESMENTE\nFONTE: 1\n" + long_text
+    mock_llm.complete_with_tools.return_value = (
+        "TIPO: FATO\nVEREDITO: DESMENTE\nFONTE: 1\n" + long_text
+    )
     mock_bsky.reply_post.side_effect = [
         (f"at://did:bot:self/app.bsky.feed.post/{124 + i}", f"cid_reply_{i}") for i in range(10)
     ]
@@ -306,7 +309,7 @@ async def test_intervention_consults_sources_and_cites_the_chosen_one(
         assert "1. Fonte A (https://a)" in system and "2. Fonte B (https://b)" in system
         tool_results.append(await call_tool("ler_materia", {"numero": 2}))
         tool_results.append(await call_tool("ler_materia", {"numero": 9}))
-        return "VEREDITO: DISTORCE\nFONTE: 2\nSerá que a matéria B diz isso mesmo?"
+        return "TIPO: FATO\nVEREDITO: DISTORCE\nFONTE: 2\nSerá que a matéria B diz isso mesmo?"
 
     mock_llm.complete_with_tools.side_effect = agent
     service = InterventionService(mock_repo, mock_bsky, mock_llm)
@@ -343,7 +346,9 @@ async def test_intervention_consults_sources_and_cites_the_chosen_one(
 async def test_intervention_without_source_line_cites_the_most_relevant(
     mock_repo, mock_bsky, mock_llm
 ):
-    mock_llm.complete_with_tools.return_value = "VEREDITO: DESMENTE\nSerá que isso confere?"
+    mock_llm.complete_with_tools.return_value = (
+        "TIPO: FATO\nVEREDITO: DESMENTE\nSerá que isso confere?"
+    )
     service = InterventionService(mock_repo, mock_bsky, mock_llm)
     service.settings.intervention_dry_run = False
     post = Post(
@@ -371,7 +376,7 @@ async def test_intervention_without_source_line_cites_the_most_relevant(
 async def test_intervention_vetoed_when_agent_says_sources_confirm_the_post(
     mock_repo, mock_bsky, mock_llm
 ):
-    mock_llm.complete_with_tools.return_value = "VEREDITO: CONFIRMA\nFONTE: 0"
+    mock_llm.complete_with_tools.return_value = "TIPO: FATO\nVEREDITO: CONFIRMA\nFONTE: 0"
     service = InterventionService(mock_repo, mock_bsky, mock_llm)
     service.settings.intervention_dry_run = False
     post = Post(
@@ -401,7 +406,12 @@ async def test_intervention_vetoed_when_agent_says_sources_confirm_the_post(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "agent_output",
-    ["Será que isso confere?", "VEREDITO: CONFIRMA\nFONTE: 1\nMesmo assim, será?"],
+    [
+        "Será que isso confere?",
+        "TIPO: FATO\nVEREDITO: CONFIRMA\nFONTE: 1\nMesmo assim, será?",
+        "VEREDITO: DESMENTE\nFONTE: 1\nSem a linha de tipo.",
+        "TIPO: OPINIAO\nVEREDITO: DISTORCE\nFONTE: 1\nPrevisão não se corrige.",
+    ],
 )
 async def test_intervention_not_published_without_actionable_agent_verdict(
     mock_repo, mock_bsky, mock_llm, agent_output

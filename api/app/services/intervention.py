@@ -26,6 +26,7 @@ _BRASILIA = timezone(timedelta(hours=-3))
 _MAX_SOURCES_LISTED = 8
 _MAX_ARTICLE_READS = 3
 _ARTICLE_MAX_CHARS = 15000
+_TYPE_LINE = re.compile(r"\s*TIPO:\s*(\w+)[^\n]*\n?", re.IGNORECASE)
 _VERDICT_LINE = re.compile(r"\s*VEREDITO:\s*(\w+)[^\n]*\n?", re.IGNORECASE)
 _SOURCE_LINE = re.compile(r"\s*FONTE:\s*(\d+)[^\n]*\n?", re.IGNORECASE)
 _ACTIONABLE_VERDICTS = {"DESMENTE", "DISTORCE"}
@@ -72,11 +73,15 @@ def _format_sources(sources: list[Evidence]) -> str:
 
 
 def _parse_agent_output(text: str, sources: list[Evidence]) -> tuple[str, str | None]:
-    """Lê `VEREDITO:` e `FONTE: n` e devolve (texto, url da fonte).
+    """Lê `TIPO:`, `VEREDITO:` e `FONTE: n` e devolve (texto, url da fonte).
 
-    url None = não publicar: o agente, que leu as matérias, concluiu CONFIRMA,
-    ou não seguiu o formato (na dúvida, não responde).
+    url None = não publicar: o post é opinião/previsão (TIPO: OPINIAO), o
+    agente concluiu CONFIRMA, ou não seguiu o formato (na dúvida, não responde).
     """
+    claim_type = _TYPE_LINE.match(text)
+    if not claim_type or claim_type.group(1).upper() != "FATO":
+        return "", None
+    text = text[claim_type.end() :]
     verdict = _VERDICT_LINE.match(text)
     if not verdict or verdict.group(1).upper() not in _ACTIONABLE_VERDICTS:
         return "", None

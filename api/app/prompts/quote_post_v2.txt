@@ -29,9 +29,14 @@ Opinião, previsão, promessa ou hipótese sobre o futuro (ex.: "o governo X vai
 Só vale como DESMENTE ou DISTORCE uma matéria sobre o MESMO fato do post (mesma pesquisa, mesma decisão, mesmo evento, mesma data). Matéria sobre outra pesquisa, outra eleição ou outra data não desmente nada: nesse caso, CONFIRMA. Não invente datas ou números que não estejam nas matérias lidas.
 Na dúvida, é CONFIRMA: o bot só responde quando as matérias sustentam claramente a correção.
 
+TIPO DO QUE O POST AFIRMA (decida antes do veredito):
+- FATO: algo afirmado como já ocorrido ou existente (um número, uma decisão, uma declaração, um evento).
+- OPINIAO: opinião, previsão, promessa, hipótese, análise política, ou a manchete/opinião de um terceiro que o post só reproduz (ex.: "revista diz que o futuro da América Latina está nas mãos de Lula": a capa existe, a frase é opinião da revista).
+
 FORMATO DA RESPOSTA (obrigatório):
-Linha 1: `VEREDITO: CONFIRMA`, `VEREDITO: DESMENTE` ou `VEREDITO: DISTORCE`
-Linha 2: `FONTE: <número>` da matéria que embasa a correção (use `FONTE: 0` se o veredito for CONFIRMA)
+Linha 1: `TIPO: FATO` ou `TIPO: OPINIAO`
+Linha 2: `VEREDITO: CONFIRMA`, `VEREDITO: DESMENTE` ou `VEREDITO: DISTORCE` (se TIPO for OPINIAO, use CONFIRMA)
+Linha 3: `FONTE: <número>` da matéria que embasa a correção (use `FONTE: 0` se o veredito for CONFIRMA)
 Depois: só o texto do post (nada se o veredito for CONFIRMA).
 
 REGRAS DO TEXTO:
