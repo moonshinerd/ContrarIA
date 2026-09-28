@@ -388,8 +388,12 @@ class BlueskyClient:
 
     async def quote_post(
         self, target_uri: str, target_cid: str, text: str, source_url: str | None = None
-    ) -> str:
-        """Cria um quote post para o alvo com o texto fornecido (e link opcional)."""
+    ) -> tuple[str, str]:
+        """Cria um quote post para o alvo com o texto fornecido (e link opcional).
+
+        Devolve (uri, cid) do post criado -- o cid é necessário pra encadear
+        posts de continuação via reply_post quando o texto não cabe em um post só.
+        """
         await self.login()
 
         from atproto import client_utils, models
@@ -406,7 +410,41 @@ class BlueskyClient:
         )
 
         response = await self._authenticated(lambda: self._auth.send_post(text=tb, embed=embed))
-        return response.uri
+        return response.uri, response.cid
+
+    async def reply_post(
+        self,
+        root_uri: str,
+        root_cid: str,
+        parent_uri: str,
+        parent_cid: str,
+        text: str,
+        source_url: str | None = None,
+    ) -> tuple[str, str]:
+        """Publica `text` como resposta na thread (root/parent via StrongRef).
+
+        Usado para continuar uma intervenção que não coube em um post só:
+        root é sempre o primeiro post da nossa própria thread (o quote
+        original), parent é o post imediatamente anterior na continuação.
+        """
+        await self.login()
+
+        from atproto import client_utils, models
+
+        tb = client_utils.TextBuilder()
+        tb.text(text)
+        if source_url:
+            tb.text(" ")
+            tb.link("[Fonte]", source_url)
+
+        reply_ref = models.AppBskyFeedPost.ReplyRef(
+            root=models.ComAtprotoRepoStrongRef.Main(uri=root_uri, cid=root_cid),
+            parent=models.ComAtprotoRepoStrongRef.Main(uri=parent_uri, cid=parent_cid),
+        )
+        response = await self._authenticated(
+            lambda: self._auth.send_post(text=tb, reply_to=reply_ref)
+        )
+        return response.uri, response.cid
 
     async def has_postgate_quote_disabled(self, post_uri: str) -> bool:
         """Verifica se o autor do post desabilitou citações via postgate."""

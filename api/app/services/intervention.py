@@ -12,6 +12,10 @@ logger = logging.getLogger("contraria.services.intervention")
 
 _AGGRESSIVE_TERMS = ("idiota", "burro", "imbecil", "estúpido", "estupido", "lixo")
 
+_BLUESKY_LIMIT = 300
+_THREAD_MARK = " 🧵"
+_SOURCE_LABEL = " [Fonte]"
+
 
 def _grapheme_len(text: str) -> int:
     """Conta aproximação de grafemas sem depender de biblioteca externa."""
@@ -30,6 +34,34 @@ def _truncate_graphemes(text: str, limit: int) -> str:
             break
         result.append(char)
     return "".join(result).rstrip() + "…"
+
+
+def _split_for_thread(text: str, limit: int = _BLUESKY_LIMIT) -> list[str]:
+    """Quebra `text` em pedaços que cabem no limite do Bluesky.
+
+    Reserva espaço (o maior dos dois) tanto para o emoji de thread (🧵, nos
+    pedaços que não são o último) quanto para o link [Fonte] (no último),
+    já que não sabemos até o fim da divisão qual pedaço será o último.
+    """
+    normalized = " ".join(text.split())
+    reserve = max(_grapheme_len(_THREAD_MARK), _grapheme_len(_SOURCE_LABEL))
+    budget = limit - reserve
+    words = normalized.split(" ")
+    chunks: list[str] = []
+    current = ""
+    for word in words:
+        if _grapheme_len(word) > budget:
+            word = _truncate_graphemes(word, budget)
+        candidate = f"{current} {word}".strip()
+        if _grapheme_len(candidate) > budget:
+            if current:
+                chunks.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        chunks.append(current)
+    return chunks or [_truncate_graphemes(normalized, budget)]
 
 
 class InterventionService:
@@ -127,30 +159,59 @@ class InterventionService:
             purpose="quote_post",
         )
 
-        # Guardrails pós-geração
-        generated_text = _truncate_graphemes(generated_text.strip(), 292)
+        # Guardrails pós-geração (sobre o texto completo, antes de dividir em thread)
+        generated_text = generated_text.strip()
         is_aggressive = any(term in generated_text.casefold() for term in _AGGRESSIVE_TERMS)
         if not generated_text or is_aggressive:
             logger.warning("Texto de intervenção reprovado pelos guardrails")
             return None
 
+        # Quando o texto não cabe em um post só, continua como resposta
+        # encadeada (thread) em vez de cortar o final com "…" -- cada pedaço
+        # que não é o último termina com 🧵; o link da fonte vai só no último.
+        chunks = _split_for_thread(generated_text)
+
         is_dry_run = getattr(self.settings, "intervention_dry_run", True)
 
         if is_dry_run:
             logger.info(
-                "[DRY RUN] Intervenção gerada (não publicada): %s | Fonte: %s",
-                generated_text,
+                "[DRY RUN] Intervenção gerada (não publicada, %d post(s)): %s | Fonte: %s",
+                len(chunks),
+                " | ".join(chunks),
                 source_url,
             )
             return "dry_run_uri"
 
-        logger.info("Publicando quote post para %s...", post.uri)
+        logger.info("Publicando quote post para %s (%d post(s))...", post.uri, len(chunks))
         try:
-            quote_uri = await self.bsky_client.quote_post(
-                target_uri=post.uri, target_cid=post.cid, text=generated_text, source_url=source_url
+            first_text = chunks[0] + (_THREAD_MARK if len(chunks) > 1 else "")
+            first_source = source_url if len(chunks) == 1 else None
+            root_uri, root_cid = await self.bsky_client.quote_post(
+                target_uri=post.uri, target_cid=post.cid, text=first_text, source_url=first_source
             )
             self.repo.record_intervention(post.uri, post.author_did, "quote_post")
-            return quote_uri
+
+            parent_uri, parent_cid = root_uri, root_cid
+            for index, chunk in enumerate(chunks[1:], start=1):
+                is_last = index == len(chunks) - 1
+                text = chunk if is_last else chunk + _THREAD_MARK
+                source = source_url if is_last else None
+                try:
+                    parent_uri, parent_cid = await self.bsky_client.reply_post(
+                        root_uri=root_uri,
+                        root_cid=root_cid,
+                        parent_uri=parent_uri,
+                        parent_cid=parent_cid,
+                        text=text,
+                        source_url=source,
+                    )
+                except Exception as e:
+                    logger.error(
+                        "Falha ao publicar continuação %d/%d: %s", index + 1, len(chunks), e
+                    )
+                    break
+
+            return root_uri
         except Exception as e:
             logger.error("Falha ao publicar quote post: %s", e)
             return None

@@ -21,7 +21,8 @@ def mock_bsky():
     client = AsyncMock()
     client.login.return_value = "did:bot:self"
     client.has_postgate_quote_disabled.return_value = False
-    client.quote_post.return_value = "at://did:bot:self/app.bsky.feed.post/123"
+    client.quote_post.return_value = ("at://did:bot:self/app.bsky.feed.post/123", "cid_quote")
+    client.reply_post.return_value = ("at://did:bot:self/app.bsky.feed.post/124", "cid_reply")
     return client
 
 
@@ -233,3 +234,50 @@ async def test_intervention_live_fail(mock_repo, mock_bsky, mock_llm):
     )
     res = await service.execute_intervention(post, author, verdict, 0.1)
     assert res is None
+
+
+@pytest.mark.asyncio
+async def test_intervention_splits_long_text_into_thread(mock_repo, mock_bsky, mock_llm):
+    """Texto acima do limite do Bluesky vira quote + replies encadeadas, com
+    🧵 nos pedaços intermediários e o link da fonte só no último."""
+    long_text = " ".join(f"palavra{i}" for i in range(120))  # bem acima de 300 grafemas
+    mock_llm.complete.return_value = long_text
+    mock_bsky.reply_post.side_effect = [
+        (f"at://did:bot:self/app.bsky.feed.post/{124 + i}", f"cid_reply_{i}") for i in range(10)
+    ]
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    service.settings.intervention_dry_run = False
+
+    post = Post(
+        uri="at://did:1/post/1",
+        cid="cid1",
+        author_did="did:1",
+        text="fake",
+        created_at=datetime.now(UTC),
+    )
+    author = Account(did="did:1", handle="user")
+    verdict = Verdict(
+        claim="fake claim",
+        label=VerdictLabel.FALSE,
+        confidence=0.9,
+        rationale="It is fake.",
+        evidences=[Evidence("test", "http://example.com", "t", "s")],
+    )
+
+    res = await service.execute_intervention(post, author, verdict, bot_score=0.1)
+
+    assert res == "at://did:bot:self/app.bsky.feed.post/123"
+    assert mock_bsky.reply_post.call_count >= 1
+
+    first_call_text = mock_bsky.quote_post.call_args.kwargs["text"]
+    assert first_call_text.endswith("🧵")
+    assert mock_bsky.quote_post.call_args.kwargs["source_url"] is None
+
+    last_call = mock_bsky.reply_post.call_args
+    assert last_call.kwargs["source_url"] == "http://example.com"
+    assert "🧵" not in last_call.kwargs["text"]
+
+    # a primeira reply encadeia no quote (root e parent apontam pro post 123)
+    first_reply_call = mock_bsky.reply_post.call_args_list[0]
+    assert first_reply_call.kwargs["root_uri"] == "at://did:bot:self/app.bsky.feed.post/123"
+    assert first_reply_call.kwargs["parent_uri"] == "at://did:bot:self/app.bsky.feed.post/123"
