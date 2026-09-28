@@ -84,34 +84,61 @@ async def run_one(service, claim_row: dict) -> dict:
     }
 
 
+class UngatedCalibrationRepository:
+    """Calibração com lambda_hat=0: o Jev devolve o rótulo e a confiança crus.
+
+    Com o repositório real, sem calibração do Jev no banco, todo veredito vira
+    insufficient_evidence com confiança 0 -- o CSV registraria a ausência de
+    calibração em vez da previsão, e o CRC calcularia o limiar sobre nada.
+    """
+
+    def get_latest(self, model: str):
+        from app.services.crc import CRCCalibration
+
+        return CRCCalibration(
+            lambda_hat=0.0, alpha=1.0, n=0, model=model, created_at=datetime.now(UTC)
+        )
+
+
+def completed_claim_ids(output: Path) -> set[str]:
+    if not output.exists():
+        return set()
+    with output.open(encoding="utf-8", newline="") as handle:
+        return {row["claim_id"] for row in csv.DictReader(handle)}
+
+
 async def main_async(args: argparse.Namespace) -> None:
     from app.core.config import get_settings
     from app.services.jev_verification import JevVerificationService
 
     settings = get_settings()
     service = JevVerificationService.from_settings(settings=settings)
+    service.calibration_repo = UngatedCalibrationRepository()
 
     claims = load_claims(args.dataset)
     if args.limit:
         claims = claims[: args.limit]
 
-    rows = []
-    for index, claim_row in enumerate(claims, start=1):
-        print(f"[{index}/{len(claims)}] {claim_row['claim'][:70]!r}", file=sys.stderr)
-        row = await run_one(service, claim_row)
-        rows.append(row)
-        print(
-            f"  -> esperado={row['expected_label']} previsto={row['predicted_label']} "
-            f"confiança={row['confidence']:.2f} ({row['latency_seconds']}s)",
-            file=sys.stderr,
-        )
-
+    # Grava linha a linha e retoma de onde parou: cada claim leva até ~3 min.
+    done = completed_claim_ids(args.output)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    with args.output.open("w", encoding="utf-8", newline="") as handle:
+    with args.output.open("a", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=CSV_FIELDS)
-        writer.writeheader()
-        writer.writerows(rows)
-    print(f"\n{len(rows)} linha(s) gravada(s) em {args.output}", file=sys.stderr)
+        if not done:
+            writer.writeheader()
+        for index, claim_row in enumerate(claims, start=1):
+            if str(claim_row["id"]) in done:
+                continue
+            print(f"[{index}/{len(claims)}] {claim_row['claim'][:70]!r}", file=sys.stderr)
+            row = await run_one(service, claim_row)
+            writer.writerow(row)
+            handle.flush()
+            print(
+                f"  -> esperado={row['expected_label']} previsto={row['predicted_label']} "
+                f"confiança={row['confidence']:.2f} ({row['latency_seconds']}s)",
+                file=sys.stderr,
+            )
+    print(f"\nPrevisões gravadas em {args.output}", file=sys.stderr)
 
 
 def build_parser() -> argparse.ArgumentParser:
