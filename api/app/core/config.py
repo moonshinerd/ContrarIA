@@ -38,6 +38,18 @@ class Settings(BaseSettings):
     crc_alpha: float = Field(default=0.05, gt=0, lt=1)
     crc_model_name: str = ""
 
+    # Backend de verificação: "llm" (CoVe + Self-RAG + debate multiagente na
+    # nuvem, o caminho calibrado e validado) ou "jev" (classificação local via
+    # logprobs de um modelo pequeno, sem geração de JSON -- mais rápido e
+    # barato, mas o veredito final ainda não passou pela mesma validação
+    # extensa do backend "llm"). O LLM continua sendo usado nos dois casos
+    # para escrever o texto da intervenção socrática.
+    verification_backend: str = "llm"
+    jev_model_repo: str = "Qwen/Qwen3-4B-GGUF"
+    jev_model_file: str = "Qwen3-4B-Q4_K_M.gguf"
+    jev_n_ctx: int = 4096
+    jev_n_threads: int = 0  # 0 = deixa o llama.cpp escolher (nº de cores)
+
     google_factcheck_api_key: str = ""
     # Cota real da Fact Check Tools API: 300 requisições/minuto (sem limite diário).
     # Ficamos com margem para não estourar quando api e worker consultam juntos.

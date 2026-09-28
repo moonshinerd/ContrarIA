@@ -7,6 +7,12 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
     PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 
+# build-essential + cmake: llama-cpp-python (backend "jev") compila a
+# extensão nativa do llama.cpp no build; sem isso o uv sync falha.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 

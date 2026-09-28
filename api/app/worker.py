@@ -22,11 +22,11 @@ from app.repositories.crc_calibration import CRCCalibrationRepository
 from app.repositories.fact_articles import FactArticleRepository
 from app.repositories.interventions import InterventionRepository
 from app.repositories.posts import PostRepository
+from app.services import build_verification_service
 from app.services.bot_scoring import BotScoringService
 from app.services.crc_seed import ensure_calibration_seeded
 from app.services.intervention import InterventionService
 from app.services.pipeline import PipelineService
-from app.services.verification import VerificationService
 
 logger = logging.getLogger("contraria.worker")
 
@@ -52,7 +52,7 @@ async def main() -> None:
         bluesky=bsky_client,
         ozone=OzoneClient(settings=settings),
         bots=BotScoringService(engine, bsky_client),
-        verification=VerificationService.from_settings(llm, settings=settings, engine=engine),
+        verification=build_verification_service(llm, settings=settings, engine=engine),
         intervention=InterventionService(InterventionRepository(engine), bsky_client, llm),
     )
 

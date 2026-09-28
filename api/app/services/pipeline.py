@@ -15,6 +15,7 @@ from app.db.orm.decisions import DecisionLog
 from app.domain.entities import Post, VerdictLabel
 from app.services.bot_scoring import BotScoringService
 from app.services.intervention import InterventionService
+from app.services.jev_verification import JevVerificationService
 from app.services.verification import VerificationService
 
 logger = logging.getLogger("contraria.services.pipeline")
@@ -34,7 +35,7 @@ class PipelineService:
         bluesky: BlueskyClient,
         ozone: OzoneClient,
         bots: BotScoringService,
-        verification: VerificationService,
+        verification: VerificationService | JevVerificationService,
         intervention: InterventionService,
     ) -> None:
         self.settings = settings

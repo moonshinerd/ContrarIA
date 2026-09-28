@@ -15,10 +15,10 @@ from app.domain.entities import Post
 from app.models.llm.litellm_model import LiteLLMModel
 from app.repositories.interventions import InterventionRepository
 from app.schemas.decisions import AnalyzeRequest, DecisionLogOut, DecisionReviewOut
+from app.services import build_verification_service
 from app.services.bot_scoring import BotScoringService
 from app.services.intervention import InterventionService
 from app.services.pipeline import PipelineService
-from app.services.verification import VerificationService
 
 router = APIRouter(prefix="/v1", tags=["decisions"])
 
@@ -36,7 +36,7 @@ def get_pipeline(db: Session = Depends(get_db)):  # noqa: B008
     ozone = OzoneClient(settings=settings)
     bots = BotScoringService(db.get_bind(), bluesky)
     llm = LiteLLMModel(settings)
-    verification = VerificationService.from_settings(llm, settings=settings, engine=db.get_bind())
+    verification = build_verification_service(llm, settings=settings, engine=db.get_bind())
     intervention = InterventionService(InterventionRepository(db.get_bind()), bluesky, llm)
 
     return PipelineService(
