@@ -57,6 +57,11 @@ _ARTICLE_MAX_CHARS = 6000  # cabe no contexto do Jev (n_ctx) junto com o resto d
 _ARTICLE_USER_AGENT = "ContrarIA/1.0 (+https://github.com/moonshinerd/ContrarIA)"
 
 
+def jev_model_key(settings: Settings) -> str:
+    """Chave de calibração CRC própria do backend Jev (não mistura com a chave do LLM)."""
+    return f"jev:{settings.jev_model_repo}:{settings.jev_model_file}"
+
+
 async def _fetch_article_text(url: str) -> str | None:
     """Busca o texto completo da matéria pra dar mais contexto ao veredito.
 
@@ -151,8 +156,7 @@ class JevVerificationService:
         )
 
     def model_key(self) -> str:
-        """Chave de calibração CRC própria do backend Jev (não mistura com a chave do LLM)."""
-        return f"jev:{self.settings.jev_model_repo}:{self.settings.jev_model_file}"
+        return jev_model_key(self.settings)
 
     async def verify(
         self,

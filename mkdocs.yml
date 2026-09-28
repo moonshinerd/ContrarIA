@@ -72,6 +72,7 @@ nav:
       - Metodologia Scrum e Papéis: processo/scrum.md
       - Avaliações da Equipe: processo/avaliacoes.md
   - Guia de Uso: guia-de-uso.md
+  - Calibração do Jev: calibracao-jev.md
   - Arquitetura:
       - Visão Geral: arquitetura/index.md
       - O Pipeline do Agente: arquitetura/pipeline.md

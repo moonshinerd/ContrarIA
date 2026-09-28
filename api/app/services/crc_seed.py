@@ -22,19 +22,28 @@ from app.services.crc import CRCCalibration
 
 logger = logging.getLogger("contraria.services.crc_seed")
 
-SEED_PATH = Path(__file__).resolve().parent.parent / "domain" / "crc_calibration_seed.json"
+SEED_DIR = Path(__file__).resolve().parent.parent / "domain"
+SEED_PATH = SEED_DIR / "crc_calibration_seed.json"
+JEV_SEED_PATH = SEED_DIR / "crc_calibration_seed_jev.json"
 
 
 def ensure_calibration_seeded(repo: CRCCalibrationRepository, settings: Settings) -> None:
-    model = settings.crc_model_name or settings.llm_model_name
+    """Semeia a calibração do backend LLM e a do Jev, cada uma com a sua chave."""
+    from app.services.jev_verification import jev_model_key
+
+    _seed(repo, SEED_PATH, settings.crc_model_name or settings.llm_model_name)
+    _seed(repo, JEV_SEED_PATH, jev_model_key(settings))
+
+
+def _seed(repo: CRCCalibrationRepository, path: Path, model: str) -> None:
     if repo.get_latest(model) is not None:
         return
 
-    if not SEED_PATH.exists():
-        logger.warning("Seed de calibração CRC não encontrado em %s", SEED_PATH)
+    if not path.exists():
+        logger.warning("Seed de calibração CRC não encontrado em %s", path)
         return
 
-    data = json.loads(SEED_PATH.read_text(encoding="utf-8"))
+    data = json.loads(path.read_text(encoding="utf-8"))
     if data.get("model") != model:
         logger.warning(
             "Seed de calibração é para o modelo %s, mas o configurado é %s; nada foi gravado",

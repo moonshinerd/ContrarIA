@@ -88,3 +88,27 @@ def test_ensure_calibration_seeded_does_not_override_existing_calibration():
     assert latest is not None
     assert latest.lambda_hat == 0.42
     assert latest.n == 100
+
+
+def test_ensure_calibration_seeded_seeds_jev_under_its_own_key(tmp_path, monkeypatch):
+    import json
+
+    from app.services import crc_seed
+    from app.services.jev_verification import jev_model_key
+
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = CRCCalibrationRepository(engine)
+    settings = Settings(_env_file=None, llm_model_name="openrouter/google/gemini-2.5-flash")
+    jev_seed = tmp_path / "crc_calibration_seed_jev.json"
+    jev_seed.write_text(
+        json.dumps({"lambda_hat": 0.87, "alpha": 0.05, "n": 40, "model": jev_model_key(settings)})
+    )
+    monkeypatch.setattr(crc_seed, "JEV_SEED_PATH", jev_seed)
+
+    ensure_calibration_seeded(repository, settings)
+
+    seeded = repository.get_latest(jev_model_key(settings))
+    assert seeded is not None
+    assert seeded.lambda_hat == 0.87
+    assert repository.get_latest(settings.llm_model_name).lambda_hat == 0.0
