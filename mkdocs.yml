@@ -1,5 +1,5 @@
 site_name: ContrarIA
-site_description: Agente de mitigação de desinformação e detecção de bots no Bluesky
+site_description: Agente autônomo de mitigação de desinformação e detecção de bots no Bluesky
 repo_url: https://github.com/moonshinerd/ContrarIA
 edit_uri: edit/main/docs/
 docs_dir: docs
@@ -8,24 +8,39 @@ theme:
   name: material
   language: pt-BR
   logo: assets/logo.png
+  favicon: assets/logo.png
   features:
+    - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
+    - navigation.expand
     - navigation.top
-    - content.action.edit
     - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
   palette:
     - scheme: default
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-night
-        name: Modo escuro
+        name: Alternar para modo escuro
     - scheme: slate
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-sunny
-        name: Modo claro
+        name: Alternar para modo claro
+
+extra_css:
+  - stylesheets/extra.css
 
 markdown_extensions:
   - admonition
   - tables
+  - attr_list
+  - md_in_html
   - toc:
       permalink: true
   - pymdownx.details
@@ -34,6 +49,16 @@ markdown_extensions:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
 
 nav:
   - Início: index.md
