@@ -17,6 +17,7 @@ import asyncio
 import csv
 import json
 import sys
+import traceback
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -66,7 +67,8 @@ async def run_one(service, claim_row: dict) -> dict:
         predicted_label = "insufficient_evidence"
         confidence = 0.0
         evidence_count = 0
-        error = type(exc).__name__
+        error = f"{type(exc).__name__}: {exc}"[:300]
+        traceback.print_exc(file=sys.stderr)
     latency = asyncio.get_event_loop().time() - t0
 
     return {
@@ -100,6 +102,27 @@ class UngatedCalibrationRepository:
         )
 
 
+_EARLY_CHECK = 3
+
+
+def print_summary(output: Path) -> None:
+    with output.open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    errors = sum(1 for row in rows if row["error"])
+    adverse = sum(1 for row in rows if row["predicted_label"] in ("false", "misleading"))
+    print(
+        f"\n{len(rows)} previsões em {output}: {errors} com erro, {adverse} adversas "
+        "(false/misleading).",
+        file=sys.stderr,
+    )
+    if errors or not adverse:
+        print(
+            "ATENÇÃO: calibração inválida. Com erros ou sem nenhuma previsão adversa o CRC "
+            "devolve lambda_hat=0, que não trava nada. Não faça commit; veja o guia.",
+            file=sys.stderr,
+        )
+
+
 def completed_claim_ids(output: Path) -> set[str]:
     if not output.exists():
         return set()
@@ -121,6 +144,7 @@ async def main_async(args: argparse.Namespace) -> None:
 
     # Grava linha a linha e retoma de onde parou: cada claim leva até ~3 min.
     done = completed_claim_ids(args.output)
+    processed: list[dict] = []
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("a", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=CSV_FIELDS)
@@ -135,10 +159,19 @@ async def main_async(args: argparse.Namespace) -> None:
             handle.flush()
             print(
                 f"  -> esperado={row['expected_label']} previsto={row['predicted_label']} "
-                f"confiança={row['confidence']:.2f} ({row['latency_seconds']}s)",
+                f"confiança={row['confidence']:.2f} ({row['latency_seconds']}s)"
+                + (f" ERRO {row['error']}" if row["error"] else ""),
                 file=sys.stderr,
             )
-    print(f"\nPrevisões gravadas em {args.output}", file=sys.stderr)
+            processed.append(row)
+            # Aborta cedo: se as primeiras falham, o resto também vai falhar e
+            # a calibração sairia inútil (tudo insufficient_evidence).
+            if len(processed) == _EARLY_CHECK and all(item["error"] for item in processed):
+                raise SystemExit(
+                    f"As {_EARLY_CHECK} primeiras alegações falharam; corrija o erro acima "
+                    "antes de continuar."
+                )
+    print_summary(args.output)
 
 
 def build_parser() -> argparse.ArgumentParser:
