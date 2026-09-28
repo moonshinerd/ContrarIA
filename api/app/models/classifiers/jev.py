@@ -8,9 +8,9 @@ checar "qual é o logprob do token da palavra X" simplesmente não encontra a
 opção. Uma letra maiúscula isolada é, na prática, sempre um único token,
 em qualquer idioma -- validado manualmente antes de integrar aqui.
 
-Mitiga viés de posição (modelos pequenos tendem a favorecer a opção A)
-rodando a classificação duas vezes com a ordem das opções invertida e
-tirando a média das probabilidades por opção.
+Uma passada só por pergunta: a segunda com a ordem das opções invertida
+(contra viés de posição) era necessária no Qwen3-0.6B, mas dobrava o tempo e
+o Qwen3-4B já é consistente o bastante.
 
 Duas implementações, mesma interface async `classify(question, options)`:
 - JevClassifier: carrega o modelo (~alguns GB) no próprio processo.
@@ -103,9 +103,7 @@ class JevClassifier:
         """Classifica `question` entre `options`; devolve prob. por opção (soma 1)."""
         _validate_options(options)
         async with self._infer_lock:
-            forward = await self._classify_ordered(question, options)
-            backward = await self._classify_ordered(question, list(reversed(options)))
-        return {opt: (forward[opt] + backward[opt]) / 2 for opt in options}
+            return await self._classify_ordered(question, options)
 
     async def _classify_ordered(self, question: str, options: list[str]) -> dict[str, float]:
         llm = await self._ensure_loaded()

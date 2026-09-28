@@ -52,9 +52,21 @@ _MAX_CANDIDATE_CLAIMS = 6
 _MIN_SENTENCE_LEN = 15
 _RELEVANCE_MARGIN = 0.15
 _URL_PATTERN = re.compile(r"https?://\S+|\bwww\.\S+", re.IGNORECASE)
-_ARTICLE_FETCH_LIMIT = 2  # só busca o texto completo dos N mais relevantes
-_ARTICLE_MAX_CHARS = 6000  # cabe no contexto do Jev (n_ctx) junto com o resto do prompt
+# Cada chamada ao modelo é um prompt lido inteiro em CPU: menos evidências e
+# matéria mais curta são o que mais reduz o tempo por post.
+_MAX_EVIDENCE_FOR_RELEVANCE = 8
+_MAX_EVIDENCE_FOR_VERDICT = 3
+_ARTICLE_MAX_CHARS = 3000
+_WORD_PATTERN = re.compile(r"\w{4,}")
 _ARTICLE_USER_AGENT = "ContrarIA/1.0 (+https://github.com/moonshinerd/ContrarIA)"
+
+
+def _word_overlap(claim: str, evidence: Evidence) -> int:
+    claim_words = {word.casefold() for word in _WORD_PATTERN.findall(claim)}
+    evidence_words = {
+        word.casefold() for word in _WORD_PATTERN.findall(f"{evidence.title} {evidence.snippet}")
+    }
+    return len(claim_words & evidence_words)
 
 
 def jev_model_key(settings: Settings) -> str:
@@ -258,9 +270,14 @@ class JevVerificationService:
     async def _filter_relevant(
         self, claim: str, evidences: list[Evidence]
     ) -> tuple[list[Evidence], list[dict]]:
-        relevant: list[Evidence] = []
+        # Pré-ordenação sem modelo: só as que mais compartilham palavras com a
+        # alegação vão para o Jev.
+        shortlist = sorted(evidences, key=lambda item: _word_overlap(claim, item), reverse=True)[
+            :_MAX_EVIDENCE_FOR_RELEVANCE
+        ]
+        scored: list[tuple[float, Evidence]] = []
         log: list[dict] = []
-        for evidence in evidences:
+        for evidence in shortlist:
             snippet = f"{evidence.title}. {evidence.snippet}"[:800]
             judgment = await self.classifier.classify(
                 f'Alegação a verificar: "{claim}"\nTrecho de fonte: "{snippet}"\n'
@@ -271,24 +288,22 @@ class JevVerificationService:
                 ["relevante", "irrelevante"],
             )
             log.append({"url": evidence.url, **judgment})
-            if judgment["relevante"] - judgment["irrelevante"] >= _RELEVANCE_MARGIN:
-                relevant.append(evidence)
-        return relevant, log
+            margin = judgment["relevante"] - judgment["irrelevante"]
+            if margin >= _RELEVANCE_MARGIN:
+                scored.append((margin, evidence))
+        scored.sort(key=lambda pair: pair[0], reverse=True)
+        return [evidence for _, evidence in scored], log
 
     async def _classify_verdict(
         self, claim: str, relevant: list[Evidence]
     ) -> tuple[VerdictLabel, float, dict[str, float]]:
-        # Busca o texto completo só das mais relevantes (custo de rede); as
-        # demais entram com o snippet curto da busca mesmo.
-        to_fetch = relevant[:_ARTICLE_FETCH_LIMIT]
-        articles = await asyncio.gather(*(_fetch_article_text(item.url) for item in to_fetch))
-        full_text_by_url = {
-            item.url: text for item, text in zip(to_fetch, articles, strict=True) if text
-        }
-
+        # Matéria completa só da mais relevante (a fonte que a intervenção cita);
+        # as seguintes entram com o trecho da busca.
+        best, *others = relevant[:_MAX_EVIDENCE_FOR_VERDICT]
+        best_body = await _fetch_article_text(best.url) or best.snippet[:400]
         evidence_summary = "\n".join(
-            f"- {item.title}: {full_text_by_url.get(item.url, item.snippet[:400])}"
-            for item in relevant[:5]
+            [f"- {best.title}: {best_body}"]
+            + [f"- {item.title}: {item.snippet[:400]}" for item in others]
         )
         options = list(_LABEL_BY_OPTION)
         probs = await self.classifier.classify(

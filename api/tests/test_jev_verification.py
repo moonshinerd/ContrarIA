@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 import pytest
 
 from app.core.config import Settings
-from app.domain.entities import VerdictLabel
+from app.domain.entities import Evidence, VerdictLabel
 from app.services.crc import CRCCalibration
 from app.services.jev_verification import JevVerificationService
 
@@ -54,3 +54,73 @@ def test_existing_calibration_still_gates_low_confidence(allow_uncalibrated):
     label, _, rationale = service._apply_calibration(VerdictLabel.MISLEADING, 0.85, 1)
     assert label == VerdictLabel.INSUFFICIENT_EVIDENCE
     assert "lambda_hat" in rationale
+
+
+class ScriptedClassifier:
+    """Relevância pelo título da evidência; veredito fixo. Registra os prompts."""
+
+    def __init__(self, relevance_by_title: dict[str, float]) -> None:
+        self.relevance_by_title = relevance_by_title
+        self.questions: list[str] = []
+
+    async def classify(self, question: str, options: list[str]) -> dict[str, float]:
+        self.questions.append(question)
+        if options == ["relevante", "irrelevante"]:
+            score = next(v for title, v in self.relevance_by_title.items() if title in question)
+            return {"relevante": score, "irrelevante": 1 - score}
+        return {"verdadeira": 0.1, "falsa": 0.7, "enganosa": 0.2}
+
+
+def evidence(url: str, title: str) -> Evidence:
+    return Evidence(source="test", url=url, title=title, snippet="")
+
+
+async def test_filter_relevant_shortlists_by_word_overlap_and_sorts_by_margin():
+    claim = "Dino suspendeu decisão de Mendonça sobre postagem de Tabet"
+    unrelated = [f"futebol campeonato rodada {i}" for i in range(10)]
+    evidences = [evidence(f"https://x/{i}", title) for i, title in enumerate(unrelated)] + [
+        evidence("https://a", "Dino suspende decisão de Mendonça"),
+        evidence("https://b", "Dino suspende decisão de Mendonça sobre postagem de Tabet"),
+    ]
+    scores = {title: 0.9 for title in unrelated} | {
+        "Dino suspende decisão de Mendonça sobre": 0.95,
+        "Dino suspende decisão de Mendonça": 0.8,
+    }
+    classifier = ScriptedClassifier(scores)
+    service = build_service(None)
+    service.classifier = classifier
+
+    relevant, log = await service._filter_relevant(claim, evidences)
+
+    assert len(log) == 8
+    assert {"https://a", "https://b"} <= {entry["url"] for entry in log}
+    assert relevant[0].url == "https://b"
+    margins = [entry["relevante"] - entry["irrelevante"] for entry in log]
+    assert len(relevant) == sum(margin >= 0.15 for margin in margins)
+
+
+async def test_verdict_uses_top_evidences_with_full_article_only_for_the_best(monkeypatch):
+    from app.services import jev_verification
+
+    async def article(url: str):
+        return f"matéria completa de {url}"
+
+    monkeypatch.setattr(jev_verification, "_fetch_article_text", article)
+    classifier = ScriptedClassifier({})
+    service = build_service(None)
+    service.classifier = classifier
+    best = Evidence(source="t", url="https://best", title="Melhor", snippet="trecho melhor")
+    others = [
+        Evidence(source="t", url=f"https://o{i}", title=f"Outra {i}", snippet=f"trecho {i}")
+        for i in range(3)
+    ]
+
+    label, confidence, _ = await service._classify_verdict("alegação", [best, *others])
+
+    prompt = classifier.questions[-1]
+    assert label == VerdictLabel.FALSE
+    assert confidence == 0.7
+    assert "matéria completa de https://best" in prompt
+    assert "trecho 0" in prompt and "trecho 1" in prompt
+    assert "trecho 2" not in prompt
+    assert "matéria completa de https://o0" not in prompt
