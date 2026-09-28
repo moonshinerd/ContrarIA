@@ -7,14 +7,24 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
     PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 
-# build-essential + cmake: llama-cpp-python (backend "jev") compila a
-# extensão nativa do llama.cpp no build; sem isso o uv sync falha.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential cmake \
-    && rm -rf /var/lib/apt/lists/*
+# Só o serviço `jev` (docker-compose.yml) passa INSTALL_JEV=true -- api e
+# worker chamam esse serviço por HTTP, não precisam compilar llama-cpp-python
+# (build-essential/cmake) nem baixar o modelo. Mantém o build de api/worker
+# rápido, inclusive no CI, que só builda a imagem default (INSTALL_JEV=false).
+ARG INSTALL_JEV=false
+
+RUN if [ "$INSTALL_JEV" = "true" ]; then \
+        apt-get update && apt-get install -y --no-install-recommends \
+            build-essential cmake \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
+RUN if [ "$INSTALL_JEV" = "true" ]; then \
+        uv sync --frozen --no-dev --extra jev; \
+    else \
+        uv sync --frozen --no-dev; \
+    fi
 
 COPY app ./app
 COPY alembic.ini ./

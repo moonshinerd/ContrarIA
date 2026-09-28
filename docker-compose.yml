@@ -23,7 +23,10 @@ services:
   # de cada um carregar sua própria cópia (~3-4GB), o que estourava a RAM
   # do Docker Desktop com os dois rodando ao mesmo tempo.
   jev:
-    build: ./api
+    build:
+      context: ./api
+      args:
+        INSTALL_JEV: "true"
     env_file: ./api/.env
     environment:
       DATABASE_URL: postgresql+psycopg://contraria:contraria@db:5432/contraria
