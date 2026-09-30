@@ -6,6 +6,7 @@ from collections import OrderedDict
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from time import monotonic
+from urllib.parse import urlparse
 
 import httpx
 
@@ -14,6 +15,39 @@ from app.core.config import Settings
 from app.domain.entities import Evidence
 
 logger = logging.getLogger(__name__)
+
+BLOCKED_EVIDENCE_DOMAINS = {
+    "instagram.com",
+    "facebook.com",
+    "fb.com",
+    "tiktok.com",
+    "twitter.com",
+    "x.com",
+    "bsky.app",
+    "threads.net",
+    "reddit.com",
+    "youtube.com",
+    "youtu.be",
+    "pinterest.com",
+}
+
+
+def is_valid_evidence_url(url: str) -> bool:
+    """Rejeita redes sociais e plataformas de UGC como fontes de verificação factual."""
+    if not url:
+        return False
+    try:
+        domain = urlparse(url).netloc.lower()
+        if domain.startswith("www."):
+            domain = domain[4:]
+        if domain.startswith("m."):
+            domain = domain[2:]
+        for blocked in BLOCKED_EVIDENCE_DOMAINS:
+            if domain == blocked or domain.endswith("." + blocked):
+                return False
+        return True
+    except Exception:
+        return False
 
 
 def parse_date(value: str | None) -> datetime | None:
@@ -102,7 +136,7 @@ class TavilyClient(CachedSource):
                 published_at=parse_date(row.get("published_date")),
             )
             for row in response.json().get("results", [])
-            if row.get("url")
+            if row.get("url") and is_valid_evidence_url(row["url"])
         ][:limit]
 
 
@@ -151,7 +185,8 @@ class DuckDuckGoClient(CachedSource):
                 published_at=parse_date(row.get("date")),
             )
             for row in rows
-            if row.get("url") or row.get("href")
+            if (row.get("url") or row.get("href"))
+            and is_valid_evidence_url(row.get("url") or row.get("href", ""))
         ][:limit]
 
 

@@ -457,22 +457,34 @@ class BlueskyClient:
         return True
 
     async def quote_post(
-        self, target_uri: str, target_cid: str, text: str, source_url: str | None = None
+        self,
+        target_uri: str,
+        target_cid: str,
+        text: str,
+        source_url: str | None = None,
+        source_urls: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Cria um quote post para o alvo com o texto fornecido (e link opcional).
+        """Cria um quote post para o alvo com o texto fornecido (e link(s) de fontes).
 
-        Devolve (uri, cid) do post criado -- o cid é necessário pra encadear
-        posts de continuação via reply_post quando o texto não cabe em um post só.
+        Devolve (uri, cid) do post criado. Suporta uma ou múltiplas fontes ([Fonte] ou [1] [2]).
         """
         await self.login()
 
         from atproto import client_utils, models
 
+        urls = list(source_urls) if source_urls else ([source_url] if source_url else [])
+
         tb = client_utils.TextBuilder()
         tb.text(text)
-        if source_url:
+        if len(urls) == 1:
             tb.text(" ")
-            tb.link("[Fonte]", source_url)
+            tb.link("[Fonte]", urls[0])
+        elif len(urls) > 1:
+            tb.text(" ")
+            for idx, u in enumerate(urls[:3], start=1):
+                if idx > 1:
+                    tb.text(" ")
+                tb.link(f"[{idx}]", u)
 
         # O embed deve ser um embed record apontando pro alvo
         embed = models.AppBskyEmbedRecord.Main(
@@ -490,6 +502,7 @@ class BlueskyClient:
         parent_cid: str,
         text: str,
         source_url: str | None = None,
+        source_urls: list[str] | None = None,
     ) -> tuple[str, str]:
         """Publica `text` como resposta na thread (root/parent via StrongRef).
 
@@ -501,11 +514,19 @@ class BlueskyClient:
 
         from atproto import client_utils, models
 
+        urls = list(source_urls) if source_urls else ([source_url] if source_url else [])
+
         tb = client_utils.TextBuilder()
         tb.text(text)
-        if source_url:
+        if len(urls) == 1:
             tb.text(" ")
-            tb.link("[Fonte]", source_url)
+            tb.link("[Fonte]", urls[0])
+        elif len(urls) > 1:
+            tb.text(" ")
+            for idx, u in enumerate(urls[:3], start=1):
+                if idx > 1:
+                    tb.text(" ")
+                tb.link(f"[{idx}]", u)
 
         reply_ref = models.AppBskyFeedPost.ReplyRef(
             root=models.ComAtprotoRepoStrongRef.Main(uri=root_uri, cid=root_cid),

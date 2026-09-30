@@ -315,6 +315,30 @@ _PORTUGUESE_STOPWORDS = {
     "meses",
     "vez",
     "vezes",
+    "voce",
+    "você",
+    "voces",
+    "vocês",
+    "lembrar",
+    "lembra",
+    "lembram",
+    "lembrem",
+    "amigo",
+    "amigos",
+    "amiga",
+    "amigas",
+    "festa",
+    "festas",
+    "festinha",
+    "festinhas",
+    "intimo",
+    "intimos",
+    "intima",
+    "intimas",
+    "íntimo",
+    "íntimos",
+    "íntima",
+    "íntimas",
 }
 
 _IDIOM_PATTERNS = re.compile(
@@ -346,8 +370,8 @@ _QUESTION_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-_DANGLING_END_PATTERN = re.compile(
-    r"(\b(na|no|em|de|da|do|para|pra|com|por|que|se|e|ou|mas)\b\s*|[,\-:])$",
+_TRAILING_CONNECTOR_PATTERN = re.compile(
+    r"(?:\s+\b(?:na|no|nas|nos|em|de|da|do|das|dos|para|pra|com|por|que|se|e|ou|mas|a|o|as|os)\b|[,\-:]+|\.\.\.)+\s*$",
     re.IGNORECASE,
 )
 
@@ -365,12 +389,99 @@ _FACTUAL_PREDICATE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+_ALL_CAPS_NAME_PATTERN = re.compile(r"\b([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ]{3,}(?:\s+[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ]{3,}){1,2})\b")
+_HEADLINE_TERMS = {
+    "formou",
+    "formar",
+    "garantir",
+    "garante",
+    "acesso",
+    "informacao",
+    "informação",
+    "eleicoes",
+    "eleições",
+    "eleicao",
+    "eleição",
+    "voto",
+    "votos",
+    "votou",
+    "votam",
+    "maioria",
+    "minoria",
+    "urgente",
+    "alerta",
+    "decidiu",
+    "decide",
+    "aprovou",
+    "aprova",
+    "justica",
+    "justiça",
+    "noticia",
+    "notícia",
+    "postagem",
+    "video",
+    "vídeo",
+}
 _ACRONYM_PATTERN = re.compile(r"\b[A-Z]{2,6}\b")
 _PROPER_NOUN_PATTERN = re.compile(
     r"\b[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+(?:\s+[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+)*\b"
 )
 _PROPER_NOUN_TOKEN_PATTERN = re.compile(r"\b[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+\b|\b[A-Z]{2,6}\b")
+_OFFICIAL_DOMAINS = (
+    ".jus.br",
+    ".gov.br",
+    ".leg.br",
+    "tse.jus.br",
+    "stf.jus.br",
+)
+
+_FACTCHECK_DOMAINS = (
+    "aosfatos.org",
+    "lupa.uol.com.br",
+    "fatoouboato",
+    "checamos.afp.com",
+    "uol.com.br/confere",
+    "estadao.com.br/estadao-verifica",
+    "projetocomprova.com.br",
+)
+
+_JOURNALISTIC_DOMAINS = (
+    "g1.globo.com",
+    "folha.uol.com.br",
+    "estadao.com.br",
+    "uol.com.br",
+    "oglobo.globo.com",
+    "bbc.com",
+    "cnnbrasil.com.br",
+    "poder360.com.br",
+    "cartacapital.com.br",
+    "jota.info",
+    "valor.globo.com",
+    "metropoles.com",
+    "teletime.com.br",
+    "reuters.com",
+    "elpais.com",
+    "platobr.com.br",
+)
+
 _CLICKBAIT_TERMS = {"BOMBÁSTICO", "URGENTE", "ATENÇÃO", "CORRE", "ALERTA"}
+
+
+def _source_authority_score(evidence: Evidence) -> float:
+    """Pontua a autoridade jornalística/institucional da evidência para priorização."""
+    url = evidence.url.lower()
+    for dom in _OFFICIAL_DOMAINS:
+        if dom in url:
+            return 3.0
+    for dom in _FACTCHECK_DOMAINS:
+        if dom in url:
+            return 2.5
+    for dom in _JOURNALISTIC_DOMAINS:
+        if dom in url:
+            return 2.0
+    if evidence.source in ("google_factcheck", "rss_checkers"):
+        return 2.5
+    return 1.0
 
 
 def _explicit_candidate_support(claim: str, evidences: list[Evidence]) -> str | None:
@@ -410,7 +521,10 @@ def _word_overlap(claim: str, evidence: Evidence) -> int:
 
 
 def _has_direct_anchor_overlap(
-    claim: str, evidence: Evidence, context_entity: str | None = None
+    claim: str,
+    evidence: Evidence,
+    context_entity: str | None = None,
+    author_handle: str | None = None,
 ) -> bool:
     """Exige âncoras e uma expressão factual compartilhada no título/trecho.
 
@@ -419,6 +533,20 @@ def _has_direct_anchor_overlap(
     âncoras e uma expressão compartilhadas, uma fonte não pode confirmar nem
     desmentir o fato.
     """
+    from app.clients.evidence.web_search import is_valid_evidence_url
+
+    if not is_valid_evidence_url(evidence.url):
+        return False
+
+    if author_handle:
+        author_clean = re.sub(
+            r"\.(bsky\.social|com\.br|com|org)$", "", author_handle.strip().casefold()
+        )
+        if len(author_clean) >= 4:
+            ev_text = f"{evidence.url} {evidence.title}".casefold()
+            if author_clean in ev_text:
+                return False
+
     claim_words = [word.casefold() for word in _WORD_PATTERN.findall(claim)]
     evidence_text = f"{evidence.title} {evidence.snippet}".casefold()
     evidence_words = [word.casefold() for word in _WORD_PATTERN.findall(evidence_text)]
@@ -466,13 +594,33 @@ def _is_campaign_label(fragment: str) -> bool:
 def _extract_primary_entities(post_text: str) -> list[str]:
     """Extrai as entidades principais (pessoas, instituições, siglas) do post."""
     entities: list[str] = []
-    # Siglas em caixa alta (STF, TSE, PF, PL, PT, etc)
+    # 1. Nomes em caixa alta (ex: FLÁVIO BOLSONARO)
+    for match in _ALL_CAPS_NAME_PATTERN.finditer(post_text):
+        cand = match.group(0)
+        words = [
+            w.capitalize()
+            for w in cand.split()
+            if w.casefold() not in _PORTUGUESE_STOPWORDS
+            and w.casefold() not in _HEADLINE_TERMS
+            and w.upper() not in _CLICKBAIT_TERMS
+        ]
+        if 2 <= len(words) <= 3:
+            name = " ".join(words)
+            if name not in entities:
+                entities.append(name)
+
+    # 2. Siglas em caixa alta (STF, TSE, PF, PL, PT, etc)
     for match in _ACRONYM_PATTERN.finditer(post_text):
         acronym = match.group(0)
-        if acronym not in _CLICKBAIT_TERMS and len(acronym) >= 2:
-            if acronym not in entities:
-                entities.append(acronym)
-    # Nomes próprios (sequências capitalizadas)
+        if (
+            acronym not in _CLICKBAIT_TERMS
+            and acronym.casefold() not in _PORTUGUESE_STOPWORDS
+            and acronym.casefold() not in _HEADLINE_TERMS
+            and len(acronym) >= 2
+            and acronym not in entities
+        ):
+            entities.append(acronym)
+    # 3. Nomes próprios (sequências capitalizadas)
     for match in _PROPER_NOUN_PATTERN.finditer(post_text):
         name = match.group(0).strip()
         first = name.split()[0].casefold()
@@ -480,19 +628,18 @@ def _extract_primary_entities(post_text: str) -> list[str]:
             first not in _PORTUGUESE_STOPWORDS
             and name.upper() not in _CLICKBAIT_TERMS
             and len(name) >= 3
+            and name not in entities
         ):
-            if name not in entities:
-                entities.append(name)
-    return entities
+            entities.append(name)
+    # Prioriza entidades compostas (ex: "Flávio Bolsonaro", "Luciano Huck")
+    multi = [e for e in entities if len(e.split()) >= 2]
+    return multi + [e for e in entities if e not in multi]
 
 
 def _is_verifiable_claim(fragment: str) -> bool:
     """Filtra fragmentos que não constituem uma alegação factual verificável."""
     # Perguntas (retóricas ou diretas) não são asserções fáticas
     if fragment.endswith("?") or _QUESTION_PATTERN.match(fragment):
-        return False
-    # Frases incompletas ou cortadas com conectivos soltos ou pontuação intermediária
-    if _DANGLING_END_PATTERN.search(fragment):
         return False
     # Expressões idiomáticas ou metafóricas isoladas ("a casa começou a cair", "caiu a ficha")
     if _IDIOM_PATTERNS.search(fragment):
@@ -540,9 +687,15 @@ async def _fetch_article_text(url: str) -> str | None:
 
 
 def _clean_query(text: str) -> str:
-    """Remove URLs e normaliza espaços -- URL na query confundia a busca."""
+    """Remove URLs, conectivos suspensos ao final e normaliza espaços."""
     without_urls = _URL_PATTERN.sub("", text)
-    return " ".join(without_urls.split())
+    cleaned = " ".join(without_urls.split())
+    while True:
+        stripped = _TRAILING_CONNECTOR_PATTERN.sub("", cleaned).strip()
+        if stripped == cleaned:
+            break
+        cleaned = stripped
+    return cleaned
 
 
 def _candidate_sentences(post_text: str) -> list[str]:
@@ -684,6 +837,7 @@ class JevVerificationService:
                 prefix=f"jev.c{index:02d}",
                 post_date=post.created_at.date(),
                 context_entity=primary_entity,
+                author_handle=post.author_handle,
             )
             if candidate_verdict.label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING):
                 return candidate_verdict  # já passou pela calibração -- pode agir
@@ -706,6 +860,7 @@ class JevVerificationService:
         prefix: str,
         post_date: date,
         context_entity: str | None = None,
+        author_handle: str | None = None,
     ) -> Verdict:
         evidences, source_errors, query = await self._search(
             claim, post_date=post_date, context_entity=context_entity
@@ -724,7 +879,11 @@ class JevVerificationService:
             )
 
         relevant, relevance_log = await self._filter_relevant(
-            claim, evidences, post_date=post_date, context_entity=context_entity
+            claim,
+            evidences,
+            post_date=post_date,
+            context_entity=context_entity,
+            author_handle=author_handle,
         )
         agent_outputs[f"{prefix}.relevance"] = json.dumps(relevance_log, ensure_ascii=False)
         if not relevant:
@@ -773,6 +932,7 @@ class JevVerificationService:
         *,
         post_date: date | None = None,
         context_entity: str | None = None,
+        author_handle: str | None = None,
     ) -> tuple[list[Evidence], list[dict]]:
         # Pré-filtro determinístico: sem duas âncoras específicas em comum, a
         # fonte não fala do fato. Isso impede que o modelo trate, por exemplo,
@@ -782,7 +942,9 @@ class JevVerificationService:
         anchored: list[Evidence] = []
         for evidence in evidences:
             overlap = _word_overlap(claim, evidence)
-            if not _has_direct_anchor_overlap(claim, evidence, context_entity=context_entity):
+            if not _has_direct_anchor_overlap(
+                claim, evidence, context_entity=context_entity, author_handle=author_handle
+            ):
                 log.append(
                     {
                         "url": evidence.url,
@@ -796,10 +958,12 @@ class JevVerificationService:
             anchored.append(evidence)
 
         # Só as fontes ancoradas mais próximas chegam ao Jev para a segunda
-        # checagem semântica de relevância.
-        shortlist = sorted(anchored, key=lambda item: _word_overlap(claim, item), reverse=True)[
-            :_MAX_EVIDENCE_FOR_RELEVANCE
-        ]
+        # checagem semântica de relevância. Prioriza portais de notícia e órgãos oficiais.
+        shortlist = sorted(
+            anchored,
+            key=lambda item: (_source_authority_score(item), _word_overlap(claim, item)),
+            reverse=True,
+        )[:_MAX_EVIDENCE_FOR_RELEVANCE]
         scored: list[tuple[float, Evidence]] = []
         for evidence in shortlist:
             snippet = f"{evidence.title}. {evidence.snippet}"[:800]
@@ -828,7 +992,7 @@ class JevVerificationService:
             margin = judgment["relevante"] - judgment["irrelevante"]
             if margin >= _RELEVANCE_MARGIN:
                 scored.append((margin, evidence))
-        scored.sort(key=lambda pair: pair[0], reverse=True)
+        scored.sort(key=lambda pair: pair[0] + _source_authority_score(pair[1]) * 0.2, reverse=True)
         return [evidence for _, evidence in scored], log
 
     async def _classify_verdict(

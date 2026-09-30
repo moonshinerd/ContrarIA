@@ -344,3 +344,61 @@ async def test_search_contextualizes_with_entity():
 
     assert query == "Rolex de R$ 305 mil. Flávio Bolsonaro"
     assert source.queries == [query]
+
+
+def test_candidate_sentences_strips_trailing_connectors_and_retains_claims():
+    from app.services.jev_verification import _candidate_sentences
+
+    post_695 = (
+        "Hoje é um bom dia para lembrar que em 2018 o Luciano Huck lançou um app "
+        "pra te ajudar a escolher candidato que só indicava candidato de direita e ele "
+        "realmente achou que ninguém ia perceber e"
+    )
+    candidates = _candidate_sentences(post_695)
+    assert len(candidates) == 1
+    assert candidates[0].startswith("Hoje é um bom dia para lembrar que em 2018 o Luciano Huck")
+    assert not candidates[0].endswith(" e")
+
+
+def test_extract_primary_entities_handles_all_caps_names_and_prioritizes_multiword():
+    from app.services.jev_verification import _extract_primary_entities
+
+    text = "BOMBÁSTICO VOCÊS LEMBRAM DAS FESTINHAS ÍNTIMAS DO FLÁVIO BOLSONARO? Grand Hyatt"
+    entities = _extract_primary_entities(text)
+    assert entities[0] == "Flávio Bolsonaro"
+    assert "Grand Hyatt" in entities
+    assert "DAS" not in entities
+    assert "DO" not in entities
+
+
+def test_extract_primary_entities_does_not_extract_all_caps_headlines_as_person():
+    from app.services.jev_verification import _extract_primary_entities
+
+    headline = "🚨 STF FORMOU MAIORIA PARA GARANTIR ACESSO À INFORMAÇÃO NAS ELEIÇÕES!"
+    entities = _extract_primary_entities(headline)
+    assert entities == ["STF"]
+
+
+def test_has_direct_anchor_overlap_rejects_social_media_and_same_origin():
+    from app.services.jev_verification import _has_direct_anchor_overlap
+
+    claim = "STF formou maioria para garantir acesso à informação nas eleições"
+    ev_insta = Evidence(
+        source="tavily",
+        url="https://www.instagram.com/p/DAilxyz/",
+        title="STF formou maioria para garantir acesso",
+        snippet="decisão do STF garante acesso aos sites eleitorais",
+    )
+    # 1. Instagram / social media blocked
+    assert not _has_direct_anchor_overlap(claim, ev_insta)
+
+    # 2. Same-origin evidence blocked (Sleeping Giants checking Sleeping Giants)
+    ev_same_origin = Evidence(
+        source="web_search",
+        url="https://sleepinggiantsbrasil.org/post/stf-maioria",
+        title="Sleeping Giants Brasil: STF formou maioria para garantir acesso",
+        snippet="decisão do STF garante acesso",
+    )
+    assert not _has_direct_anchor_overlap(
+        claim, ev_same_origin, author_handle="sleepinggiantsbr.bsky.social"
+    )

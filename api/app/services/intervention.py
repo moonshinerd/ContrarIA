@@ -20,7 +20,7 @@ _AGGRESSIVE_TERMS = ("idiota", "burro", "imbecil", "estúpido", "estupido", "lix
 
 _BLUESKY_LIMIT = 300
 _THREAD_MARK = " 🧵"
-_SOURCE_LABEL = " [Fonte]"
+_SOURCE_LABEL = " [1] [2] [3]"
 
 _BRASILIA = timezone(timedelta(hours=-3))
 
@@ -32,7 +32,7 @@ _CHARS_PER_TOKEN_ESTIMATE = 3
 _SOURCE_REVIEW_RESERVED_TOKENS = 16_000
 _TYPE_LINE = re.compile(r"\s*TIPO:\s*(\w+)[^\n]*\n?", re.IGNORECASE)
 _VERDICT_LINE = re.compile(r"\s*VEREDITO:\s*(\w+)[^\n]*\n?", re.IGNORECASE)
-_SOURCE_LINE = re.compile(r"\s*FONTE:\s*(\d+)[^\n]*\n?", re.IGNORECASE)
+_SOURCE_LINE = re.compile(r"\s*FONTE:\s*([0-9, ]+)[^\n]*\n?", re.IGNORECASE)
 _ACTIONABLE_VERDICTS = {"DESMENTE", "DISTORCE"}
 
 
@@ -105,28 +105,36 @@ def _build_source_batches(
     return batches
 
 
-def _parse_agent_output(text: str, sources: list[Evidence]) -> tuple[str, str | None]:
-    """Lê `TIPO:`, `VEREDITO:` e `FONTE: n` e devolve (texto, url da fonte).
+def _parse_agent_output(text: str, sources: list[Evidence]) -> tuple[str, list[str]]:
+    """Lê `TIPO:`, `VEREDITO:` e `FONTE: n, m` e devolve (texto, lista de urls das fontes).
 
-    url None = não publicar: o post é opinião/previsão (TIPO: OPINIAO), o
+    urls vazia = não publicar: o post é opinião/previsão (TIPO: OPINIAO), o
     agente concluiu CONFIRMA, ou não seguiu o formato (na dúvida, não responde).
     """
     claim_type = _TYPE_LINE.match(text)
     if not claim_type or claim_type.group(1).upper() != "FATO":
-        return "", None
+        return "", []
     text = text[claim_type.end() :]
     verdict = _VERDICT_LINE.match(text)
     if not verdict or verdict.group(1).upper() not in _ACTIONABLE_VERDICTS:
-        return "", None
+        return "", []
     rest = text[verdict.end() :]
-    source = _SOURCE_LINE.match(rest)
-    if not source:
-        return rest, sources[0].url
-    number = int(source.group(1))
-    if number == 0:
-        return "", None
-    url = sources[number - 1].url if 1 <= number <= len(sources) else sources[0].url
-    return rest[source.end() :], url
+    source_match = _SOURCE_LINE.match(rest)
+    if not source_match:
+        return rest, [sources[0].url] if sources else []
+    raw_numbers = [x.strip() for x in source_match.group(1).split(",") if x.strip().isdigit()]
+    numbers = [int(x) for x in raw_numbers]
+    if not numbers or 0 in numbers:
+        return "", []
+    urls: list[str] = []
+    for num in numbers:
+        if 1 <= num <= len(sources):
+            u = sources[num - 1].url
+            if u not in urls:
+                urls.append(u)
+    if not urls and sources:
+        urls.append(sources[0].url)
+    return rest[source_match.end() :], urls[:3]
 
 
 def _split_for_thread(text: str, limit: int = _BLUESKY_LIMIT) -> list[str]:
@@ -323,8 +331,8 @@ class InterventionService:
             purpose="quote_post",
         )
         agent_output = generated_text
-        generated_text, source_url = _parse_agent_output(agent_output, sources)
-        if source_url is None:
+        generated_text, source_urls = _parse_agent_output(agent_output, sources)
+        if not source_urls:
             logger.info(
                 "Agente de consulta vetou a intervenção em %s: fontes confirmam o post", post.uri
             )
@@ -346,19 +354,24 @@ class InterventionService:
 
         if is_dry_run:
             logger.info(
-                "[DRY RUN] Intervenção gerada (não publicada, %d post(s)): %s | Fonte: %s",
+                "[DRY RUN] Intervenção gerada (não publicada, %d post(s)): %s | Fontes: %s",
                 len(chunks),
                 " | ".join(chunks),
-                source_url,
+                ", ".join(source_urls),
             )
             return "dry_run_uri"
 
         logger.info("Publicando quote post para %s (%d post(s))...", post.uri, len(chunks))
         try:
             first_text = chunks[0] + (_THREAD_MARK if len(chunks) > 1 else "")
-            first_source = source_url if len(chunks) == 1 else None
+            first_sources = source_urls if len(chunks) == 1 else None
+            first_source = first_sources[0] if first_sources else None
             root_uri, root_cid = await self.bsky_client.quote_post(
-                target_uri=post.uri, target_cid=post.cid, text=first_text, source_url=first_source
+                target_uri=post.uri,
+                target_cid=post.cid,
+                text=first_text,
+                source_url=first_source,
+                source_urls=first_sources,
             )
             self.repo.record_intervention(post.uri, post.author_did, "quote_post")
 
@@ -366,7 +379,8 @@ class InterventionService:
             for index, chunk in enumerate(chunks[1:], start=1):
                 is_last = index == len(chunks) - 1
                 text = chunk if is_last else chunk + _THREAD_MARK
-                source = source_url if is_last else None
+                sources_to_pass = source_urls if is_last else None
+                source_to_pass = sources_to_pass[0] if sources_to_pass else None
                 try:
                     parent_uri, parent_cid = await self.bsky_client.reply_post(
                         root_uri=root_uri,
@@ -374,7 +388,8 @@ class InterventionService:
                         parent_uri=parent_uri,
                         parent_cid=parent_cid,
                         text=text,
-                        source_url=source,
+                        source_url=source_to_pass,
+                        source_urls=sources_to_pass,
                     )
                 except Exception as e:
                     logger.error(
