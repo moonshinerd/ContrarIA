@@ -76,15 +76,30 @@ sequenceDiagram
 
 Esta seção orienta como subir a infraestrutura completa do ContrarIA para desenvolvimento local, execução de testes e operação em produção.
 
-### 3.1 Pré-requisitos de Ambiente
+### 3.1 Pré-requisitos de Ambiente e Requisitos de Hardware
 
 * **Sistema Operacional:** Linux, macOS ou Windows (com WSL2).
 * **Docker Engine:** Versão 24.0+ e **Docker Compose** v2+.
-* **Memória para Jev:** 12 GB disponíveis para o Docker no mínimo; 16 GB de
-  RAM na máquina é a configuração recomendada. O modelo local usa cerca de
-  6 GB e usa os núcleos de CPU disponíveis durante a inferência.
 * **Python:** 3.12+ (gerenciado preferencialmente com [`uv`](https://github.com/astral-sh/uv)).
 * **Git:** Para controle de versão.
+
+#### Requisitos de Hardware (Mínimo vs Recomendado)
+
+Com a adoção do modelo local quantizado **Jev** (Qwen3-4B Q4_K_M via `llama.cpp`) e do metabuscador self-hosted **SearXNG**, a aplicação tornou-se significativamente mais leve: a pilha completa consome em torno de **3,5 GiB a 4,5 GiB de RAM** em regime operacional contínuo.
+
+| Recurso | Mínimo (rodar aplicação minimamente) | Recomendado (rodar "de boa" com folga) |
+|---|---|---|
+| **Memória RAM na máquina** | **8 GB** (com ao menos **5 a 6 GB** alocados ao Docker Desktop) | **16 GB** (com **8 a 10 GB** alocados ao Docker Desktop) |
+| **Processador (CPU)** | 4 núcleos (x86_64 ou Apple Silicon) | 8 núcleos (x86_64 ou Apple Silicon) |
+| **Armazenamento (Disco)** | 15 GB livres (imagens Docker + modelo GGUF ~2,5 GB + banco) | 30 GB+ livres em SSD rápido |
+
+> [!NOTE] **Telemetria de Consumo Médio em Operação Real:**
+> - `jev` (Qwen3-4B Q4_K_M / llama.cpp): ~1,0 a 2,0 GiB de RAM
+> - `worker` (pipeline assíncrono + Jetstream + Trafilatura): ~1,2 a 1,5 GiB de RAM
+> - `api` (FastAPI / Uvicorn): ~500 a 650 MiB de RAM
+> - `searxng` (metabuscador web multi-engine): ~250 a 300 MiB de RAM
+> - `db` (PostgreSQL 16 + pgvector): ~120 a 180 MiB de RAM
+> - **Total da Pilha:** **~3,3 a 4,5 GiB de RAM**
 
 ---
 

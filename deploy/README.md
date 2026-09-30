@@ -7,8 +7,7 @@ executa localmente o Qwen3-4B GGUF via `llama.cpp`; API e worker devem apontar
 
 ## Backend Jev
 
-Use uma VPS com ao menos 4 vCPU, 12 GB de RAM e 60 GB de SSD; para folga e
-Ozone, a recomendação é 8 vCPU, 16 GB de RAM e 80 GB de SSD. Configure
+Use uma VPS com ao menos 4 vCPU, 8 GB de RAM e 40 GB de SSD para a pilha essencial (db, jev, searxng, api, worker); para folga operacional e inclusão do Ozone (labeler), a recomendação é 8 vCPU, 16 GB de RAM e 60 a 80 GB de SSD. Configure
 `VERIFICATION_BACKEND=jev`, `JEV_MODEL_REPO`, `JEV_MODEL_FILE` e
 `JEV_SERVER_URL`. Mantenha `JEV_ALLOW_UNCALIBRATED=false`: o banco deve conter
 a calibração CRC para a chave do modelo antes de o worker poder publicar.

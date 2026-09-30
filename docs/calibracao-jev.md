@@ -6,8 +6,8 @@ Este guia serve para rodar a calibração numa segunda máquina, deixando a prin
 
 ## Pré-requisitos
 
-- Docker Desktop com pelo menos **12 GB de memória** (Settings → Resources). O serviço `jev` sozinho usa ~6 GB.
-- Cerca de 15 GB livres em disco (imagens + modelo Qwen3-4B de ~2,5 GB).
+- Docker Desktop com pelo menos **6 GB de memória alocada** no mínimo (8 GB a 10 GB recomendados para folga). Com a quantização Q4_K_M do Qwen3-4B via `llama.cpp`, o serviço `jev` consome apenas ~1,5 a 2,5 GB de RAM (em vez dos 6 GB de modelos não quantizados).
+- Cerca de 15 GB livres em disco (imagens + modelo Qwen3-4B GGUF de ~2,5 GB).
 - O `api/.env` com as **mesmas fontes de evidência da produção**, pedido à dupla por canal privado (nunca pelo repositório). O que importa para a calibração:
     - `SELF_RAG_ENABLED_SOURCES=["google_factcheck","wikipedia","web_search","rss_checkers"]`
     - `GOOGLE_FACTCHECK_API_KEY` e `TAVILY_API_KEY`
