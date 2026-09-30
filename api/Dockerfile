@@ -10,7 +10,6 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
 # O serviço jev roda com mDeBERTa-v3 NLI, compartilhando as mesmas
 # dependências base (PyTorch, Transformers) de api e worker, sem necessidade
 # de compilação C++ de llama-cpp-python.
-ARG INSTALL_JEV=false
 
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev

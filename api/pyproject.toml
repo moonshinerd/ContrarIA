@@ -28,11 +28,6 @@ dependencies = [
     "huggingface-hub>=0.24",
 ]
 
-# llama-cpp-python compila a extensão nativa do llama.cpp no build (precisa
-# de build-essential/cmake) -- opcional pra não pesar o build de api/worker,
-# que só chamam o serviço `jev` por HTTP (ver Dockerfile e docker-compose.yml).
-[project.optional-dependencies]
-jev = ["llama-cpp-python>=0.3.35"]
 
 [dependency-groups]
 dev = [
