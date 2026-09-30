@@ -1,6 +1,6 @@
 # 0004 — Abstração de Provedores de LLM com LiteLLM, OpenRouter e Ollama
 
-- **Status:** Aceita
+- **Status:** Aceita — uso operacional de verificação substituído pelo ADR 0013; permanece para redação e backend alternativo
 - **Data:** 16/09/2026
 - **Requisitos / GQs:** RNF05, GQ02, Issue #19
 
@@ -13,7 +13,7 @@ Acoplar a base de código diretamente à biblioteca de um único fornecedor (com
 
 ## Decisão
 Adotar a biblioteca de padronização **LiteLLM** encapsulada sob uma porta de domínio abstrata (`LLMPort`). 
-Em produção e integração, o LiteLLM conecta-se ao gateway **OpenRouter**, permitindo rotear requisições dinamicamente para os modelos mais custo-eficientes de diferentes fornecedores. Em ambiente de desenvolvimento local e testes, oferece suporte nativo e sem custos ao **Ollama**.
+Em produção e integração, o LiteLLM conecta-se ao gateway **OpenRouter**, permitindo rotear requisições dinamicamente para os modelos mais custo-eficientes de diferentes fornecedores. Em ambiente de desenvolvimento local e testes, oferece suporte nativo e sem custos ao **Ollama**. Desde o ADR 0013, esta abstração não é o backend operacional de verificação: ela permanece para redigir a intervenção socrática depois da decisão Jev e para o backend alternativo `VERIFICATION_BACKEND=llm`.
 
 ## Alternativas consideradas
 - **SDK Direta da OpenAI**: Descartada pela rigidez de fornecedor único e impossibilidade de executar modelos de pesos abertos localmente em computadores de desenvolvimento.

@@ -41,8 +41,19 @@ Arquitetura avançada de geração aumentada por recuperação na qual o modelo 
 ### Debate Multiagente (MAD - Multi-Agent Debate)
 Abordagem em que múltiplos agentes autônomos de IA, configurados com papéis e perspectivas conflitantes, confrontam argumentos estruturados sobre uma alegação. No ContrarIA, um **Agente Analista** (focado na correlação das evidências) debate contra um **Agente Cético** (que atua como advogado do diabo procurando hipóteses alternativas, sátiras ou falta de contexto) antes de consolidar o laudo.
 
-### CRC (Confidence-calibrated Robust Consensus)
-Algoritmo matemático de consenso utilizado ao final do debate multiagente. O CRC pondera as convergências e divergências entre os agentes para extrair uma probabilidade calibrada de verdade. Se a confiança estatística for inferior ao limiar de segurança ($\ge 80\%$), o algoritmo determina a **Abstenção Mandatória**, impedindo que acusações infundadas sejam emitidas.
+### Jev
+Backend local de verificação do ContrarIA. Usa um modelo Qwen3-4B no formato
+GGUF, servido uma única vez por `llama.cpp`, e classifica alternativas curtas
+pelas probabilidades dos tokens (*logprobs*) em vez de gerar texto ou JSON. Ele
+identifica alegações factuais, filtra evidências relevantes e escolhe o
+veredito. API e worker chamam o mesmo serviço `jev` para não duplicar memória.
+
+### CRC (Conformal Risk Control)
+Procedimento estatístico que calibra a confiança de um modelo a partir de
+exemplos rotulados. No ContrarIA, o CRC calcula um limiar por combinação de
+backend e modelo, com tolerância de falso positivo `alpha = 0,05`. Não é
+consenso entre agentes nem limiar fixo de 80%. Abaixo do limiar — ou sem
+calibração para o Jev — o sistema faz **abstenção mandatória** e não intervém.
 
 ### P(IK) – Probabilidade de Conhecimento Intrínseco
 Métrica que quantifica a certeza com que um modelo de linguagem "sabe" internamente um determinado fato histórico ou factual sem precisar de consulta externa. Se $P(IK)$ for baixa para um determinado tópico temporal ou político emergente, o sistema é obrigado a realizar recuperação de evidências em fontes vivas antes de qualquer resposta.

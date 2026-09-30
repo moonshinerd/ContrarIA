@@ -13,7 +13,7 @@ Guia para agentes (Claude Code) trabalhando neste repositório.
 
 ## O projeto
 
-ContrarIA: agente contra desinformação política no **Bluesky**. O pipeline é coleta (Jetstream + searchPosts) → triagem → bot score → verificação (CoVe + Self-RAG + debate multiagente + CRC) → quote post e rótulo via labeler Ozone → log de decisões. Janela do MVP: 17/09 a 26/09/2026.
+ContrarIA: agente contra desinformação política no **Bluesky**. O pipeline é coleta (Jetstream + searchPosts) → triagem → bot score → verificação Jev local (fontes de evidência + classificação por logprobs + CRC) → quote post e rótulo via labeler Ozone → log de decisões. CoVe + Self-RAG + debate multiagente seguem como backend alternativo (`VERIFICATION_BACKEND=llm`).
 
 - Board: https://github.com/users/moonshinerd/projects/4. A lógica está em `docs/planejamento.md`.
 - Requisitos RF/RNF e guiding questions: `docs/` (MkDocs).
@@ -41,7 +41,7 @@ Padrão herdado do Medscriba: `routers → services → domain`. Serviços depen
 
 ```bash
 make setup        # api/.env + uv sync
-make up / down    # docker compose: db (pgvector), api :8000, worker
+make up / down    # docker compose: db (pgvector), jev :8100, api :8000, worker
 make lint         # ruff check + format --check
 make format
 make test         # pytest

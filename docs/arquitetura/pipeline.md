@@ -1,6 +1,9 @@
 # Como funciona o ContrarIA: o pipeline do agente
 
-Este guia explica a arquitetura prevista para o MVP, para o público do showcase. A disponibilidade de cada etapa depende da conclusão e integração das respectivas issues; a documentação não é uma comprovação de execução em produção.
+Este guia explica a arquitetura operacional do ContrarIA. O backend padrão de
+verificação é o Jev local; o caminho anterior baseado integralmente em LLM
+continua disponível para experimentos, mas não é o usado pelo worker quando
+`VERIFICATION_BACKEND=jev`.
 
 ## Visão geral
 
@@ -9,7 +12,7 @@ O ContrarIA acompanha publicações políticas em português no Bluesky, selecio
 ```mermaid
 flowchart LR
     A["1. Coleta"] --> B["2. Triagem e bot score"]
-    B --> C["3. Verificação e debate"]
+    B --> C["3. Verificação Jev"]
     C --> D["4. Intervenção ou abstenção"]
     D --> E["5. Registro da decisão"]
 ```
@@ -32,17 +35,21 @@ Um classificador clássico opcional fornece outro sinal para priorizar candidato
 
 **Referências:** [RF02, RF04, RF08, RF09, RF10 e RF12](../requisitos.md), [ADR 0006](../adr/0006-bot-score-heuristico.md), [ADR 0008](../adr/0008-pre-filtro-classico.md).
 
-## 3. Verificação: confrontar a alegação com evidências
+## 3. Verificação Jev: confrontar a alegação com evidências
 
-1. **Entender o texto:** separar alegações verificáveis de opinião, sátira, ironia, hipérbole e perguntas. Conteúdo não factual encerra sem ação.
-2. **Fazer perguntas independentes (CoVe):** dividir a alegação em pontos que possam ser checados, sem copiar o viés da resposta inicial.
-3. **Buscar e avaliar evidências (Self-RAG):** consultar as fontes habilitadas, como agências de checagem, Wikipédia, busca web e acervo de RSS. Descartar material irrelevante e manter respostas sustentadas, considerando a data das informações.
-4. **Debater com três papéis:** o Promotor apresenta a acusação, o Defensor procura falhas e contraprovas, e o Juiz avalia os argumentos e as fontes. O Juiz também avalia explicitamente se sabe o suficiente para decidir, sinal chamado P(IK).
-5. **Aplicar o controle de risco:** o Conformal Risk Control (CRC) usa um limiar aprendido com exemplos rotulados, separado dos dados de teste, com tolerância de 5% para a perda de falsos positivos na calibração. Não é uma regra fixa de 80% de confiança nem garantia de acerto em todos os casos. Confiança abaixo do limiar, P(IK) baixo ou falta de consenso levam à abstenção (`INSUFFICIENT_EVIDENCE`).
+1. **Separar frases candidatas:** o worker divide o post e, quando disponível, o contexto do fio. O Jev identifica quais frases são alegações factuais verificáveis; opinião, pergunta, ironia e retórica encerram sem ação.
+2. **Buscar evidências:** cada alegação factual consulta as fontes habilitadas — agências de checagem, Wikipédia, busca web e acervo RSS. A busca usa a frase específica, sem URLs, para evitar resultados apenas tematicamente relacionados.
+3. **Filtrar relevância:** o Jev compara alegação e trecho de fonte e só conserva evidência que trate dos mesmos fatos, pessoas, números ou eventos. Ele mede essa decisão por probabilidades de tokens, sem depender de JSON gerado.
+4. **Classificar o veredito:** com as fontes relevantes, o Jev escolhe entre "confirmam a alegação", "desmentem a alegação" e "confirmam o fato, mas desmentem a conclusão ou o exagero". Isso produz, respectivamente, `true`, `false` ou `misleading`.
+5. **Aplicar o controle de risco:** o Conformal Risk Control (CRC) usa um limiar aprendido com exemplos rotulados para **esse modelo Jev**, com tolerância de 5% para a perda de falsos positivos na calibração. Não é uma regra fixa de confiança nem garantia de acerto em todos os casos. Sem calibração ou abaixo do limiar, a decisão é `insufficient_evidence` e não há intervenção.
 
-É como uma análise pericial que ouve a acusação e a defesa e admite quando não consegue concluir.
+É como uma análise pericial que só conclui quando a fonte trata do fato
+específico e a confiança passou por uma calibração empírica.
 
-**Referência:** [ADR 0007 — verificação, debate e CRC](../adr/0007-verificacao-cove-selfrag-mad-crc.md).
+**Referências:** [ADR 0013 — backend Jev](../adr/0013-backend-local-jev.md) e
+[guia de calibração](../calibracao-jev.md). O fluxo CoVe/Self-RAG/debate do
+[ADR 0007](../adr/0007-verificacao-cove-selfrag-mad-crc.md) permanece como
+backend alternativo (`VERIFICATION_BACKEND=llm`).
 
 ## 4. Ação: intervir somente quando houver fundamento
 

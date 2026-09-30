@@ -90,6 +90,7 @@ nav:
       - "0010 – Frontend fora do MVP": adr/0010-frontend-fora-do-mvp.md
       - "0011 – Deploy em VPS": adr/0011-deploy-vps-caddy-cloudflare.md
       - "0012 – Organização sem Sprints": adr/0012-organizacao-sem-sprints.md
+      - "0013 – Backend Local Jev": adr/0013-backend-local-jev.md
   - Glossário: glossario.md
   - Atas:
       - Índice: atas/index.md

@@ -1,6 +1,21 @@
 # deploy/
 
-Produção: `docker-compose.prod.yml` + `Caddyfile` (HTTPS automático, DNS na Cloudflare) + Ozone (labeler). Implementado nas issues de deploy e de labeler.
+Produção: `docker-compose.prod.yml` + `Caddyfile` (HTTPS automático, DNS na
+Cloudflare) + Ozone (labeler). A aplicação também exige o serviço `jev`, que
+executa localmente o Qwen3-4B GGUF via `llama.cpp`; API e worker devem apontar
+`JEV_SERVER_URL` para ele e nunca carregar cópias próprias do modelo.
+
+## Backend Jev
+
+Use uma VPS com ao menos 4 vCPU, 12 GB de RAM e 60 GB de SSD; para folga e
+Ozone, a recomendação é 8 vCPU, 16 GB de RAM e 80 GB de SSD. Configure
+`VERIFICATION_BACKEND=jev`, `JEV_MODEL_REPO`, `JEV_MODEL_FILE` e
+`JEV_SERVER_URL`. Mantenha `JEV_ALLOW_UNCALIBRATED=false`: o banco deve conter
+a calibração CRC para a chave do modelo antes de o worker poder publicar.
+
+O guia de reprodução e seed da calibração está em
+[`docs/calibracao-jev.md`](../docs/calibracao-jev.md). O LLM configurado ainda
+é necessário apenas para redigir o quote post depois da decisão local.
 
 ## Ozone / Labeler
 

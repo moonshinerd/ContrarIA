@@ -13,7 +13,7 @@ flowchart LR
     B --> P{Priorização<br/>RF04}
     F --> P
     P -- baixo --> M[Monitorar]
-    P -- alto --> V[Verificação<br/>CoVe + Self-RAG + MAD + CRC]
+    P -- alto --> V[Verificação Jev<br/>fontes + logprobs + CRC]
     V -- INSUFFICIENT_EVIDENCE --> M
     V -- falso/enganoso --> I[Quote post<br/>RF05 / RF06]
     V --> L[Labeler Ozone<br/>RF07]
@@ -26,10 +26,11 @@ flowchart LR
 
 ```
 ContrarIA/
-├── api/                 # FastAPI + worker (mesma imagem)
+├── api/                 # FastAPI, worker e serviço Jev (imagens Docker)
 │   └── app/
 │       ├── main.py      # HTTP: /health, decisões, verificação sob demanda
 │       ├── worker.py    # loop do pipeline
+│       ├── jev_server.py # classificador local compartilhado, porta 8100
 │       ├── core/        # config, logging
 │       ├── routers/v1/  # camada HTTP fina
 │       ├── schemas/     # contratos Pydantic
@@ -47,3 +48,26 @@ ContrarIA/
 ```
 
 Padrão herdado do [Medscriba](https://github.com/Medscriba/medscriba): `domain/` não conhece framework; `models/` e `clients/evidence/` expõem **portas abstratas**, então cada dupla desenvolve contra a interface com fakes nos testes, e as issues de integração só ligam as pontas.
+
+## Backend de verificação em produção
+
+O Compose sobe quatro serviços: `db`, `jev`, `api` e `worker`. O `jev` carrega
+uma única cópia local de Qwen3-4B GGUF com `llama.cpp`; `api` e `worker` o
+acessam por HTTP interno em `JEV_SERVER_URL`. Essa separação evita que cada
+processo carregue o modelo e exceda a memória disponível.
+
+O Jev não gera JSON nem justificativas livres. Para cada frase factual ele
+calcula, por *logprobs*, a probabilidade de ser fato, a relevância de cada
+evidência e o veredito entre confirmado, desmentido ou enganoso. As fontes
+continuam sendo Google Fact Check, Wikipédia, busca web e RSS configurados. O
+CRC é aplicado à confiança final usando uma calibração exclusiva da chave
+`jev:<repositório>:<arquivo>`; ausência de calibração resulta em abstenção.
+
+O backend antigo, selecionável por `VERIFICATION_BACKEND=llm`, mantém
+CoVe/Self-RAG/debate para experimentos e compatibilidade. O LLM também segue
+necessário no caminho Jev para compor a mensagem socrática somente depois de a
+decisão já ser elegível para intervenção.
+
+**Referências:** [pipeline detalhado](pipeline.md),
+[calibração do Jev](../calibracao-jev.md) e
+[ADR 0013](../adr/0013-backend-local-jev.md).
