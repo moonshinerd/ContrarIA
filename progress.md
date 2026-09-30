@@ -394,3 +394,142 @@ Foi executada uma chamada real, sem ferramentas, pelo mesmo modo de conclusão
 usado após a revisão em lotes. O GPT-5 mini respondeu `modo final ok`; nenhuma
 fila, decisão ou publicação Bluesky foi acionada. API, banco, Jev e worker
 continuam em estado saudável.
+
+## Reavaliação dos quotes ativos — 30/09/2026
+
+A API pública do Bluesky retornou três quote posts ativos do ContrarIA. O quote
+sobre Benedita da Silva não aparece mais. Os três posts originais são: voto
+para o Senado (`3mwj3tdn4q224`), decisão de Flávio Dino (`3mwjc475ddc2j`)
+e comentário sobre um suposto projeto antigo evangélico (`3mwdju7cejs2j`).
+API, banco, Jev e worker seguem ativos. Iniciada reavaliação desses três posts
+com a versão atual do Jev e, quando pertinente, a revisão integral em lotes e
+o redator GPT-5 mini. A reprodução não deve publicar, enfileirar ou alterar
+decisões existentes.
+
+### Investigação do Jev
+
+O reforço anterior do Jev (âncoras diretas entre alegação e fonte, expressão
+factual compartilhada, contexto de data e exclusão de identificadores de
+campanha) foi feito após Barcelona. Ele já estava ativo quando a decisão
+`624` sobre Benedita foi tomada e não impediu o falso veredito: a fonte do g1
+afirma que ela era candidata ao Senado. Portanto há trabalho específico de
+interpretação de evidência a fazer no Jev. Um reteste somente leitura dos
+três quotes ativos está em andamento; o caso Benedita será usado como
+regressão para bloquear contradições diante de suporte explícito.
+
+### Resultado parcial do replay
+
+O post sobre o segundo voto para o Senado (decisão histórica `583`) foi
+reprocessado com buscas atuais e o Jev atualizado. Resultado:
+`insufficient_evidence`, confiança `0,0`, por ficar abaixo de `lambda_hat`.
+Fontes encontradas: TSE, g1 e TRE-RS. Nessa execução o fluxo pararia antes do
+redator e não repetiria o quote. Os outros dois posts seguem em processamento.
+
+### Resultado do Jev para os três quotes ativos
+
+- Segundo voto para o Senado (`583`): `insufficient_evidence`, confiança
+  `0,0`, por ficar abaixo de `lambda_hat`.
+- Decisão de Flávio Dino (`493`): `true`, confiança `0,9999997701`, na frase
+  “A medida também se aplica a outras publicações censuradas.”; as duas fontes
+  classificadas relevantes tratavam de bloqueio de apostas, não da decisão
+  judicial. Não haveria quote, mas a seleção de evidências foi inadequada.
+- “Projeto antigo do poder evangélico” (`467`):
+  `insufficient_evidence`, confiança `0,0`, por não encontrar evidência
+  diretamente relevante.
+
+Portanto, com buscas atuais e o Jev desta execução, nenhum dos três avançaria
+à redação/publicação. A revisão integral com GPT-5 mini será testada em
+separado com as evidências das decisões históricas, como cenário contrafactual
+de “e se o Jev tivesse deixado passar novamente?”. Esse teste será apenas de
+leitura e geração, sem ações no Bluesky.
+
+### Contrafactual do redator com as fontes históricas
+
+O GPT-5 mini leu as páginas acessíveis das fontes das três decisões antigas
+pela nova rotina integral em lotes, com publicação desativada:
+
+- Segundo voto para o Senado (`583`): gerou novamente `DESMENTE` e um quote
+  alternativo; portanto a barreira de redação não vetaria esse caso.
+- Flávio Dino (`493`): respondeu `CONFIRMA` e vetou a publicação.
+- Projeto evangélico (`467`): respondeu `CONFIRMA` e vetou a publicação.
+
+Esse teste usa as fontes e os vereditos históricos como entrada, não a saída
+atual do Jev. Parte das URLs originais já não pôde ser aberta; o redator usou
+apenas textos efetivamente extraídos. Em especial, uma página da Poder360
+devolveu só 257 caracteres, enquanto outras fontes do caso Dino retornaram
+textos mais extensos. A divergência em relação à preferência do usuário será
+avaliada como possível perda de cobertura, sem alterar o limiar estatístico às
+cegas.
+
+### Correção específica do Jev em andamento
+
+Foi adicionada uma trava estreita: se a alegação afirma que uma pessoa concorre
+ao Senado e uma fonte relevante a apresenta explicitamente como candidata ao
+Senado, um veredito adverso do Jev causa abstenção. Isso captura o padrão da
+Benedita sem concluir automaticamente que toda fonte é verdadeira. Testes
+incluem o exemplo de suporte explícito, uma negação e o veto integrado. A
+validação completa e o restart do worker ainda estão pendentes.
+
+### Feedback sobre cobertura
+
+O usuário considera os três quotes ainda ativos referências de intervenções
+úteis. A abstenção dos três no replay com buscas atuais indica possível perda
+de cobertura, mas não basta para julgar a qualidade das publicações antigas:
+as fontes recuperadas em 30/09 diferem das fontes originais. O próximo
+diagnóstico separa dois efeitos: (a) recuperação de evidência atual versus a
+evidência salva na decisão histórica; (b) julgamento do Jev diante da mesma
+evidência histórica. Não reduzir `lambda_hat` sem esse teste e sem reavaliar o
+conjunto de calibração, para não repetir os erros de Barcelona/Benedita.
+
+## Ponto de parada para continuidade manual — 30/09/2026
+
+O trabalho foi pausado deliberadamente a pedido do usuário. O replay técnico
+que estava rodando foi interrompido; ele não publicou, enfileirou nem alterou o
+Bluesky ou o banco.
+
+### Estado exato
+
+- Os três quotes ativos no Bluesky continuam sendo `3mwj3tdn4q224` (segundo
+  voto para o Senado), `3mwjc475ddc2j` (decisão de Flávio Dino) e
+  `3mwdju7cejs2j` (projeto antigo do poder evangélico). O quote de Benedita foi
+  apagado e não aparece no feed público.
+- O replay atual com buscas novas do Jev terminou assim: Senado =
+  `insufficient_evidence`; Dino = `true`, mas com evidências inadequadas sobre
+  apostas; projeto evangélico = `insufficient_evidence`. Nenhum desses três
+  avançaria para publicação nessa execução.
+- O replay contrafactual do redator GPT-5 mini com as fontes históricas já
+  terminou: Senado gerou novamente `DESMENTE`; Dino e projeto evangélico
+  responderam `CONFIRMA` e seriam vetados. Foi dry-run, sem publicação.
+- Um segundo replay contrafactual do Jev, usando as evidências históricas e a
+  nova trava, foi interrompido durante `START 493`, depois de concluir o item
+  `583`. Para `583`, o resultado bruto foi `misleading` com confiança
+  `0,9002690953`, mas a calibração converteu para `insufficient_evidence` por
+  estar abaixo de `lambda_hat`.
+- A correção local do Jev está escrita, mas ainda não está entregue: a função
+  `_explicit_candidate_support` detecta quando uma fonte relevante chama a
+  pessoa de candidata ao Senado e transforma um veredito adverso conflitante
+  em abstenção. Isso foi criado para o caso Benedita.
+- Testes focados do Jev chegaram a `14 passed` antes de um ajuste pequeno de
+  formatação. Depois desse ajuste, a suíte focada e a suíte completa ainda não
+  foram executadas novamente.
+- Há alterações não commitadas em `api/app/services/jev_verification.py`,
+  `api/tests/test_jev_verification.py` e neste `progress.md`. `conversa.md` e
+  `tmp/` continuam arquivos locais não versionados.
+
+### Próximos passos recomendados
+
+1. Rodar `pytest` focado de `tests/test_jev_verification.py` e `ruff check`/
+   `ruff format --check` para validar a trava nova.
+2. Rodar a suíte completa com `/research` montado; só prosseguir se todos os
+   testes passarem.
+3. Fazer um replay somente leitura do caso `624` da Benedita com as fontes
+   históricas e confirmar que o Jev se abstém quando a fonte sustenta a
+   candidatura.
+4. Completar o replay histórico dos IDs `493`, `467` e `624`, registrando no
+   `progress.md` o resultado bruto, o resultado após CRC e as fontes usadas.
+5. Avaliar a seleção inadequada de fontes do caso Dino antes de mexer em
+   `lambda_hat`; a correção provável é reforçar relevância/entailment, não
+   simplesmente baixar o limiar.
+6. Reiniciar o worker somente depois dos testes, observar logs sem publicar
+   manualmente e então decidir se a trava do Jev deve ser commitada e enviada
+   ao PR.
