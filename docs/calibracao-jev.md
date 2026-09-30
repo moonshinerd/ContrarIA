@@ -46,7 +46,7 @@ docker compose up -d --build --force-recreate db jev api
 docker compose exec api alembic upgrade head
 ```
 
-O primeiro build do `jev` compila o `llama-cpp-python` (alguns minutos). O modelo é baixado na primeira classificação e fica no volume `contraria-model-cache`.
+O build do `jev` utiliza pacotes padrão PyTorch/Transformers, sem necessidade de compilação C++. O modelo `mDeBERTa-v3` (~500 MB) é baixado automaticamente do HuggingFace na primeira execução e persistido no volume `contraria-model-cache`.
 
 O `--force-recreate` é obrigatório depois de todo `git pull`: o `jev` lê o código de `api/app` só ao iniciar, então um container que já estava de pé continua com a versão antiga do classificador mesmo com o código novo no disco.
 
@@ -127,7 +127,7 @@ git push
 ## Problemas comuns
 
 - **`ValueError` ou `HTTPStatusError` em quase todas as linhas:** o `jev` está com código antigo. Rode `docker compose up -d --force-recreate jev`, espere ficar `healthy` (`docker compose ps`) e repita o teste rápido. A mensagem completa do erro fica na coluna `error` do CSV e o traceback aparece no terminal.
-- **Tudo `insufficient_evidence` sem erro e sem evidências:** as buscas não estão retornando. Confira as chaves (`GOOGLE_FACTCHECK_API_KEY`, `TAVILY_API_KEY`), a lista de fontes do passo 1 e se o passo 3 ingeriu matérias.
+- **Tudo `insufficient_evidence` sem erro e sem evidências:** as buscas não estão retornando. Confira a conectividade com o SearXNG (`http://searxng:8080`), a chave da Google Fact Check (`GOOGLE_FACTCHECK_API_KEY`), a lista de fontes do passo 1 e se o passo 3 ingeriu matérias de checagem no banco.
 - **`Requested tokens ... exceed context window`:** o `jev` está com código antigo (sem a contagem de tokens); mesmo remédio do primeiro item.
 - **Morte por falta de memória (exit 137):** aumente a memória do Docker Desktop ou pare `worker` e `api` durante a calibração (`docker compose stop worker api`).
 

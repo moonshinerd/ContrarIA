@@ -23,8 +23,9 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 API_ROOT = REPOSITORY_ROOT / "api"
-if str(API_ROOT) not in sys.path:
-    sys.path.insert(0, str(API_ROOT))
+for path in (API_ROOT, Path("/srv")):
+    if path.exists() and str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
 CSV_FIELDS = [
     "scenario",

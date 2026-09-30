@@ -30,7 +30,7 @@
 
     ---
 
-    Verificação local Jev com fontes de evidência, classificação por logprobs e
+    Verificação local Jev com fontes de evidência, classificação discriminativa Cross-Encoder NLI (mDeBERTa-v3) e
     calibração por Conformal Risk Control. O fluxo multiagente anterior segue
     disponível como alternativa experimental.
 

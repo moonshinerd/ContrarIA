@@ -132,6 +132,7 @@ O ContrarIA mantém uma separação rígida entre código e credenciais. Nunca c
 | `LLM_SOURCE_REVIEW_MAX_CHARS` | Teto somado de caracteres extraídos das cinco fontes | `2500000`; acima dele o bot se abstém, sem truncar |
 | `LLM_SOURCE_REVIEW_MAX_BATCHES` | Máximo de lotes integrais por intervenção | `3`; impede custo e latência descontrolados |
 | `LLM_API_KEY` | Chave do provedor do LLM de redação | Necessária para publicar quote posts |
+| `SEARXNG_BASE_URL` | Endereço interno do metabuscador SearXNG | `http://searxng:8080` no Docker Compose |
 | `DATABASE_URL` | String de conexão SQLAlchemy | `postgresql+psycopg://contraria:contraria@db:5432/contraria` |
 | `RSS_CHECKERS_ENABLED` | Ativação do job de ingestão de feeds | `true` |
 
@@ -143,7 +144,7 @@ O ContrarIA mantém uma separação rígida entre código e credenciais. Nunca c
 ### 3.3 Inicialização via Docker Compose
 
 A forma recomendada de executar todo o ecossistema (banco com pgvector,
-serviço Jev, API FastAPI e worker assíncrono) é através do Docker Compose. O
+serviço Jev, metabuscador SearXNG, API FastAPI e worker assíncrono) é através do Docker Compose. O
 serviço `jev` mantém uma única cópia do modelo local em memória e é
 compartilhado por API e worker:
 

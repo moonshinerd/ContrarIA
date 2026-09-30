@@ -1,11 +1,11 @@
 {
-  "lambda_hat": 0.9995830548128973,
+  "lambda_hat": 0.0,
   "alpha": 0.05,
   "n": 40,
-  "model": "jev:Qwen/Qwen3-4B-GGUF:Qwen3-4B-Q4_K_M.gguf",
+  "model": "jev:MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7",
   "empirical_false_positive_risk": 0.025,
   "conditional_false_positive_rate": 0.16666666666666666,
   "false_positives": 1,
   "risk_bound": 0.04878048780487805,
-  "persisted": false
+  "persisted": true
 }
