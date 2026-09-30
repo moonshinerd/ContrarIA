@@ -416,3 +416,29 @@ def test_candidate_sentences_ignores_dialogue_questions_with_dashes():
     candidates = _candidate_sentences(post_695)
     assert len(candidates) == 1
     assert "Luciano Huck" in candidates[0]
+
+
+def test_has_direct_anchor_overlap_rejects_politician_only_match_when_context_entity_present():
+    from app.services.jev_verification import _has_direct_anchor_overlap
+
+    claim = "Flávio Bolsonaro assumiu a defesa do PM e julgamento até hoje não aconteceu."
+    context = "Ana Clara Gomes Machado"
+
+    # Evidência que fala só da eleição de Flávio Bolsonaro (sem Ana Clara nem defesa/julgamento)
+    ev_generic = Evidence(
+        source="lupa",
+        url="https://agencialupa.org/eleicoes-flavio",
+        title="É falso que Flávio Bolsonaro não disputará as eleições",
+        snippet="Tribunal Superior Eleitoral manteve registro de Flávio Bolsonaro",
+    )
+    assert not _has_direct_anchor_overlap(claim, ev_generic, context_entity=context)
+
+    # Evidência que traz o caso específico (mencionando o júri do PM ou defesa)
+    ev_case = Evidence(
+        source="atarde",
+        url="https://atarde.com.br/flavio-juri-pm",
+        title="Entenda como Flávio Bolsonaro travou júri de PM acusado de matar menina",
+        snippet="recurso assinado pela defesa no processo de homicídio que aguarda julgamento",
+    )
+    assert _has_direct_anchor_overlap(claim, ev_case, context_entity=context)
+

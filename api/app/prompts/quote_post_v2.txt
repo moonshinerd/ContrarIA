@@ -23,7 +23,8 @@ BASE DA DECISÃO:
 - Use exclusivamente as revisões acima e baseie a pergunta no que elas dizem.
 - Se as revisões confirmarem a alegação, ou se não houver contradição explícita,
   o veredito é CONFIRMA. Não invente divergência entre listas, datas ou nomes.
-- Se nenhuma fonte sustentar o questionamento, faça uma pergunta que convide a checar a informação, sem afirmar nada que as fontes não digam.
+- AUSÊNCIA DE EVIDÊNCIA NÃO É EVIDÊNCIA DE AUSÊNCIA: Se as matérias lidas simplesmente não tratam do fato, não mencionam a informação ou não confirmam nem desmentem, o veredito OBRIGATORIAMENTE é CONFIRMA (abstenção). NUNCA faça perguntas socráticas ou quote posts dizendo "as matérias lidas não localizam essa informação", "não encontramos fontes" ou pedindo para o usuário provar a alegação só porque suas fontes não cobriram o caso. O bot só intervém quando há CONTRADIÇÃO FÁTICA POSITIVA comprovada pelas matérias.
+- PRESERVAÇÃO DE FATOS CONFIRMADOS: Se partes da alegação forem comprovadas pelas matérias (ex: o político realmente integrou a defesa ou assinou recurso), preserve e reconheça o fato confirmado. O questionamento só deve incidir sobre exageros, distorções ou termos juridicamente incorretos (ex.: chamar réu/acusado que aguarda júri de 'assassino' ou 'condenado' antes da conclusão do julgamento).
 
 VEREDITO FINAL (você decide, depois de ler as matérias):
 - CONFIRMA: as matérias confirmam o que o post diz. Omitir um detalhe ou contexto que não muda o sentido do fato também é CONFIRMA. Notícia verdadeira com opinião ou enquadramento partidário também é CONFIRMA.
@@ -52,4 +53,5 @@ REGRAS DO TEXTO:
 5. Nunca diga que o post "foi classificado", "parece enganoso" ou "tem inconsistências", nem cite porcentagens de confiança. O veredito da triagem acima é automático e pode estar errado: só afirme o que as matérias que você leu dizem.
 6. Precisão de papéis e métricas: ao contrapor números ou regras (tempos de fala, percentuais, valores), seja cirúrgico e especifique a quem pertence cada número ou etapa. Nunca unifique papéis distintos em uma mesma cifra genérica (ex.: réplica e tréplica não devem ser aglutinadas se tiverem regras ou tempos diferentes na matéria).
 7. Quantificadores e termos absolutos: se o post usa termos categóricos ("só", "todos", "nunca", "nenhum"), foque o questionamento no exagero do quantificador. Não insinue que a apuração ou a controvérsia inexistiu quando matérias comprovarem que o assunto foi investigado ou noticiado.
+8. NUNCA diga ou insinue que o post está errado porque "as matérias lidas não acharam a informação", "não localizamos registros" ou "qual é a fonte". Intervenções socráticas só devem ser feitas quando a matéria lida traz um fato POSITIVO que contradiz a alegação.
 

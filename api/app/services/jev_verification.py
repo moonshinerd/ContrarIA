@@ -80,7 +80,8 @@ _WORD_PATTERN = re.compile(r"\w{4,}")
 # não é evidência sobre um evento específico ocorrido em Barcelona.
 _MIN_DIRECT_ANCHOR_OVERLAP = 2
 _TEMPORAL_REFERENCE_PATTERN = re.compile(
-    r"\b(hoje|ontem|amanh[ãa]|agora|acaba de|esta semana|nesta semana|neste m[eê]s)\b",
+    r"(?<!at[eé]\s)(?<!de\s)\b"
+    r"(hoje|ontem|amanh[ãa]|agora|acaba de|esta semana|nesta semana|neste m[eê]s)\b",
     re.IGNORECASE,
 )
 _NAME_WORD = r"[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+"
@@ -575,6 +576,27 @@ def _has_direct_anchor_overlap(
     shared_informative = claim_informative & evidence_informative
     if len(shared_informative) < _MIN_DIRECT_ANCHOR_OVERLAP:
         return False
+
+    # Guardrail de contexto: se o post trata de um caso ou entidade de contexto
+    # específica (ex: "Ana Clara Gomes Machado") que difere da entidade da frase
+    # ("Flávio Bolsonaro"), a evidência não pode coincidir apenas o político famoso.
+    # Ela precisa compartilhar também a entidade de contexto OU termos do predicado/ação.
+    if context_entity:
+        context_tokens = {
+            w.casefold()
+            for w in _PROPER_NOUN_TOKEN_PATTERN.findall(context_entity)
+            if w.casefold() not in _PORTUGUESE_STOPWORDS
+        }
+        claim_entity_tokens = {
+            w.casefold()
+            for w in _PROPER_NOUN_TOKEN_PATTERN.findall(claim)
+            if w.casefold() not in _PORTUGUESE_STOPWORDS and w.upper() not in _CLICKBAIT_TERMS
+        }
+        predicate_informative = {w for w in claim_informative if w not in claim_entity_tokens}
+        has_predicate_overlap = bool(evidence_informative & predicate_informative)
+        has_context_overlap = bool(context_tokens & set(evidence_words))
+        if not (has_predicate_overlap or has_context_overlap):
+            return False
 
     claim_pairs = {
         (w1, w2)
@@ -1074,23 +1096,36 @@ class JevVerificationService:
     ) -> tuple[list[Evidence], dict[str, str], str]:
         clean_query = _clean_query(query)
         search_query = clean_query
+        queries = [search_query]
 
         # Se a frase for uma anáfora ou omitir o sujeito principal do post,
         # injeta a entidade principal na query de busca externa.
         if context_entity and context_entity.casefold() not in clean_query.casefold():
             search_query = f"{clean_query} {context_entity}"
+            queries = [search_query]
+            claim_entities = [
+                e for e in _extract_primary_entities(clean_query) if len(e.split()) >= 2
+            ]
+            if claim_entities:
+                queries.append(f'"{context_entity}" "{claim_entities[0]}"')
 
         # Acrescenta a data somente para referências temporais explícitas.
         if post_date and _TEMPORAL_REFERENCE_PATTERN.search(clean_query):
             search_query = f"{search_query} {post_date:%d/%m/%Y}"
+            queries[0] = search_query
 
         async def search_one(source: EvidenceSource):
             try:
-                found = await asyncio.wait_for(
-                    source.search(search_query, limit=3),
-                    timeout=self.settings.evidence_timeout_seconds,
-                )
-                return source.name, found, None
+                all_found = []
+                for q in queries:
+                    found = await asyncio.wait_for(
+                        source.search(q, limit=3),
+                        timeout=self.settings.evidence_timeout_seconds,
+                    )
+                    all_found.extend(found)
+                    if len(all_found) >= 5:
+                        break
+                return source.name, all_found, None
             except Exception as exc:
                 return source.name, [], type(exc).__name__
 

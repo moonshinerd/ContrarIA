@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     web_search_days: int = Field(default=7, ge=1)
     web_cache_ttl_seconds: int = Field(default=3600, ge=1)
     web_cache_max_entries: int = Field(default=1000, ge=1)
-    tavily_cooldown_seconds: int = Field(default=3600, ge=1)
+    tavily_cooldown_seconds: int = Field(default=30, ge=1)
     evidence_timeout_seconds: float = Field(default=20, gt=0)
     rss_poll_seconds: int = Field(default=3600, ge=60)
     rss_recency_weight: float = Field(default=0.1, ge=0, le=1)
