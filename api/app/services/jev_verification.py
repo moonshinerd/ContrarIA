@@ -366,7 +366,7 @@ _IDIOM_PATTERNS = re.compile(
 )
 
 _QUESTION_PATTERN = re.compile(
-    r"^(o\s+que|quem|quando|onde|por\s*que|por\s*qu[eê]|como|qual|quais|ser[aá]\s+que|voc[eê]s?\s+lembram|voc[eê]s?\s+sabiam|lembra)\b",
+    r"^(?:[\s\-\*•—–]+\s*)?(o\s+que|quem|quando|onde|por\s*que|por\s*qu[eê]|como|qual|quais|ser[aá]\s+que|voc[eê]s?\s+lembram|voc[eê]s?\s+sabiam|lembra)\b",
     re.IGNORECASE,
 )
 

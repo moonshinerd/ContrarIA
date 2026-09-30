@@ -105,6 +105,8 @@ class TavilyClient(CachedSource):
 
     @property
     def enabled(self) -> bool:
+        if monotonic() < self._unavailable_until:
+            return False
         return self.settings.tavily_enabled and bool(self.settings.tavily_api_key)
 
     async def _search(self, query: str, limit: int) -> list[Evidence]:
@@ -126,6 +128,11 @@ class TavilyClient(CachedSource):
             )
         if response.status_code in (429, 432, 433):
             self._unavailable_until = monotonic() + self.settings.tavily_cooldown_seconds
+            logger.warning(
+                "Tavily atingiu limite de créditos/plano (status %d). Em espera por %ds.",
+                response.status_code,
+                self.settings.tavily_cooldown_seconds,
+            )
         response.raise_for_status()
         return [
             Evidence(
@@ -207,6 +214,8 @@ class WebSearchSource(EvidenceSource):
     async def search(self, query: str, *, limit: int = 5) -> list[Evidence]:
         failures = []
         for source in (self.tavily, self.duckduckgo):
+            if not source.enabled:
+                continue
             try:
                 result = await source.search(query, limit=limit)
                 if result:

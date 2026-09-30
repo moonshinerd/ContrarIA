@@ -402,3 +402,17 @@ def test_has_direct_anchor_overlap_rejects_social_media_and_same_origin():
     assert not _has_direct_anchor_overlap(
         claim, ev_same_origin, author_handle="sleepinggiantsbr.bsky.social"
     )
+
+
+def test_candidate_sentences_ignores_dialogue_questions_with_dashes():
+    from app.services.jev_verification import _candidate_sentences
+
+    post_695 = (
+        "- como foi a eleição de 2026\n"
+        "- bom um dos detalhes foi a hora que o Luciano Huck lançou um app "
+        "pra te ajudar a escolher candidato que só indicava candidato de direita e ele "
+        "realmente achou que ninguém ia perceber e"
+    )
+    candidates = _candidate_sentences(post_695)
+    assert len(candidates) == 1
+    assert "Luciano Huck" in candidates[0]
