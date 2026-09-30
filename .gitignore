@@ -31,3 +31,4 @@ site/
 # Arquivos de progresso e conversa locais
 progress.md
 conversa.md
+tmp/

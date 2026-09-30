@@ -25,10 +25,7 @@ services:
   # do Docker Desktop com os dois rodando ao mesmo tempo.
   jev:
     restart: unless-stopped
-    build:
-      context: ./api
-      args:
-        INSTALL_JEV: "true"
+    build: ./api
     env_file: ./api/.env
     environment:
       DATABASE_URL: postgresql+psycopg://contraria:contraria@db:5432/contraria

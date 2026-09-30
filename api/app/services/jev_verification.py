@@ -158,7 +158,9 @@ def _is_campaign_label(fragment: str) -> bool:
 
 def jev_model_key(settings: Settings) -> str:
     """Chave de calibração CRC própria do backend Jev (não mistura com a chave do LLM)."""
-    return f"jev:{settings.jev_model_repo}:{settings.jev_model_file}"
+    if settings.jev_model_file:
+        return f"jev:{settings.jev_model_repo}:{settings.jev_model_file}"
+    return f"jev:{settings.jev_model_repo}"
 
 
 async def _fetch_article_text(url: str) -> str | None:

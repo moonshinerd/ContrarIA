@@ -53,10 +53,10 @@ class Settings(BaseSettings):
     # extensa do backend "llm"). O LLM continua sendo usado nos dois casos
     # para escrever o texto da intervenção socrática.
     verification_backend: str = "llm"
-    jev_model_repo: str = "Qwen/Qwen3-4B-GGUF"
-    jev_model_file: str = "Qwen3-4B-Q4_K_M.gguf"
-    jev_n_ctx: int = 4096
-    jev_n_threads: int = 0  # 0 = deixa o llama.cpp escolher (nº de cores)
+    jev_model_repo: str = "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
+    jev_model_file: str = ""
+    jev_n_ctx: int = 512
+    jev_n_threads: int = 0  # 0 = deixa o framework escolher
     # URL do serviço `jev` (app/jev_server.py): uma cópia única do modelo
     # compartilhada por api/worker/scripts. Vazio = carrega o modelo no
     # próprio processo (só para script avulso/teste manual -- nunca com
