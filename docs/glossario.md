@@ -42,11 +42,7 @@ Arquitetura avançada de geração aumentada por recuperação na qual o modelo 
 Abordagem em que múltiplos agentes autônomos de IA, configurados com papéis e perspectivas conflitantes, confrontam argumentos estruturados sobre uma alegação. No ContrarIA, um **Agente Analista** (focado na correlação das evidências) debate contra um **Agente Cético** (que atua como advogado do diabo procurando hipóteses alternativas, sátiras ou falta de contexto) antes de consolidar o laudo.
 
 ### Jev
-Backend local de verificação do ContrarIA. Usa um modelo Qwen3-4B no formato
-GGUF, servido uma única vez por `llama.cpp`, e classifica alternativas curtas
-pelas probabilidades dos tokens (*logprobs*) em vez de gerar texto ou JSON. Ele
-identifica alegações factuais, filtra evidências relevantes e escolhe o
-veredito. API e worker chamam o mesmo serviço `jev` para não duplicar memória.
+Backend local de verificação do ContrarIA. Utiliza o modelo discriminativo mDeBERTa-v3 Cross-Encoder NLI (`MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7`) servido de forma compartilhada pelo contêiner `jev` via PyTorch/Transformers. Ele avalia a relação lógica entre premissa (evidências) e hipótese (alegação) com suporte nativo à classe neutra (*neutral*), filtra a relevância semântica e gera o veredito factual sem geração livre de texto, operando com consumo enxuto (~500 MB de peso de modelo) e latência em torno de 50-80ms por par em CPU. API e worker chamam o mesmo serviço `jev` via HTTP interno para não duplicar memória.
 
 ### CRC (Conformal Risk Control)
 Procedimento estatístico que calibra a confiança de um modelo a partir de

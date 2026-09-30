@@ -6,12 +6,12 @@ Este guia serve para rodar a calibração numa segunda máquina, deixando a prin
 
 ## Pré-requisitos
 
-- Docker Desktop com pelo menos **6 GB de memória alocada** no mínimo (8 GB a 10 GB recomendados para folga). Com a quantização Q4_K_M do Qwen3-4B via `llama.cpp`, o serviço `jev` consome apenas ~1,5 a 2,5 GB de RAM (em vez dos 6 GB de modelos não quantizados).
-- Cerca de 15 GB livres em disco (imagens + modelo Qwen3-4B GGUF de ~2,5 GB).
+- Docker Desktop com pelo menos **6 GB de memória alocada** no mínimo (8 GB a 10 GB recomendados para folga). Com o modelo discriminativo `mDeBERTa-v3` via PyTorch/Transformers, o serviço `jev` consome apenas ~800 MB a 1,2 GB de RAM.
+- Cerca de 15 GB livres em disco (imagens Docker + modelo NLI de ~500 MB).
 - O `api/.env` com as **mesmas fontes de evidência da produção**, pedido à dupla por canal privado (nunca pelo repositório). O que importa para a calibração:
     - `SELF_RAG_ENABLED_SOURCES=["google_factcheck","wikipedia","web_search","rss_checkers"]`
-    - `GOOGLE_FACTCHECK_API_KEY` e `TAVILY_API_KEY`
-    - `JEV_MODEL_REPO` / `JEV_MODEL_FILE`, se forem diferentes do padrão (`Qwen/Qwen3-4B-GGUF` / `Qwen3-4B-Q4_K_M.gguf`)
+    - `GOOGLE_FACTCHECK_API_KEY` e `TAVILY_API_KEY` (ou SearXNG local)
+    - `JEV_MODEL_REPO`, se for diferente do padrão (`MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7`)
 
     As credenciais do Bluesky e do LLM não são usadas.
 
@@ -90,7 +90,7 @@ No fim, o script imprime um resumo: quantas previsões, quantas com erro e quant
 **6. Calcular o limiar**
 
 ```bash
-MODEL="jev:Qwen/Qwen3-4B-GGUF:Qwen3-4B-Q4_K_M.gguf"
+MODEL="jev:MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
 docker compose run --rm --no-deps -v "$PWD/research:/repo/research" -v "$PWD/api:/repo/api" worker \
   python /repo/research/experiments/calibrate_crc.py \
     /repo/research/datasets/crc_calibration_predictions_jev.csv \
@@ -98,7 +98,7 @@ docker compose run --rm --no-deps -v "$PWD/research:/repo/research" -v "$PWD/api
     --output /repo/research/datasets/crc_calibration_jev_report.json
 ```
 
-A chave do modelo é `jev:<JEV_MODEL_REPO>:<JEV_MODEL_FILE>`. Se o modelo não for o padrão, ajuste `MODEL`. O relatório traz `lambda_hat`, `n` e a taxa de falso positivo.
+A chave do modelo é `jev:<JEV_MODEL_REPO>`. Se o modelo não for o padrão, ajuste `MODEL`. O relatório traz `lambda_hat`, `n` e a taxa de falso positivo.
 
 **7. Seed, commit e push** (obrigatório: sem o push, a máquina da aplicação não recebe a calibração)
 
@@ -109,7 +109,7 @@ Crie `api/app/domain/crc_calibration_seed_jev.json` com os valores do relatório
   "lambda_hat": <lambda_hat do relatório>,
   "alpha": 0.05,
   "n": 40,
-  "model": "jev:Qwen/Qwen3-4B-GGUF:Qwen3-4B-Q4_K_M.gguf",
+  "model": "jev:MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7",
   "source": "research/datasets/crc_calibration_predictions_jev.csv (research/experiments/calibrate_crc.py)"
 }
 ```

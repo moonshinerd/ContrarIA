@@ -58,7 +58,7 @@ Detalhes e o porquê de cada camada: [`docs/arquitetura/index.md`](docs/arquitet
 - **Software:** Docker Engine 24+ com Docker Compose v2, e [uv](https://docs.astral.sh/uv/) (Python 3.12+).
 - **Hardware Mínimo (para rodar a aplicação):** 8 GB de RAM na máquina (ao menos 5 a 6 GB alocados ao Docker), 4 núcleos de CPU e 15 GB livres em disco.
 - **Hardware Recomendado (para rodar com folga):** 16 GB de RAM na máquina (8 a 10 GB no Docker), 8 núcleos de CPU e 30 GB livres em SSD.
-- **Consumo real em regime contínuo:** A pilha completa (`db`, `jev`, `searxng`, `api`, `worker`) consome em torno de **~3,5 GiB a 4,5 GiB de RAM** graças à quantização do Qwen3-4B Q4_K_M via `llama.cpp` e ao SearXNG enxuto (~280 MiB).
+- **Consumo real em regime contínuo:** A pilha completa (`db`, `jev`, `searxng`, `api`, `worker`) consome em torno de **~3,3 GiB a 4,5 GiB de RAM** graças à eficiência do modelo Cross-Encoder NLI `mDeBERTa-v3` (~500 MB de peso) e ao SearXNG enxuto (~280 MiB).
 
 ```bash
 make setup   # cria api/.env a partir do .env.example e instala dependências
@@ -70,13 +70,7 @@ Swagger em http://localhost:8000/docs. Outros alvos: `make lint`, `make test`, `
 
 ### Verificação local com Jev
 
-O backend operacional é o **Jev**: um Qwen3-4B local executado pelo
-`llama.cpp`. Em vez de pedir JSON ou texto livre ao modelo, ele escolhe entre
-opções curtas pelas probabilidades dos tokens (*logprobs*). O worker separa as
-frases factuais, consulta as fontes de evidência (incluindo o metabuscador local SearXNG com Trafilatura), filtra os resultados
-relevantes e pede ao Jev o veredito. O modelo roda uma única vez no serviço
-`jev`, compartilhado pela API e pelo worker, para não duplicar os cerca de 2 a 3 GB
-de memória necessários durante a inferência.
+O backend operacional é o **Jev**: um classificador discriminativo local baseado no modelo **mDeBERTa-v3** NLI (`MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7`). Em vez de um LLM gerativo pesado forçado por logprobs, ele atua como um Cross-Encoder especializado em Inferência de Linguagem Natural (premissa vs hipótese) com classe neutra nativa (*neutral*), eliminando falsos positivos onde a ausência de evidência era tratada como desmentido. O worker separa as frases factuais, consulta as fontes de evidência (incluindo o metabuscador local SearXNG com Trafilatura), filtra os resultados relevantes e pede ao Jev o veredito NLI. O modelo roda uma única vez no serviço `jev`, compartilhado pela API e pelo worker, consumindo apenas ~500 MB a 1 GB de RAM e respondendo em ~50-80ms por par em CPU.
 
 O CRC mantém uma calibração própria para a combinação de modelo e arquivo do
 Jev; sem essa calibração o sistema se abstém e não publica. O LLM configurado

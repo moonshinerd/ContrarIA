@@ -85,16 +85,16 @@ Esta seção orienta como subir a infraestrutura completa do ContrarIA para dese
 
 #### Requisitos de Hardware (Mínimo vs Recomendado)
 
-Com a adoção do modelo local quantizado **Jev** (Qwen3-4B Q4_K_M via `llama.cpp`) e do metabuscador self-hosted **SearXNG**, a aplicação tornou-se significativamente mais leve: a pilha completa consome em torno de **3,5 GiB a 4,5 GiB de RAM** em regime operacional contínuo.
+Com a adoção do modelo local discriminativo **Jev** (`mDeBERTa-v3` NLI via Transformers / PyTorch) e do metabuscador self-hosted **SearXNG**, a aplicação tornou-se significativamente mais leve: a pilha completa consome em torno de **3,3 GiB a 4,5 GiB de RAM** em regime operacional contínuo.
 
 | Recurso | Mínimo (rodar aplicação minimamente) | Recomendado (rodar "de boa" com folga) |
 |---|---|---|
 | **Memória RAM na máquina** | **8 GB** (com ao menos **5 a 6 GB** alocados ao Docker Desktop) | **16 GB** (com **8 a 10 GB** alocados ao Docker Desktop) |
 | **Processador (CPU)** | 4 núcleos (x86_64 ou Apple Silicon) | 8 núcleos (x86_64 ou Apple Silicon) |
-| **Armazenamento (Disco)** | 15 GB livres (imagens Docker + modelo GGUF ~2,5 GB + banco) | 30 GB+ livres em SSD rápido |
+| **Armazenamento (Disco)** | 15 GB livres (imagens Docker + modelo NLI ~500 MB + banco) | 30 GB+ livres em SSD rápido |
 
 > [!NOTE] **Telemetria de Consumo Médio em Operação Real:**
-> - `jev` (Qwen3-4B Q4_K_M / llama.cpp): ~1,0 a 2,0 GiB de RAM
+> - `jev` (mDeBERTa-v3 NLI / Transformers): ~800 MiB a 1,2 GiB de RAM (peso de ~500 MB)
 > - `worker` (pipeline assíncrono + Jetstream + Trafilatura): ~1,2 a 1,5 GiB de RAM
 > - `api` (FastAPI / Uvicorn): ~500 a 650 MiB de RAM
 > - `searxng` (metabuscador web multi-engine): ~250 a 300 MiB de RAM
@@ -123,7 +123,7 @@ O ContrarIA mantém uma separação rígida entre código e credenciais. Nunca c
 | `BLUESKY_SESSION_PATH` | Caminho do arquivo de sessão em disco | `/srv/data/bluesky.session` (padrão no container) |
 | `GOOGLE_FACTCHECK_API_KEY` | Chave da Google Fact Check Tools API | Console do Google Cloud (projeto com a API ativada) |
 | `VERIFICATION_BACKEND` | Backend de verificação | `jev` na operação local; `llm` apenas para o fluxo alternativo de CoVe/Self-RAG/debate |
-| `JEV_MODEL_REPO` / `JEV_MODEL_FILE` | Repositório e arquivo GGUF do classificador local | `Qwen/Qwen3-4B-GGUF` / `Qwen3-4B-Q4_K_M.gguf` |
+| `JEV_MODEL_REPO` | Repositório HuggingFace do modelo NLI Cross-Encoder | `MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7` |
 | `JEV_SERVER_URL` | Endereço interno do serviço compartilhado | `http://jev:8100` no Docker Compose |
 | `JEV_ALLOW_UNCALIBRATED` | Libera decisão sem CRC | Mantenha `false` em produção |
 | `LLM_MODEL_NAME` | Modelo que redige o quote post após decisão elegível | Ex.: `openrouter/openai/gpt-5-mini` |

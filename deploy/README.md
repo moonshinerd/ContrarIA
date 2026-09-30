@@ -2,13 +2,13 @@
 
 Produção: `docker-compose.prod.yml` + `Caddyfile` (HTTPS automático, DNS na
 Cloudflare) + Ozone (labeler). A aplicação também exige o serviço `jev`, que
-executa localmente o Qwen3-4B GGUF via `llama.cpp`; API e worker devem apontar
+executa localmente o modelo mDeBERTa-v3 NLI via PyTorch/Transformers; API e worker devem apontar
 `JEV_SERVER_URL` para ele e nunca carregar cópias próprias do modelo.
 
 ## Backend Jev
 
 Use uma VPS com ao menos 4 vCPU, 8 GB de RAM e 40 GB de SSD para a pilha essencial (db, jev, searxng, api, worker); para folga operacional e inclusão do Ozone (labeler), a recomendação é 8 vCPU, 16 GB de RAM e 60 a 80 GB de SSD. Configure
-`VERIFICATION_BACKEND=jev`, `JEV_MODEL_REPO`, `JEV_MODEL_FILE` e
+`VERIFICATION_BACKEND=jev`, `JEV_MODEL_REPO` e
 `JEV_SERVER_URL`. Mantenha `JEV_ALLOW_UNCALIBRATED=false`: o banco deve conter
 a calibração CRC para a chave do modelo antes de o worker poder publicar.
 

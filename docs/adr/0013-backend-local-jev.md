@@ -16,23 +16,21 @@ modelos diferentes.
 ## Decisão
 
 Adotar Jev como backend operacional de verificação (`VERIFICATION_BACKEND=jev`).
-O Jev usa Qwen3-4B GGUF por `llama.cpp` e classifica opções curtas pelas
-probabilidades dos tokens, sem gerar JSON. Para cada frase factual, ele busca
-fontes, filtra a relevância e escolhe entre confirmação, desmentido ou
-enganosidade.
+O Jev utiliza o modelo discriminativo Cross-Encoder NLI `MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7` (substituindo o protótipo inicial Qwen3-4B GGUF). Ele avalia a relação lógica direta entre premissa e hipótese com suporte nativo à classe neutra (*neutral*), sem gerar JSON e sem alucinações. Para cada frase factual, ele busca fontes, filtra a relevância e escolhe entre confirmação, desmentido ou enganosidade.
 
 O modelo é servido pelo contêiner `jev` e compartilhado por API, worker e
 scripts via HTTP. A confiança passa por CRC com chave exclusiva
-`jev:<repositório>:<arquivo>`; sem calibração ou abaixo do limiar, o resultado
+`jev:<repositório>`; sem calibração ou abaixo do limiar, o resultado
 é `insufficient_evidence`. O LLM remoto continua no sistema apenas para
 redigir o texto socrático de uma intervenção que já foi considerada elegível.
 
 ## Alternativas consideradas
 
+- **Modelos Gerativos Autorregressivos (Qwen3-4B GGUF via llama.cpp):** Testados no início do Jev, mas descartados devido ao maior consumo de RAM (~3,5 GB), dependência de compilação C++ e ausência de classe neutra nativa (o que induzia ausência de evidência a ser classificada como desmentido).
 - **Manter o LLM remoto como único backend:** preserva o debate, mas mantém
   custo por chamada e fragilidade no formato estruturado.
 - **Carregar Jev em API e worker:** descartado porque as cópias do modelo
-  excederam a memória disponível quando executadas simultaneamente.
+  duplicariam a memória disponível desnecessariamente.
 - **Usar Jev sem CRC:** descartado; uma confiança não calibrada não autoriza
   publicação automática.
 
