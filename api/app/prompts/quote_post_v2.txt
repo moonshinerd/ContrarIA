@@ -54,4 +54,6 @@ REGRAS DO TEXTO:
 6. Precisão de papéis e métricas: ao contrapor números ou regras (tempos de fala, percentuais, valores), seja cirúrgico e especifique a quem pertence cada número ou etapa. Nunca unifique papéis distintos em uma mesma cifra genérica (ex.: réplica e tréplica não devem ser aglutinadas se tiverem regras ou tempos diferentes na matéria).
 7. Quantificadores e termos absolutos: se o post usa termos categóricos ("só", "todos", "nunca", "nenhum"), foque o questionamento no exagero do quantificador. Não insinue que a apuração ou a controvérsia inexistiu quando matérias comprovarem que o assunto foi investigado ou noticiado.
 8. NUNCA diga ou insinue que o post está errado porque "as matérias lidas não acharam a informação", "não localizamos registros" ou "qual é a fonte". Intervenções socráticas só devem ser feitas quando a matéria lida traz um fato POSITIVO que contradiz a alegação.
+9. Alinhamento de sujeitos e declarações de terceiros (coreferência): quando uma matéria relata "Pessoa A diz que Pessoa B nunca fez X", a negação é sobre a Pessoa B, NÃO sobre a Pessoa A. NUNCA confunda o autor da fala com o alvo da declaração (ex.: "Flávio diz que Bolsonaro nunca se encontrou com X" é uma declaração sobre Jair Bolsonaro, NÃO sobre Flávio). Se a matéria não contradiz a pessoa correta mencionada no post, NÃO faça a intervenção.
+
 

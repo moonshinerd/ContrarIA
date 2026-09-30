@@ -606,6 +606,30 @@ def _has_direct_anchor_overlap(
         if not (has_predicate_overlap or has_context_overlap):
             return False
 
+    # Guardrail de negação sobre terceiros (coreferência):
+    # Se a matéria diz "Pessoa A diz que Pessoa B nunca...", a negação é sobre B.
+    # Se a alegação trata de A e não de B, a evidência não contradiz A.
+    denial_match = re.search(
+        r"\b(?P<speaker>\w+(?:\s+\w+)?)\s+(?:diz|afirma|garante|disse|afirmou)\s+que\s+"
+        r"(?:o\s+)?(?P<subject>\w+(?:\s+\w+)?)\s+(?:nunca|jamais)\b",
+        f"{evidence.title} {evidence.snippet}",
+        re.IGNORECASE,
+    )
+    if denial_match:
+        speaker = denial_match.group("speaker").casefold()
+        subject = denial_match.group("subject").casefold()
+        sp_words = set(speaker.split())
+        sub_words = set(subject.split())
+        diff_sub = sub_words - sp_words
+        if diff_sub:
+            claim_lower = claim.casefold()
+            if any(w in claim_lower for w in sp_words):
+                claim_rest = claim_lower
+                for w in sp_words:
+                    claim_rest = re.sub(rf"\b{re.escape(w)}(?:\s+\w+)?\b", "", claim_rest)
+                if not any(w in claim_rest for w in diff_sub):
+                    return False
+
     claim_pairs = {
         (w1, w2)
         for w1, w2 in zip(claim_words, claim_words[1:], strict=False)
@@ -649,6 +673,19 @@ _CAMPAIGN_SLOGAN_PATTERNS = [
         r"\b(?:venceu|perdeu|ganhou|foi\s+melhor\s+no|foi\s+pior\s+no)\s+o?\s*debate\b",
         re.IGNORECASE,
     ),
+    # Orações relativas anafóricas sem sujeito explícito ("o mesmo que...", "aquele que...")
+    re.compile(
+        r"^(?:e\s+)?(?:o\s+mesmo|a\s+mesma|aquele|aquela)\s+que\b",
+        re.IGNORECASE,
+    ),
+    # Blind items ou orações pronominais indeterminadas ("Só um recebeu...", "Apenas uma...")
+    re.compile(
+        r"^(?:s[oó]|apenas)\s+(?:um|uma)(?:\s+(?:candidat[oa]|pol[ií]tic[oa]))?\s+[a-záàâãéêíóôõúç]+",
+        re.IGNORECASE,
+    ),
+    # Charadas políticas ou blind items sem candidato ("13 candidatos...", "tá fácil escolher")
+    re.compile(r"^\d+\s+candidatos\b", re.IGNORECASE),
+    re.compile(r"\bt[aá]\s+f[aá]cil\s+escolher\b", re.IGNORECASE),
 ]
 
 

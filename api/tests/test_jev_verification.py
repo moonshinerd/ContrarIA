@@ -512,3 +512,46 @@ async def test_reply_post_does_not_inherit_claims_from_parent_post():
     # 2. As frases factuais do post anterior (Zem) NÃO devem ser investigadas para a Adila
     assert not any("Feminicídio em alta" in q for q in classifier.questions)
     assert not any("jantou o Tarcínico" in q for q in classifier.questions)
+
+
+def test_has_direct_anchor_overlap_rejects_third_party_denial():
+    from app.services.jev_verification import _has_direct_anchor_overlap
+
+    ev = Evidence(
+        source="oglobo",
+        url="https://oglobo.globo.com/politica/noticia/2024/05/20/flavio-bolsonaro-vorcaro.ghtml",
+        title="Flávio diz que Bolsonaro nunca se encontrou com Vorcaro, do Banco Master",
+        snippet="Senador afirmou que ex-presidente jamais esteve com o banqueiro.",
+    )
+
+    # 1. Alegação sobre o emissor da fala (Flávio) NÃO pode ser contradita por negação sobre o pai
+    claim_flavio = (
+        "Flávio se encontrou com Vorcaro quando o cara já estava de tornozeleira eletrônica"
+    )
+    assert not _has_direct_anchor_overlap(claim_flavio, ev)
+
+    # 2. Funciona mesmo com sobrenome composto no post ("Flávio Bolsonaro")
+    claim_flavio_full = (
+        "Flávio Bolsonaro se encontrou com Vorcaro quando o cara já estava de tornozeleira"
+    )
+    assert not _has_direct_anchor_overlap(claim_flavio_full, ev)
+
+    # 3. Mas se a alegação for diretamente sobre o sujeito da negação (Jair Bolsonaro), aceita
+    claim_bolsonaro = "Jair Bolsonaro se encontrou com Vorcaro em jantar secreto"
+    assert _has_direct_anchor_overlap(claim_bolsonaro, ev)
+
+
+def test_candidate_sentences_ignores_anaphoric_relative_clauses_and_blind_items():
+    from app.services.jev_verification import _candidate_sentences
+
+    post_cyrus = (
+        "13 candidatos à Presidência da República\n"
+        "Só um recebeu grana do Vorcaro,\n"
+        "o mesmo que voou no jatinho do Vorcaro,\n"
+        "o mesmo que marcou jantar com o Vorcaro\n"
+        "e o mesmo que se encontrou com Vorcaro, quando o cara já estava de tornozeleira "
+        "eletrônica, pra pedir mais grana\n"
+        "Em 4/10 tá fácil escolher"
+    )
+    candidates = _candidate_sentences(post_cyrus)
+    assert candidates == []
