@@ -4,7 +4,19 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.domain.entities import Account, Evidence, Post, Verdict, VerdictLabel
-from app.services.intervention import InterventionService
+from app.services.intervention import InterventionService, _build_source_batches
+
+
+@pytest.fixture(autouse=True)
+def mock_article_fetch(monkeypatch):
+    """Evita I/O externo: a produção lê fontes antes de chamar o redator."""
+
+    async def fetch(url: str, *, max_chars: int | None = None):
+        return f"texto completo de {url}"
+
+    from app.services import intervention
+
+    monkeypatch.setattr(intervention, "fetch_article_text", fetch)
 
 
 @pytest.fixture
@@ -29,6 +41,7 @@ def mock_bsky():
 @pytest.fixture
 def mock_llm():
     llm = AsyncMock()
+    llm.complete.return_value = "FONTE 1: CONTRADIZ\nCITAÇÃO: trecho\nNOTA: nota factual"
     llm.complete_with_tools.return_value = (
         "TIPO: FATO\nVEREDITO: DESMENTE\nFONTE: 1\n"
         "Isso não confere com os dados públicos. O que acha?"
@@ -296,19 +309,18 @@ async def test_intervention_consults_sources_and_cites_the_chosen_one(
 
     opened: list[str] = []
 
-    async def fake_fetch(url: str, *, max_chars: int):
+    async def fake_fetch(url: str, *, max_chars: int | None = None):
         opened.append(url)
         return f"texto completo de {url}"
 
     monkeypatch.setattr(intervention, "fetch_article_text", fake_fetch)
-    tool_results: list[str] = []
 
     async def agent(system, user, *, tools, call_tool, max_tool_calls, purpose):
-        assert max_tool_calls == 3
+        assert max_tool_calls == 0
+        assert tools == []
         assert "DATA E HORA ATUAIS: " in system and "horário de Brasília" in system
         assert "1. Fonte A (https://a)" in system and "2. Fonte B (https://b)" in system
-        tool_results.append(await call_tool("ler_materia", {"numero": 2}))
-        tool_results.append(await call_tool("ler_materia", {"numero": 9}))
+        assert "FONTE 1: CONTRADIZ" in system
         return "TIPO: FATO\nVEREDITO: DISTORCE\nFONTE: 2\nSerá que a matéria B diz isso mesmo?"
 
     mock_llm.complete_with_tools.side_effect = agent
@@ -334,12 +346,93 @@ async def test_intervention_consults_sources_and_cites_the_chosen_one(
 
     await service.execute_intervention(post, Account(did="did:1", handle="user"), verdict, 0.1)
 
-    assert opened == ["https://b"]
-    assert tool_results[0] == "texto completo de https://b"
-    assert "Não existe fonte 9" in tool_results[1]
+    assert opened == ["https://a", "https://b"]
+    assert mock_llm.complete.await_count == 1
     _, kwargs = mock_bsky.quote_post.call_args
     assert kwargs["text"] == "Será que a matéria B diz isso mesmo?"
     assert kwargs["source_url"] == "https://b"
+
+
+@pytest.mark.asyncio
+async def test_intervention_abstains_when_no_evidence_article_can_be_read(
+    mock_repo, mock_bsky, mock_llm, monkeypatch
+):
+    from app.services import intervention
+
+    async def unavailable(url: str, *, max_chars: int | None = None):
+        return None
+
+    monkeypatch.setattr(intervention, "fetch_article_text", unavailable)
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    verdict = Verdict(
+        claim="c",
+        label=VerdictLabel.FALSE,
+        confidence=0.9,
+        rationale="r",
+        evidences=[Evidence("t", "https://a", "Fonte A", "trecho")],
+    )
+    post = Post(
+        uri="at://did:1/post/1",
+        cid="cid1",
+        author_did="did:1",
+        text="post",
+        created_at=datetime.now(UTC),
+    )
+
+    result = await service.execute_intervention(
+        post, Account(did="did:1", handle="user"), verdict, 0.1
+    )
+
+    assert result is None
+    mock_llm.complete_with_tools.assert_not_called()
+    mock_bsky.quote_post.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_intervention_abstains_when_full_sources_exceed_cost_cap(
+    mock_repo, mock_bsky, mock_llm, monkeypatch
+):
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    monkeypatch.setattr(service.settings, "llm_source_review_max_chars", 1)
+    verdict = Verdict(
+        claim="c",
+        label=VerdictLabel.FALSE,
+        confidence=0.9,
+        rationale="r",
+        evidences=[Evidence("t", "https://a", "Fonte A", "trecho")],
+    )
+    post = Post(
+        uri="at://did:1/post/1",
+        cid="cid1",
+        author_did="did:1",
+        text="post",
+        created_at=datetime.now(UTC),
+    )
+
+    result = await service.execute_intervention(
+        post, Account(did="did:1", handle="user"), verdict, 0.1
+    )
+
+    assert result is None
+    mock_llm.complete.assert_not_called()
+    mock_bsky.quote_post.assert_not_called()
+
+
+def test_source_batches_preserve_every_character_and_split_large_articles():
+    sources = [
+        Evidence("t", "https://a", "Fonte A", "s"),
+        Evidence("t", "https://b", "Fonte B", "s"),
+    ]
+    articles = ["A" * 100, "B" * 100]
+
+    batches = _build_source_batches(sources, articles, input_budget_tokens=40)
+
+    combined = "".join(batches)
+    assert len(batches) >= 2
+    assert combined.count("A") >= 100
+    assert combined.count("B") >= 100
+    assert "FONTE 1: Fonte A" in combined
+    assert "FONTE 2: Fonte B" in combined
 
 
 @pytest.mark.asyncio

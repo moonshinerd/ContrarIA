@@ -260,3 +260,123 @@ operacional. `conversa.md` e `tmp/` permanecem locais e não versionados.
    conjunto atual tem 40 exemplos (apenas seis verdadeiros) e permite um falso
    positivo de alta confiança dentro da margem estatística de 5%; ele não mede
    bem o gate semântico de intervenção.
+
+## Incidente Benedita da Silva — 30/09/2026
+
+Foi identificada a decisão `624`, que classificou como `false` (confiança
+`0,999998785`) uma postagem que dizia que Benedita da Silva concorria ao Senado
+do Rio. A fonte principal já era uma matéria do g1 cujo trecho de busca dizia
+expressamente que ela participou do debate como candidata ao Senado. Ainda
+assim, o redator Gemini 2.5 Flash publicou um questionamento.
+
+### Causa confirmada
+
+Antes desta correção, o redator recebia no prompt apenas título, URL e os
+primeiros 300 caracteres de cada fonte. Ele *podia* chamar a ferramenta
+`ler_materia` para receber até 15.000 caracteres, mas isso era opcional. Os
+logs da decisão `624` não contêm a chamada de leitura; portanto a entrevista/
+matéria não foi enviada integralmente ao modelo. Isso não explica sozinho o
+erro — o trecho já confirmava a candidatura —, mas remove uma barreira
+essencial para decisões fundamentadas.
+
+### Correção em implementação
+
+O serviço passou a buscar obrigatoriamente, antes da geração, o texto extraído
+das até três fontes de evidência mais relevantes (máximo de 15.000 caracteres
+por matéria) e a incluí-lo no prompt. Se nenhuma fonte puder ser lida, ele se
+abstém. A ferramenta passa a apenas repetir texto que já foi fornecido: o
+redator não pode mais optar por decidir somente com snippets. O modelo de
+redação será trocado de `openrouter/google/gemini-2.5-flash` para
+`openrouter/openai/gpt-5-mini`, mantendo o gateway OpenRouter e as credenciais
+atuais.
+
+### Validação da troca
+
+- Testes focados de intervenção: `19 passed`.
+- `ruff check` e `ruff format --check` passaram nos arquivos alterados.
+- Smoke test real via OpenRouter: `openrouter/openai/gpt-5-mini` respondeu
+  `ContrarIA online`; o rastreador registrou custo de US$ `0,0006`.
+- O modelo foi confirmado no catálogo do gateway com contexto de 400.000
+  tokens. A página oficial da OpenAI o descreve como apropriado para tarefas
+  bem definidas, de baixa latência e alto volume; ele suporta function calling
+  e structured outputs. A troca não é uma garantia de veracidade: as novas
+  travas de leitura obrigatória e abstenção são a proteção determinística
+  contra decidir por snippet.
+
+Próximo passo: rodar a suíte completa, reiniciar API e worker para reler
+`api/.env`, e então commitar/enviar a correção e sua documentação ao PR.
+
+### Análise adicional recebida sobre Benedita
+
+O novo material confirma que a frase publicada pelo bot — “lista diferente de
+n​​omes” — não é apenas uma dúvida fraca: a própria fonte g1 recuperada lista
+Benedita da Silva como candidata ao Senado pelo Rio. O caso passa a ter três
+regressões explícitas: (1) uma lista de debate não pode negar registro de
+candidatura; (2) fonte que suporta a alegação não pode virar veredito adverso;
+(3) o redator não pode inventar uma inconsistência ausente da evidência. O
+exemplo será mantido como caso obrigatório de `SUPPORTED`/abstenção em testes.
+
+### Revisão integral em lotes — implementação em andamento
+
+Foi substituído o corte de 15.000 caracteres na função de extração: ela agora
+retorna o texto integral por padrão. As até cinco fontes de evidência serão
+divididas em lotes por orçamento de contexto, sem descartar caracteres, e cada
+lote será lido pelo GPT-5 mini antes da geração final. A configuração adiciona
+janela de 400.000 tokens e orçamento conservador de 320.000 tokens por lote
+(três caracteres por token, cerca de 960.000 caracteres), deixando margem para
+instruções e resposta. O prompt final agora recebe somente as notas dos lotes,
+nunca snippets isolados; os testes e a formatação já foram concluídos.
+
+### Distinção entre Jev e redator
+
+O Jev opera com `JEV_N_CTX=4096`; é uma triagem local de contexto curto e não
+deve ser tratado como leitor integral de cinco reportagens. O veredito adverso
+dele neste caso é explicável como limitação de recuperação/entailment, embora
+continue inadequado para publicação. O redator, por outro lado, recebeu uma
+fonte cujo trecho já apoiava a alegação e mesmo assim inventou uma contradição.
+Por isso a revisão integral em lotes no GPT-5 mini é uma barreira independente
+e obrigatória entre o Jev e qualquer mensagem pública.
+
+### Validação da implementação de lotes
+
+A suíte completa passou após a mudança: `198 passed, 2 skipped`; `ruff check`
+e `ruff format --check` também passaram. Os testes agora cobrem extração sem
+corte padrão, abstenção quando nenhuma fonte pode ser lida, e preservação de
+todo o texto quando uma matéria é dividida entre lotes.
+
+### Limites dinâmicos pelo LiteLLM
+
+Em vez de confiar somente em variável manual, o serviço agora consulta
+`litellm.get_model_info()` para o identificador efetivo do modelo. A instalação
+atual retornou para `openrouter/openai/gpt-5-mini`: `max_input_tokens=400000`
+e `max_output_tokens=128000`. O orçamento de lote usa esse limite de entrada,
+menos 16.000 tokens reservados, limitado pelo teto operacional de 320.000;
+`LLM_CONTEXT_WINDOW_TOKENS=400000` permanece apenas como fallback para modelos
+que o catálogo não conheça. Testes foram adicionados para o catálogo do
+OpenRouter e para o fallback.
+
+### Tetos de custo e conteúdo
+
+O LiteLLM instalado informa 400.000 tokens de entrada para o identificador
+OpenRouter em uso — não 1 milhão. Isso comporta reportagens extensas, mas não
+autoriza entrada ilimitada. Foram definidos dois limites deliberadamente
+generosos: até 320.000 tokens estimados por lote e, para a soma de até cinco
+matérias, 2.500.000 caracteres e no máximo três lotes. Se qualquer teto for
+excedido, o serviço se abstém; ele não corta texto silenciosamente nem manda um
+documento gigantesco ao LLM. Foi incluído teste de regressão para essa
+abstenção por custo.
+
+### Validação final dos limites
+
+Após isolar corretamente a configuração temporária do teste de teto, a suíte
+completa ficou em `201 passed, 2 skipped`; `ruff check` e `ruff format --check`
+passaram em toda a API. Próximo passo operacional: reiniciar API e worker para
+carregar o GPT-5 mini e os limites de leitura integral configurados no `.env`.
+
+### Ativação operacional
+
+API e worker foram reiniciados após a validação. A API respondeu
+`{"status":"ok"}`, banco e Jev permanecem saudáveis, e o worker retomou a
+sessão Bluesky. Um candidato que estava somente na fila em memória expirou no
+restart; ele não foi publicado. O `.env` local agora aponta o redator para
+`openrouter/openai/gpt-5-mini`; credenciais continuam fora do Git.

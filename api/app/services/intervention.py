@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 import unicodedata
@@ -9,6 +10,7 @@ from app.clients.bluesky_client import BlueskyClient
 from app.core.config import get_settings
 from app.domain.entities import Account, Evidence, Post, Verdict, VerdictLabel
 from app.models.llm.base import LLMPort
+from app.models.llm.model_limits import get_max_input_tokens
 from app.repositories.interventions import InterventionRepository
 from app.services.prompts_loader import load_prompt
 
@@ -22,28 +24,21 @@ _SOURCE_LABEL = " [Fonte]"
 
 _BRASILIA = timezone(timedelta(hours=-3))
 
-# Agente de consulta: o LLM vê a lista de fontes e abre na íntegra as que quiser.
-_MAX_SOURCES_LISTED = 8
-_MAX_ARTICLE_READS = 3
-_ARTICLE_MAX_CHARS = 15000
+# A revisão lê as cinco fontes mais relevantes por inteiro. Quando o conjunto
+# excede a janela de entrada, o texto é dividido em lotes sem descartar trechos.
+_MAX_SOURCES_LISTED = 5
+_MAX_ARTICLE_READS = 0
+_CHARS_PER_TOKEN_ESTIMATE = 3
+_SOURCE_REVIEW_RESERVED_TOKENS = 16_000
 _TYPE_LINE = re.compile(r"\s*TIPO:\s*(\w+)[^\n]*\n?", re.IGNORECASE)
 _VERDICT_LINE = re.compile(r"\s*VEREDITO:\s*(\w+)[^\n]*\n?", re.IGNORECASE)
 _SOURCE_LINE = re.compile(r"\s*FONTE:\s*(\d+)[^\n]*\n?", re.IGNORECASE)
 _ACTIONABLE_VERDICTS = {"DESMENTE", "DISTORCE"}
-_READ_ARTICLE_TOOL: dict[str, Any] = {
-    "type": "function",
-    "function": {
-        "name": "ler_materia",
-        "description": "Abre e devolve o texto completo de uma das fontes listadas.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "numero": {"type": "integer", "description": "Número da fonte na lista."}
-            },
-            "required": ["numero"],
-        },
-    },
-}
+
+
+async def _no_tool_call(name: str, arguments: dict[str, Any]) -> str:
+    """Defesa para a interface de tool calling; a redação final não usa ferramentas."""
+    return "Não há ferramentas disponíveis nesta etapa; responda usando as revisões."
 
 
 def _grapheme_len(text: str) -> int:
@@ -70,6 +65,44 @@ def _format_sources(sources: list[Evidence]) -> str:
         f"{index}. {item.title} ({item.url})\n   {item.snippet[:300]}"
         for index, item in enumerate(sources, start=1)
     )
+
+
+def _split_text(text: str, max_chars: int) -> list[str]:
+    """Divide texto preservando todos os caracteres e preferindo fronteira de palavra."""
+    if len(text) <= max_chars:
+        return [text]
+    chunks: list[str] = []
+    remaining = text
+    while remaining:
+        if len(remaining) <= max_chars:
+            chunks.append(remaining)
+            break
+        cut = remaining.rfind(" ", 0, max_chars + 1)
+        if cut <= 0:
+            cut = max_chars
+        chunks.append(remaining[:cut])
+        remaining = remaining[cut:]
+    return chunks
+
+
+def _build_source_batches(
+    sources: list[Evidence], articles: list[str], input_budget_tokens: int
+) -> list[str]:
+    """Agrupa fontes inteiras em lotes que cabem na margem de contexto configurada."""
+    max_chars = input_budget_tokens * _CHARS_PER_TOKEN_ESTIMATE
+    batches: list[str] = []
+    current = ""
+    for number, (source, article) in enumerate(zip(sources, articles, strict=True), start=1):
+        header = f"FONTE {number}: {source.title}\nURL: {source.url}\nTEXTO:\n"
+        for part in _split_text(article, max_chars - len(header)):
+            block = f"{header}{part}\n"
+            if current and len(current) + len(block) > max_chars:
+                batches.append(current)
+                current = ""
+            current += block
+    if current:
+        batches.append(current)
+    return batches
 
 
 def _parse_agent_output(text: str, sources: list[Evidence]) -> tuple[str, str | None]:
@@ -205,18 +238,69 @@ class InterventionService:
         if not verdict.evidences:
             logger.info("Sem evidências para citar a fonte")
             return None
-        sources = verdict.evidences[:_MAX_SOURCES_LISTED]
+        candidate_sources = verdict.evidences[:_MAX_SOURCES_LISTED]
 
-        async def read_article(name: str, arguments: dict[str, Any]) -> str:
-            number = arguments.get("numero")
-            if name != "ler_materia" or not isinstance(number, int):
-                return "Chamada inválida: use ler_materia com o número de uma fonte."
-            if not 1 <= number <= len(sources):
-                return f"Não existe fonte {number}; escolha entre 1 e {len(sources)}."
-            source = sources[number - 1]
-            logger.info("Agente de consulta lendo a fonte %d: %s", number, source.url)
-            text = await fetch_article_text(source.url, max_chars=_ARTICLE_MAX_CHARS)
-            return text or f"Não foi possível abrir a matéria. Trecho da busca: {source.snippet}"
+        async def fetch_source(source: Evidence) -> str | None:
+            logger.info("Lendo obrigatoriamente a fonte: %s", source.url)
+            return await fetch_article_text(source.url)
+
+        article_results = await asyncio.gather(
+            *(fetch_source(source) for source in candidate_sources)
+        )
+        readable_pairs = [
+            (source, text)
+            for source, text in zip(candidate_sources, article_results, strict=True)
+            if text
+        ]
+        if not readable_pairs:
+            logger.info("Nenhuma fonte pôde ser lida integralmente; não intervém")
+            return None
+        sources = [source for source, _ in readable_pairs]
+        articles = [text for _, text in readable_pairs]
+        total_article_chars = sum(len(article) for article in articles)
+        if total_article_chars > self.settings.llm_source_review_max_chars:
+            logger.info(
+                "Fontes somam %d caracteres, acima do limite seguro de %d; não intervém",
+                total_article_chars,
+                self.settings.llm_source_review_max_chars,
+            )
+            return None
+
+        model_input_limit = get_max_input_tokens(
+            self.settings.llm_model_name, self.settings.llm_context_window_tokens
+        )
+        usable_context_tokens = max(
+            4_000,
+            model_input_limit - _SOURCE_REVIEW_RESERVED_TOKENS,
+        )
+        batch_budget_tokens = min(
+            self.settings.llm_source_review_input_budget_tokens,
+            usable_context_tokens,
+        )
+        batches = _build_source_batches(sources, articles, batch_budget_tokens)
+        if len(batches) > self.settings.llm_source_review_max_batches:
+            logger.info(
+                "Revisão exigiria %d lotes, acima do limite seguro de %d; não intervém",
+                len(batches),
+                self.settings.llm_source_review_max_batches,
+            )
+            return None
+        review_system = load_prompt("source_review", version=1).format(
+            post_text=post.text,
+            claim=verdict.claim,
+        )
+        source_reviews: list[str] = []
+        for index, batch in enumerate(batches, start=1):
+            logger.info("Revisando lote de fontes %d/%d", index, len(batches))
+            review = await self.llm.complete(
+                system=review_system,
+                user=f"LOTE {index}/{len(batches)}:\n{batch}",
+                purpose="source_review",
+            )
+            if not review.strip():
+                logger.info("Lote de fontes sem revisão; não intervém")
+                return None
+            source_reviews.append(f"LOTE {index}/{len(batches)}:\n{review.strip()}")
 
         now = datetime.now(_BRASILIA)
         prompt = load_prompt("quote_post", version=2).format(
@@ -226,15 +310,15 @@ class InterventionService:
             rationale=verdict.rationale,
             tone=target_tone,
             sources=_format_sources(sources),
-            max_reads=_MAX_ARTICLE_READS,
+            source_reviews="\n\n".join(source_reviews),
         )
 
-        logger.info("Gerando texto de intervenção (LLM com consulta às fontes)...")
+        logger.info("Gerando texto de intervenção após revisão integral das fontes...")
         generated_text = await self.llm.complete_with_tools(
             system=prompt,
-            user="Consulte as fontes que precisar e gere o quote post.",
-            tools=[_READ_ARTICLE_TOOL],
-            call_tool=read_article,
+            user="Use somente as revisões das fontes e gere o quote post.",
+            tools=[],
+            call_tool=_no_tool_call,
             max_tool_calls=_MAX_ARTICLE_READS,
             purpose="quote_post",
         )

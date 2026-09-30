@@ -111,7 +111,11 @@ O ContrarIA mantém uma separação rígida entre código e credenciais. Nunca c
 | `JEV_MODEL_REPO` / `JEV_MODEL_FILE` | Repositório e arquivo GGUF do classificador local | `Qwen/Qwen3-4B-GGUF` / `Qwen3-4B-Q4_K_M.gguf` |
 | `JEV_SERVER_URL` | Endereço interno do serviço compartilhado | `http://jev:8100` no Docker Compose |
 | `JEV_ALLOW_UNCALIBRATED` | Libera decisão sem CRC | Mantenha `false` em produção |
-| `LLM_MODEL_NAME` | Modelo que redige o quote post após decisão elegível | Ex.: `openrouter/google/gemini-2.5-flash` |
+| `LLM_MODEL_NAME` | Modelo que redige o quote post após decisão elegível | Ex.: `openrouter/openai/gpt-5-mini` |
+| `LLM_CONTEXT_WINDOW_TOKENS` | Fallback de janela quando LiteLLM não conhece o modelo | `400000` para GPT-5 mini |
+| `LLM_SOURCE_REVIEW_INPUT_BUDGET_TOKENS` | Máximo de tokens estimados de cada lote de leitura | `320000`, preservando margem para instruções e saída; o limite real vem do LiteLLM |
+| `LLM_SOURCE_REVIEW_MAX_CHARS` | Teto somado de caracteres extraídos das cinco fontes | `2500000`; acima dele o bot se abstém, sem truncar |
+| `LLM_SOURCE_REVIEW_MAX_BATCHES` | Máximo de lotes integrais por intervenção | `3`; impede custo e latência descontrolados |
 | `LLM_API_KEY` | Chave do provedor do LLM de redação | Necessária para publicar quote posts |
 | `DATABASE_URL` | String de conexão SQLAlchemy | `postgresql+psycopg://contraria:contraria@db:5432/contraria` |
 | `RSS_CHECKERS_ENABLED` | Ativação do job de ingestão de feeds | `true` |

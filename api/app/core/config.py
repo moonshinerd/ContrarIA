@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     llm_model_judge: str = ""
     llm_timeout_seconds: float = 30.0
     llm_max_retries: int = 3
+    # GPT-5 mini oferece 400k tokens de contexto. A revisão de fontes reserva
+    # espaço para instruções/saída e organiza o restante em lotes conservadores.
+    llm_context_window_tokens: int = Field(default=400_000, ge=8_000)
+    llm_source_review_input_budget_tokens: int = Field(default=320_000, ge=4_000)
+    llm_source_review_max_chars: int = Field(default=2_500_000, ge=10_000)
+    llm_source_review_max_batches: int = Field(default=3, ge=1, le=20)
     debate_rounds: int = 2
     debate_p_ik_threshold: float = 0.60
     crc_alpha: float = Field(default=0.05, gt=0, lt=1)

@@ -1,4 +1,4 @@
-"""Texto completo de uma matéria a partir da URL da evidência.
+"""Texto de uma matéria a partir da URL da evidência.
 
 Best-effort: sites com paywall ou que bloqueiam scraping devolvem None, e quem
 chama usa o snippet da busca no lugar.
@@ -13,7 +13,7 @@ logger = logging.getLogger("contraria.clients.articles")
 _USER_AGENT = "ContrarIA/1.0 (+https://github.com/moonshinerd/ContrarIA)"
 
 
-async def fetch_article_text(url: str, *, max_chars: int) -> str | None:
+async def fetch_article_text(url: str, *, max_chars: int | None = None) -> str | None:
     try:
         from bs4 import BeautifulSoup
 
@@ -24,7 +24,9 @@ async def fetch_article_text(url: str, *, max_chars: int) -> str | None:
         for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form"]):
             tag.decompose()
         text = " ".join(soup.get_text(" ").split())
-        return text[:max_chars] if text else None
+        if not text:
+            return None
+        return text[:max_chars] if max_chars is not None else text
     except Exception as exc:
         logger.info("Não foi possível buscar a página completa de %s: %s", url, type(exc).__name__)
         return None
