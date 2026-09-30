@@ -27,3 +27,7 @@ research/experiments/results/
 site/
 
 .DS_Store
+
+# Arquivos de progresso e conversa locais
+progress.md
+conversa.md
