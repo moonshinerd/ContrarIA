@@ -455,3 +455,60 @@ def test_candidate_sentences_ignores_campaign_slogans_and_countdowns():
     )
     candidates = _candidate_sentences(post_cheerleading)
     assert candidates == []
+
+
+@pytest.mark.asyncio
+async def test_reply_post_does_not_inherit_claims_from_parent_post():
+    from app.services.jev_verification import JevVerificationService
+
+    class RecordingClassifier:
+        def __init__(self):
+            self.questions = []
+
+        async def classify(self, question: str, options: list[str]) -> dict[str, float]:
+            self.questions.append(question)
+            return {"factual": 0.1, "opiniao": 0.9}
+
+        async def count_tokens(self, texts: list[str]) -> list[int]:
+            return [10] * len(texts)
+
+        async def predict_nli_batch(self, pairs):
+            return [{"entailment": 0.0, "neutral": 1.0, "contradiction": 0.0}] * len(pairs)
+
+    classifier = RecordingClassifier()
+    service = JevVerificationService(
+        classifier=classifier,
+        sources=[],
+        calibration_repo=StaticCalibrations(None),
+        settings=Settings(_env_file=None),
+    )
+
+    adila_reply = Post(
+        uri="at://did:plc:adila/app.bsky.feed.post/123",
+        cid="cid1",
+        author_did="did:plc:adila",
+        author_handle="adila.bsky.social",
+        text=(
+            "Bora Haddad, SP merece um governo como você! 🤩\n"
+            "O bandido TarCÍNICO, fugiu das perguntas o tempo todo!"
+        ),
+        created_at=datetime.now(UTC),
+    )
+    zem_parent_text = (
+        "post anterior: SP PODE E MERECE MAIS \n\n"
+        "No debate da Globo, Haddad jantou o Tarcínico ao falar a verdade "
+        "sobre dados da violência em SP:\n\n"
+        "Feminicídio em alta, recorde de crimes de natureza racial, \n"
+        "ódio contra minorias, recorde de roubos de celulares e o PCC em alta\n\n"
+        "BORA HADDAD 13"
+    )
+
+    verdict = await service.verify(adila_reply, parent_text=zem_parent_text)
+
+    # 1. Deve se abster de publicar intervenção contra o comentário
+    assert verdict.label == VerdictLabel.INSUFFICIENT_EVIDENCE
+    assert verdict.confidence == 0.0
+
+    # 2. As frases factuais do post anterior (Zem) NÃO devem ser investigadas para a Adila
+    assert not any("Feminicídio em alta" in q for q in classifier.questions)
+    assert not any("jantou o Tarcínico" in q for q in classifier.questions)

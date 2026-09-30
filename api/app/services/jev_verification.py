@@ -637,6 +637,18 @@ _CAMPAIGN_SLOGAN_PATTERNS = [
         r"\b(?:rumo\s+[aà]\s+vit[oó]ria|[ée]\s+\d{2}\s+neles|[ée]\s+treze|[ée]\s+vinte\s+e\s+dois)\b",
         re.IGNORECASE,
     ),
+    # Torcida / aclamações de campanha ("Bora Fulano", "Viva Fulano")
+    re.compile(r"\b(?:bora|for[ac]|viva)\s+[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+\b", re.IGNORECASE),
+    # Gírias e avaliações subjetivas de debate ("jantou", "amassou", "fugiu das perguntas")
+    re.compile(
+        r"\b(?:jantou|amassou|massacrou|humilhou|arrebentou|destruiu)\s+(?:o|a|os|as)?\s*\w+",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\b(?:fugiu|correu|arregou)\s+d[ao]s?\s+(?:perguntas?|debate)\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:venceu|perdeu|ganhou|foi\s+melhor\s+no|foi\s+pior\s+no)\s+o?\s*debate\b",
+        re.IGNORECASE,
+    ),
 ]
 
 
@@ -842,7 +854,19 @@ class JevVerificationService:
     ) -> Verdict:
         agent_outputs: dict[str, str] = {}
         context_text = f"{post.text}\n{parent_text}" if parent_text else post.text
-        candidates = _candidate_sentences(context_text)
+        # As alegações a serem verificadas e atribuídas ao autor no Bluesky DEVEM
+        # vir exclusivamente do post atual (post.text) ou de continuações do mesmo autor.
+        # 'Post anterior' (ancestrais/comentados) serve apenas como contexto temático
+        # para desambiguação de entidades (ex: "ele", "o debate").
+        # Nunca atribuir uma frase dita pelo post-pai ao autor do post-filho.
+        claim_text_source = post.text
+        if parent_text and "continuação do autor:" in parent_text:
+            author_continuations = [
+                part.split("post anterior:")[0].strip()
+                for part in parent_text.split("continuação do autor:")[1:]
+            ]
+            claim_text_source = f"{post.text}\n" + "\n".join(author_continuations)
+        candidates = _candidate_sentences(claim_text_source)
         if parent_text:
             agent_outputs["jev.thread_context"] = parent_text
 
