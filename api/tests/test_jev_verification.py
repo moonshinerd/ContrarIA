@@ -441,3 +441,17 @@ def test_has_direct_anchor_overlap_rejects_politician_only_match_when_context_en
         snippet="recurso assinado pela defesa no processo de homicídio que aguarda julgamento",
     )
     assert _has_direct_anchor_overlap(claim, ev_case, context_entity=context)
+
+
+def test_candidate_sentences_ignores_campaign_slogans_and_countdowns():
+    from app.services.jev_verification import _candidate_sentences
+
+    post_cheerleading = (
+        "FALTAM 7 DIAS PARA LULA ELEITO NO PRIMEIRO TURNO\n\n"
+        "LULA ELEITO NO PRIMEIRO TURNO\n\n"
+        "LULA PRESIDENTE\n\n"
+        "#LULA2026\n\n"
+        "1️⃣3️⃣✅️"
+    )
+    candidates = _candidate_sentences(post_cheerleading)
+    assert candidates == []

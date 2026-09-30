@@ -615,10 +615,37 @@ def _has_direct_anchor_overlap(
     return bool(claim_pairs & evidence_pairs)
 
 
+_CAMPAIGN_SLOGAN_PATTERNS = [
+    # Contagens regressivas eleitorais ("Faltam 7 dias para...")
+    re.compile(r"\b(?:faltam|falta)\s+\d+\s+dias\b", re.IGNORECASE),
+    # Chamadas diretas de voto ou número de urna ("Vote 13", "Confirme 22")
+    re.compile(r"\b(?:vote|vota|votem|confirme)\s+\d{2}\b", re.IGNORECASE),
+    # Torcida/slogan de eleição em primeiro/segundo turno sem contexto fático de eleição passada
+    re.compile(
+        r"\b(?:eleito|eleita|vit[oó]ria|venceremos)\s+no\s+(?:1[ºo]|primeiro|2[ºo]|segundo)\s+turno\b",
+        re.IGNORECASE,
+    ),
+    # Aclamações majoritárias isoladas de campanha ("LULA PRESIDENTE", "BOLSONARO PRESIDENTE")
+    re.compile(
+        r"^(?:[a-záàâãéêíóôõúç]+\s+)?"
+        r"(?:lula|bolsonaro|ciro|mar[çc]al|boulos|tarc[ií]sio|haddad)\s+"
+        r"(?:presidente|governador|senador|prefeito)!?$",
+        re.IGNORECASE,
+    ),
+    # Slogans comuns de torcida partidária
+    re.compile(
+        r"\b(?:rumo\s+[aà]\s+vit[oó]ria|[ée]\s+\d{2}\s+neles|[ée]\s+treze|[ée]\s+vinte\s+e\s+dois)\b",
+        re.IGNORECASE,
+    ),
+]
+
+
 def _is_campaign_label(fragment: str) -> bool:
-    """Identificadores de comitê/núcleo não são alegações a contestar."""
+    """Identificadores de comitê/núcleo e slogans de campanha/torcida eleitoral."""
     first_word = fragment.split(maxsplit=1)[0].casefold() if fragment.split() else ""
-    return first_word in {"comitê", "comite", "núcleo", "nucleo"}
+    if first_word in {"comitê", "comite", "núcleo", "nucleo"}:
+        return True
+    return any(pattern.search(fragment) for pattern in _CAMPAIGN_SLOGAN_PATTERNS)
 
 
 def _extract_primary_entities(post_text: str) -> list[str]:
@@ -843,7 +870,7 @@ class JevVerificationService:
                 ["factual", "opiniao"],
             )
             classification_log.append({"text": sentence, **judgment})
-            if judgment["factual"] > judgment["opiniao"]:
+            if judgment["factual"] > 0.55 and judgment["factual"] > judgment["opiniao"]:
                 factual_claims.append(sentence)
         agent_outputs["jev.claim_classification"] = json.dumps(
             classification_log, ensure_ascii=False
