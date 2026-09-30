@@ -57,7 +57,7 @@ Pré-requisitos: Docker e [uv](https://docs.astral.sh/uv/).
 
 ```bash
 make setup   # cria api/.env a partir do .env.example e instala dependências
-make up      # sobe db (Postgres + pgvector), jev, api e worker
+make up      # sobe db (Postgres + pgvector), jev, searxng, api e worker
 curl http://localhost:8000/health   # {"status":"ok"}
 ```
 
@@ -68,7 +68,7 @@ Swagger em http://localhost:8000/docs. Outros alvos: `make lint`, `make test`, `
 O backend operacional é o **Jev**: um Qwen3-4B local executado pelo
 `llama.cpp`. Em vez de pedir JSON ou texto livre ao modelo, ele escolhe entre
 opções curtas pelas probabilidades dos tokens (*logprobs*). O worker separa as
-frases factuais, consulta as fontes de evidência, filtra os resultados
+frases factuais, consulta as fontes de evidência (incluindo o metabuscador local SearXNG com Trafilatura), filtra os resultados
 relevantes e pede ao Jev o veredito. O modelo roda uma única vez no serviço
 `jev`, compartilhado pela API e pelo worker, para não duplicar os cerca de 6 GB
 de memória necessários.

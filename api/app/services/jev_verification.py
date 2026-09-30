@@ -422,6 +422,14 @@ _HEADLINE_TERMS = {
     "postagem",
     "video",
     "vídeo",
+    "foto",
+    "fotos",
+    "imagem",
+    "imagens",
+    "audio",
+    "áudio",
+    "print",
+    "prints",
 }
 _ACRONYM_PATTERN = re.compile(r"\b[A-Z]{2,6}\b")
 _PROPER_NOUN_PATTERN = re.compile(
@@ -979,11 +987,14 @@ class JevVerificationService:
                 continue
             anchored.append(evidence)
 
-        # Só as fontes ancoradas mais próximas chegam ao Jev para a segunda
-        # checagem semântica de relevância. Prioriza portais de notícia e órgãos oficiais.
+        # Prioriza fontes que tratam do fato específico da alegação (maior sobreposição lexical)
+        # ponderado pela autoridade da fonte jornalística/oficial.
         shortlist = sorted(
             anchored,
-            key=lambda item: (_source_authority_score(item), _word_overlap(claim, item)),
+            key=lambda item: (
+                _word_overlap(claim, item) + _source_authority_score(item) * 2.0,
+                _source_authority_score(item),
+            ),
             reverse=True,
         )[:_MAX_EVIDENCE_FOR_RELEVANCE]
         scored: list[tuple[float, Evidence]] = []
@@ -1014,7 +1025,14 @@ class JevVerificationService:
             margin = judgment["relevante"] - judgment["irrelevante"]
             if margin >= _RELEVANCE_MARGIN:
                 scored.append((margin, evidence))
-        scored.sort(key=lambda pair: pair[0] + _source_authority_score(pair[1]) * 0.2, reverse=True)
+        scored.sort(
+            key=lambda pair: (
+                pair[0]
+                + min(_word_overlap(claim, pair[1]), 12) * 0.08
+                + _source_authority_score(pair[1]) * 0.15
+            ),
+            reverse=True,
+        )
         return [evidence for _, evidence in scored], log
 
     async def _classify_verdict(

@@ -441,4 +441,3 @@ def test_has_direct_anchor_overlap_rejects_politician_only_match_when_context_en
         snippet="recurso assinado pela defesa no processo de homicídio que aguarda julgamento",
     )
     assert _has_direct_anchor_overlap(claim, ev_case, context_entity=context)
-

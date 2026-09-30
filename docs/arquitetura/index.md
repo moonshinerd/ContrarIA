@@ -51,15 +51,16 @@ Padrão herdado do [Medscriba](https://github.com/Medscriba/medscriba): `domain/
 
 ## Backend de verificação em produção
 
-O Compose sobe quatro serviços: `db`, `jev`, `api` e `worker`. O `jev` carrega
+O Compose sobe cinco serviços essenciais: `db`, `jev`, `searxng`, `api` e `worker`. O `jev` carrega
 uma única cópia local de Qwen3-4B GGUF com `llama.cpp`; `api` e `worker` o
-acessam por HTTP interno em `JEV_SERVER_URL`. Essa separação evita que cada
-processo carregue o modelo e exceda a memória disponível.
+acessam por HTTP interno em `JEV_SERVER_URL`. O `searxng` provê busca web agregada
+local sem dependência de quotas de terceiros. Essa separação evita que cada
+processo duplique cargas de trabalho pesadas e exceda a memória disponível.
 
 O Jev não gera JSON nem justificativas livres. Para cada frase factual ele
 calcula, por *logprobs*, a probabilidade de ser fato, a relevância de cada
 evidência e o veredito entre confirmado, desmentido ou enganoso. As fontes
-continuam sendo Google Fact Check, Wikipédia, busca web e RSS configurados. O
+continuam sendo Google Fact Check, Wikipédia, busca web (SearXNG/Tavily/DDG) e RSS configurados. O
 CRC é aplicado à confiança final usando uma calibração exclusiva da chave
 `jev:<repositório>:<arquivo>`; ausência de calibração resulta em abstenção.
 
@@ -69,5 +70,6 @@ necessário no caminho Jev para compor a mensagem socrática somente depois de a
 decisão já ser elegível para intervenção.
 
 **Referências:** [pipeline detalhado](pipeline.md),
-[calibração do Jev](../calibracao-jev.md) e
-[ADR 0013](../adr/0013-backend-local-jev.md).
+[calibração do Jev](../calibracao-jev.md),
+[ADR 0013](../adr/0013-backend-local-jev.md) e
+[ADR 0014](../adr/0014-busca-web-searxng-trafilatura.md).

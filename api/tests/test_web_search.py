@@ -391,4 +391,3 @@ def test_searxng_cooldown_and_fallback_to_tavily():
 
     asyncio.run(run())
     assert calls == ["searxng", "tavily", "tavily"]
-

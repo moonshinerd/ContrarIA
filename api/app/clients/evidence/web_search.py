@@ -298,9 +298,7 @@ class WebSearchSource(EvidenceSource):
     async def search(self, query: str, *, limit: int = 5) -> list[Evidence]:
         failures = []
         sources = [
-            s
-            for s in (self.searxng, self.tavily, self.duckduckgo)
-            if s is not None and s.enabled
+            s for s in (self.searxng, self.tavily, self.duckduckgo) if s is not None and s.enabled
         ]
         for source in sources:
             try:

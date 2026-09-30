@@ -38,7 +38,7 @@ Um classificador clássico opcional fornece outro sinal para priorizar candidato
 ## 3. Verificação Jev: confrontar a alegação com evidências
 
 1. **Separar frases candidatas:** o worker divide o post e, quando disponível, o contexto do fio. O Jev identifica quais frases são alegações factuais verificáveis; opinião, pergunta, ironia e retórica encerram sem ação.
-2. **Buscar evidências:** cada alegação factual consulta as fontes habilitadas — agências de checagem, Wikipédia, busca web e acervo RSS. A busca usa a frase específica, sem URLs, para evitar resultados apenas tematicamente relacionados.
+2. **Buscar evidências:** cada alegação factual consulta as fontes habilitadas — agências de checagem, Wikipédia, busca web e acervo RSS. A busca web utiliza primariamente a instância self-hosted do SearXNG (com fallback para Tavily e DuckDuckGo) e extração estruturada de conteúdo com Trafilatura, evitando dependência de créditos e ruídos de raspagem HTML. A consulta usa a frase específica, sem URLs, para evitar resultados apenas tematicamente relacionados.
 3. **Filtrar relevância:** o Jev compara alegação e trecho de fonte e só conserva evidência que trate dos mesmos fatos, pessoas, números ou eventos. Ele mede essa decisão por probabilidades de tokens, sem depender de JSON gerado.
 4. **Classificar o veredito:** com as fontes relevantes, o Jev escolhe entre "confirmam a alegação", "desmentem a alegação" e "confirmam o fato, mas desmentem a conclusão ou o exagero". Isso produz, respectivamente, `true`, `false` ou `misleading`.
 5. **Aplicar o controle de risco:** o Conformal Risk Control (CRC) usa um limiar aprendido com exemplos rotulados para **esse modelo Jev**, com tolerância de 5% para a perda de falsos positivos na calibração. Não é uma regra fixa de confiança nem garantia de acerto em todos os casos. Sem calibração ou abaixo do limiar, a decisão é `insufficient_evidence` e não há intervenção.
@@ -46,7 +46,8 @@ Um classificador clássico opcional fornece outro sinal para priorizar candidato
 É como uma análise pericial que só conclui quando a fonte trata do fato
 específico e a confiança passou por uma calibração empírica.
 
-**Referências:** [ADR 0013 — backend Jev](../adr/0013-backend-local-jev.md) e
+**Referências:** [ADR 0013 — backend Jev](../adr/0013-backend-local-jev.md),
+[ADR 0014 — busca SearXNG e Trafilatura](../adr/0014-busca-web-searxng-trafilatura.md) e
 [guia de calibração](../calibracao-jev.md). O fluxo CoVe/Self-RAG/debate do
 [ADR 0007](../adr/0007-verificacao-cove-selfrag-mad-crc.md) permanece como
 backend alternativo (`VERIFICATION_BACKEND=llm`).
