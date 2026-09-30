@@ -241,6 +241,14 @@ desmentido.
   `test_claim_verification.py` procura o arquivo de golden set nesse caminho;
   a repetição com o volume correto passou integralmente.
 
+### Entrega da correção
+
+A correção foi commitada e enviada ao PR
+[#57](https://github.com/moonshinerd/ContrarIA/pull/57) no commit `a162082`
+(`fix: exigir evidência diretamente relacionada no Jev`). O commit contém as
+travas de relevância, o contexto temporal, os testes de regressão e este diário
+operacional. `conversa.md` e `tmp/` permanecem locais e não versionados.
+
 ## Próximas ações planejadas
 
 1. Concluir e registrar o reteste de Barcelona.
