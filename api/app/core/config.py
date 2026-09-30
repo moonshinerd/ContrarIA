@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     google_factcheck_rate_per_minute: int = 240
     tavily_api_key: str = ""
 
+    searxng_enabled: bool = True
+    searxng_base_url: str = "http://searxng:8080"
+    searxng_categories: str = "news,general"
+    searxng_language: str = "pt-BR"
     tavily_enabled: bool = True
     duckduckgo_enabled: bool = True
     rss_checkers_enabled: bool = True

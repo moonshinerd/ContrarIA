@@ -16,6 +16,20 @@ services:
       retries: 10
     mem_limit: 512m
 
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    volumes:
+      - ../searxng/settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 256m
+
   api:
     build: ../api
     restart: unless-stopped
@@ -23,8 +37,11 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-contraria}:${POSTGRES_PASSWORD:-contraria}@db:5432/${POSTGRES_DB:-contraria}
       BLUESKY_SESSION_PATH: /srv/data/bluesky.session
+      SEARXNG_BASE_URL: http://searxng:8080
     depends_on:
       db:
+        condition: service_healthy
+      searxng:
         condition: service_healthy
     volumes:
       - contraria-model-cache:/root/.cache/huggingface
@@ -44,8 +61,11 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-contraria}:${POSTGRES_PASSWORD:-contraria}@db:5432/${POSTGRES_DB:-contraria}
       BLUESKY_SESSION_PATH: /srv/data/bluesky.session
+      SEARXNG_BASE_URL: http://searxng:8080
     depends_on:
       db:
+        condition: service_healthy
+      searxng:
         condition: service_healthy
     volumes:
       - contraria-model-cache:/root/.cache/huggingface

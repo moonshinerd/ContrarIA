@@ -1,0 +1,55 @@
+use_default_settings: true
+
+general:
+  debug: false
+  instance_name: "ContrarIA Search"
+
+server:
+  secret_key: "contraria_searxng_internal_secret_key_fixed"
+  limiter: false
+  image_proxy: false
+  bind_address: "0.0.0.0"
+  port: 8080
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: "pt-BR"
+  languages:
+    - pt-BR
+    - all
+  formats:
+    - html
+    - json
+
+engines:
+  - name: google
+    engine: google
+    shortcut: g
+    categories: [general, news]
+    timeout: 4.0
+  - name: bing
+    engine: bing
+    shortcut: b
+    categories: [general, news]
+    timeout: 4.0
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    categories: [general, news]
+    timeout: 4.0
+  - name: google news
+    engine: google_news
+    shortcut: gn
+    categories: news
+    timeout: 4.0
+  - name: bing news
+    engine: bing_news
+    shortcut: bn
+    categories: news
+    timeout: 4.0
+  - name: brave
+    engine: brave
+    shortcut: br
+    categories: [general, news]
+    timeout: 4.0

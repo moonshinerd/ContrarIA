@@ -95,6 +95,75 @@ class CachedSource(EvidenceSource):
         raise NotImplementedError
 
 
+class SearXNGClient(CachedSource):
+    name = "searxng"
+
+    def __init__(self, settings: Settings, *, transport=None):
+        super().__init__(settings)
+        self.transport = transport
+        self._unavailable_until = 0.0
+
+    @property
+    def enabled(self) -> bool:
+        if monotonic() < self._unavailable_until:
+            return False
+        return self.settings.searxng_enabled and bool(self.settings.searxng_base_url)
+
+    async def _search(self, query: str, limit: int) -> list[Evidence]:
+        if monotonic() < self._unavailable_until:
+            raise RuntimeError("SearXNG temporariamente em espera")
+
+        params: dict[str, str] = {
+            "q": query,
+            "format": "json",
+            "language": self.settings.searxng_language,
+        }
+        if self.settings.searxng_categories:
+            params["categories"] = self.settings.searxng_categories
+
+        base_url = self.settings.searxng_base_url.rstrip("/")
+        try:
+            async with httpx.AsyncClient(
+                timeout=self.settings.evidence_timeout_seconds, transport=self.transport
+            ) as client:
+                response = await client.get(f"{base_url}/search", params=params)
+        except Exception:
+            self._unavailable_until = monotonic() + 10.0
+            raise
+
+        if response.status_code != 200:
+            self._unavailable_until = monotonic() + 10.0
+            response.raise_for_status()
+
+        data = response.json()
+        raw_results = data.get("results", [])
+
+        evidences: list[Evidence] = []
+        seen_urls: set[str] = set()
+
+        for row in raw_results:
+            url = row.get("url")
+            if not url or url in seen_urls or not is_valid_evidence_url(url):
+                continue
+            seen_urls.add(url)
+            title = (row.get("title") or "").strip()
+            content = (row.get("content") or row.get("snippet") or "").strip()
+            published_date = row.get("publishedDate") or row.get("pubdate")
+            evidences.append(
+                Evidence(
+                    source=self.name,
+                    url=url,
+                    title=title,
+                    snippet=content,
+                    published_at=parse_date(published_date),
+                )
+            )
+            if len(evidences) >= limit:
+                break
+
+        return evidences
+
+
 class TavilyClient(CachedSource):
     name = "tavily"
 
@@ -202,20 +271,38 @@ class EvidenceSearchUnavailable(RuntimeError):
 
 
 class WebSearchSource(EvidenceSource):
-    """Usar esta fonte no pipeline para aplicar a ordem Tavily → DuckDuckGo."""
+    """Usar esta fonte no pipeline para aplicar a ordem SearXNG → Tavily → DuckDuckGo."""
 
     name = "web_search"
 
-    def __init__(self, settings: Settings, *, tavily=None, duckduckgo=None, raise_on_failure=False):
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        searxng=None,
+        tavily=None,
+        duckduckgo=None,
+        raise_on_failure: bool = False,
+    ):
         self.raise_on_failure = raise_on_failure
+        if searxng is not None:
+            self.searxng = searxng
+        elif tavily is not None or duckduckgo is not None:
+            self.searxng = None
+        else:
+            self.searxng = SearXNGClient(settings)
+
         self.tavily = tavily or TavilyClient(settings)
         self.duckduckgo = duckduckgo or DuckDuckGoClient(settings)
 
     async def search(self, query: str, *, limit: int = 5) -> list[Evidence]:
         failures = []
-        for source in (self.tavily, self.duckduckgo):
-            if not source.enabled:
-                continue
+        sources = [
+            s
+            for s in (self.searxng, self.tavily, self.duckduckgo)
+            if s is not None and s.enabled
+        ]
+        for source in sources:
             try:
                 result = await source.search(query, limit=limit)
                 if result:

@@ -8,6 +8,7 @@ from app.clients.evidence.rss_checkers import RSSCheckersSource
 from app.clients.evidence.web_search import (
     DuckDuckGoClient,
     EvidenceSearchUnavailable,
+    SearXNGClient,
     TavilyClient,
     WebSearchSource,
 )
@@ -18,6 +19,7 @@ from app.core.config import get_settings
 EVIDENCE_SOURCES: dict[str, type[EvidenceSource]] = {
     WikipediaClient.name: WikipediaClient,
     GoogleFactCheckClient.name: GoogleFactCheckClient,
+    SearXNGClient.name: SearXNGClient,
     TavilyClient.name: TavilyClient,
     DuckDuckGoClient.name: DuckDuckGoClient,
     WebSearchSource.name: WebSearchSource,
@@ -48,6 +50,7 @@ __all__ = [
     "EvidenceSearchUnavailable",
     "WikipediaClient",
     "GoogleFactCheckClient",
+    "SearXNGClient",
     "TavilyClient",
     "DuckDuckGoClient",
     "WebSearchSource",
