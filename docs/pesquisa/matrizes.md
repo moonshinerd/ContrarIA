@@ -20,7 +20,7 @@ Para garantir determinismo e reprodutibilidade, o agente opera sob **duas matriz
 
 ## 2. Matriz de Decisão de Intervenção (GQ01)
 
-A matriz de intervenção cruza a **probabilidade de automação do autor** (*Bot Score*, gerado pelo módulo RF02/RF12) com a **classificação da alegação** (*Veredito Factual*, gerado pelo módulo de verificação RF03/RF25).
+A matriz de intervenção cruza a **probabilidade de automação do autor** (*Bot Score*, gerado pelo módulo RF02/RF12) com a **classificação da alegação** (*Veredito Factual*, gerado pelo módulo de verificação RF03 / RNF01 via Issue #25).
 
 ```mermaid
 flowchart TD
@@ -34,15 +34,15 @@ flowchart TD
 
 ### Tabela de Decisão Operacional
 
-| Autenticidade do Perfil (Bot Score) | Veredito: FALSO (Confiança ≥ 80%) | Veredito: INCONCLUSIVO (Evidências Insuficientes) | Veredito: VERDADEIRO / NÃO-FACTUAL |
+| Autenticidade do Perfil (Bot Score) | Veredito: FALSO (Confiança ≥ λ̂, Calibração CRC com α ≤ 0,05) | Veredito: INCONCLUSIVO (Evidências Insuficientes) | Veredito: VERDADEIRO / NÃO-FACTUAL |
 |---|---|---|---|
 | **Conta Humana Legítima**<br>*(Bot Score < 0.50)* | **Ação: Intervenção Socrática (RF05)**<br>Publicação de *Quote Post* utilizando formulações interrogativas reflexivas e links factuais neutros. Foco na audiência espectadora (*bystanders*). | **Ação: Abstenção Ativa (RF03 / RNF01)**<br>O sistema não emite resposta. Registra métricas internamente sem intervenção pública. | **Ação: Descarte**<br>Nenhuma ação. Post segue o fluxo normal da rede. |
-| **Zona de Suspeita / Híbrida**<br>*(0.50 ≤ Bot Score ≤ 0.80)* | **Ação: Intervenção Adaptada (RF06)**<br>Resposta factual direta e objetiva, apontando a incoerência documental com citação da fonte primária checada. | **Ação: Monitoramento Silencioso (RF10)**<br>Armazenamento do post e conta para detecção posterior de padrões repetitivos (RF12). | **Ação: Descarte**<br>Nenhuma ação pública. |
-| **Conta Automatizada / Bot**<br>*(Bot Score > 0.80)* | **Ação: Rotulagem Técnica + Aviso (RF07)**<br>Emissão de rótulo técnico no servidor de moderação Ozone e *Quote Post* puramente informativo. Não há diálogo com o autor. | **Ação: Registro de Telemetria (RF13)**<br>Inclusão da conta na base de suspeitas para mineração de grafos e coordenação inautêntica. | **Ação: Descarte**<br>Nenhuma ação pública. |
+| **Zona de Suspeita / Híbrida**<br>*(0.50 ≤ Bot Score < 0.90)* | **Ação: Intervenção Adaptada (RF06)**<br>Resposta factual direta e objetiva, apontando a incoerência documental com citação da fonte primária checada. | **Ação: Monitoramento Silencioso (RF10)**<br>Armazenamento do post e conta para detecção posterior de padrões repetitivos (RF12). | **Ação: Descarte**<br>Nenhuma ação pública. |
+| **Conta Automatizada / Bot**<br>*(Bot Score ≥ 0.90)* | **Ação: Rotulagem Técnica + Aviso (RF07)**<br>Emissão de rótulo técnico no servidor de moderação Ozone e *Quote Post* puramente informativo. Não há diálogo com o autor. | **Ação: Registro de Telemetria (RF13)**<br>Inclusão da conta na base de suspeitas para mineração de grafos e coordenação inautêntica. | **Ação: Descarte**<br>Nenhuma ação pública. |
 
 ### Justificativa dos Estados
 - **Intervenção Socrática vs. Confronto**: Estudos de comunicação em mídias sociais indicam que refutações diretas aumentam a polarização. O questionamento socrático estimula o pensamento crítico dos leitores secundários sem atacar a identidade do autor original.
-- **Princípio da Abstenção**: Acusar falsamente uma publicação verdadeira ou inconclusiva destrói a confiança no sistema. Quando as fontes de evidência divergem ou a confiança é baixa, o agente adota **abstenção mandatória**.
+- **Princípio da Abstenção**: Acusar falsamente uma publicação verdadeira ou inconclusiva destrói a confiança no sistema. Quando as fontes de evidência divergem ou a confiança é inferior ao limiar calibrado λ̂ (CRC), o agente adota **abstenção mandatória**.
 - **Segregação de Bots**: Modelos de conversação socrática são ineficazes contra bots programados. Para bots, a resposta adequada é a contenção algorítmica via rotulagem (Ozone) e alerta à plataforma.
 
 ---

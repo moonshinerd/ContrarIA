@@ -18,9 +18,9 @@ Na ausência de sprints tradicionais de longa duração, a equipe realiza **chec
 
 * **Marco temporal**: Início das trilhas paralelas de desenvolvimento após congelamento do setup.
 
-### Status por Dupla
+### Status por Trilha
 
-#### 1. Victor + Marlon (Infraestrutura e Coleta)
+#### 1. Trilha A — Víctor Schmidt (Infraestrutura e Coleta)
 - **Entregas**: PR [#35](https://github.com/moonshinerd/ContrarIA/pull/35) mergeado com sucesso (Setup inicial: repositório, ambiente Docker Compose, Makefile, CI e esqueleto do MkDocs).
 - **Em andamento**: Início do desenvolvimento do cliente Bluesky na branch `feature/cliente-bluesky` (Issue [#10](https://github.com/moonshinerd/ContrarIA/issues/10)).
 - **Bloqueios**: Nenhum.
@@ -42,9 +42,9 @@ Na ausência de sprints tradicionais de longa duração, a equipe realiza **chec
 
 * **Marco temporal**: Consolidação dos primeiros módulos funcionais e publicação da documentação técnica.
 
-### Status por Dupla
+### Status por Trilha
 
-#### 1. Victor + Marlon (Infraestrutura, Coleta e Ações)
+#### 1. Trilha A — Víctor Schmidt (Infraestrutura, Coleta e Ações)
 - **Entregas Concluídas**:
   - **PR [#36](https://github.com/moonshinerd/ContrarIA/pull/36) mergeado na `main`**: Conclusão da Issue [#10](https://github.com/moonshinerd/ContrarIA/issues/10) (Cliente Bluesky completo com sessão persistida, leituras públicas, busca autenticada e autolabeler).
 - **Próximas Atividades**:
@@ -79,9 +79,9 @@ Na ausência de sprints tradicionais de longa duração, a equipe realiza **chec
 
 * **Marco temporal**: Conclusão da esteira central de IA de verificação, chegada da coleta massiva em tempo real via Jetstream e consolidação integral do portfólio de pesquisa e decisões arquiteturais.
 
-### Status por Dupla
+### Status por Trilha
 
-#### 1. Victor + Marlon (Infraestrutura, Coleta e Ações)
+#### 1. Trilha A — Víctor Schmidt (Infraestrutura, Coleta e Ações)
 - **Entregas Concluídas**:
   - **PR [#41](https://github.com/moonshinerd/ContrarIA/pull/41) mergeado na `main`**: Conclusão da Issue [#26](https://github.com/moonshinerd/ContrarIA/issues/26) (Pré-filtro clássico treinado em PT-BR para descarte rápido com custo zero de inferência).
   - **PR [#50](https://github.com/moonshinerd/ContrarIA/pull/50) mergeado na `main`**: Conclusão da Issue [#11](https://github.com/moonshinerd/ContrarIA/issues/11) (Coletor assíncrono em tempo real via WebSocket do *Jetstream* do Bluesky, com filtragem temática e snapshots de engajamento).
@@ -93,8 +93,8 @@ Na ausência de sprints tradicionais de longa duração, a equipe realiza **chec
 #### 2. Raissa + Samantha (Verificação, Raciocínio Epistêmico e Benchmarks)
 - **Entregas Concluídas**:
   - **PR [#49](https://github.com/moonshinerd/ContrarIA/pull/49) mergeado na `main`**: Conclusão da Issue [#23](https://github.com/moonshinerd/ContrarIA/issues/23) (Implementação do *Self-RAG* com recuperação adaptativa de evidências e tokens de reflexão crítica para eliminação de alucinações).
-  - **PR [#51](https://github.com/moonshinerd/ContrarIA/pull/51) mergeado na `main`**: Conclusão da Issue [#24](https://github.com/moonshinerd/ContrarIA/issues/24) (Debate Multiagente — MAD com Promotor, Defensor, Juiz epistêmico e cálculo da métrica de certeza $P(IK)$).
-  - **PR [#52](https://github.com/moonshinerd/ContrarIA/pull/52) mergeado na `main`**: Conclusão da Issue [#25](https://github.com/moonshinerd/ContrarIA/issues/25) (Calibração estatística via *Conformal Risk Control* — CRC em runtime e `VerificationService`, garantindo abstenção formal com taxa de falsos positivos controlada a $\alpha \le 0.05$).
+  - **PR [#51](https://github.com/moonshinerd/ContrarIA/pull/51) mergeado na `main`**: Conclusão da Issue [#24](https://github.com/moonshinerd/ContrarIA/issues/24) (Debate Multiagente — MAD com Promotor, Defensor, Juiz epistêmico e cálculo da métrica de certeza P(IK)).
+  - **PR [#52](https://github.com/moonshinerd/ContrarIA/pull/52) mergeado na `main`**: Conclusão da Issue [#25](https://github.com/moonshinerd/ContrarIA/issues/25) (Calibração estatística via *Conformal Risk Control* — CRC em runtime e `VerificationService`, garantindo abstenção formal com taxa de falsos positivos controlada a α ≤ 0,05).
 - **Entregas em Revisão (PRs Abertos)**:
   - **PR [#54](https://github.com/moonshinerd/ContrarIA/pull/54)**: Conclusão da Issue [#27](https://github.com/moonshinerd/ContrarIA/issues/27) (Benchmark reproduzível de veredito com 150 ClaimReviews PT-BR, 17 cenários de ablação e medição de custo e latência).
 - **Próximas Atividades**:

@@ -5,7 +5,7 @@
   <div style="flex: 1; min-width: 260px;">
     <h3 style="margin: 0 0 0.5rem 0; font-size: 1.25rem;">Inteligência Coletiva Contra a Desinformação</h3>
     <p style="margin: 0; color: var(--md-default-fg-color--light);">
-      Agente autônomo de mitigação de desinformação política e detecção de bots no <strong>Bluesky</strong>, desenvolvido no âmbito do <em>Challenge Based Learning (CBL) - Challenge 1</em>.
+      Agente autônomo focado na detecção de bots e na mitigação de desinformação política no <strong>Bluesky</strong>. Projeto desenvolvido como parte do <em>Challenge Based Learning (CBL) - Challenge 1</em>.
     </p>
   </div>
 </div>
@@ -61,10 +61,12 @@
 - [:octicons-project-roadmap-24: **Planejamento**](planejamento.md) — Matriz de dependências, divisão de duplas operacionais e dinâmica de trabalho sem sprints.
 - [:octicons-checklist-24: **Requisitos do Sistema**](requisitos.md) — Especificação completa de requisitos funcionais (RF01–RF16) e não-funcionais (RNF01–RNF07) com classificação MoSCoW.
 - [:octicons-search-24: **Portfólio de Pesquisa**](pesquisa/guiding-questions.md) — As 7 perguntas norteadoras (GQ01–GQ07), [ideias e fontes](pesquisa/ideias-e-fontes.md) e [matrizes de decisão](pesquisa/matrizes.md).
-- [:octicons-organization-24: **Processo & Governança**](processo/scrum.md) — Metodologia Scrum adaptada a duplas paralelas e [autoavaliações da equipe](processo/avaliacoes.md).
+- [:octicons-organization-24: **Processo & Governança**](processo/scrum.md) — Metodologia Scrum adaptada a duplas paralelas, governança ágil e dinâmicas de entrega conjunta.
 - [:octicons-book-24: **Guia Prático de Uso**](guia-de-uso.md) — Manual para usuários no Bluesky, intervenção socrática e assinatura do Ozone Labeler.
+- [:octicons-sliders-24: **Calibração do Jev**](calibracao-jev.md) — Procedimento formal de controle de risco conformal (CRC), determinação do limiar $\hat{\lambda}$ e calibração estatística do classificador local.
 - [:octicons-cpu-24: **Arquitetura & Pipeline**](arquitetura/pipeline.md) — Diagrama de fluxo ponta a ponta e portas de integração desacopladas.
-- [:octicons-file-badge-24: **Decisões Arquiteturais (ADRs)**](adr/index.md) — 12 registros de decisões cobrindo desde o ecossistema AT Protocol até a calibração Conformal.
+- [:octicons-file-badge-24: **Decisões Arquiteturais (ADRs)**](adr/index.md) — 13 registros de decisões cobrindo desde o ecossistema AT Protocol até o backend local Jev.
+- [:octicons-graph-24: **Resultados e Benchmarks**](resultados/benchmark.md) — Avaliação experimental de acurácia, latência, custos vs. LLM, ablação de fontes e calibração estatística CRC.
 - [:octicons-history-24: **Atas e Checkpoints**](atas/index.md) — Histórico de reuniões deliberativas e acompanhamento frequente de entregas.
 - [:octicons-bookmark-24: **Glossário Técnico**](glossario.md) — Definições formais de termos e conceitos empregados no ecossistema ContrarIA.
 - [:octicons-link-external-24: **Referências Bibliográficas**](referencias.md) — Acervo de artigos acadêmicos (arXiv, DOI, PMC) e documentações de protocolos.
@@ -73,14 +75,13 @@
 
 ## Equipe do Projeto
 
-| Integrante | GitHub | Atribuição | Dupla Operacional |
+| Integrante | GitHub | Papel / Atribuição | Frente Operacional |
 |:---|:---|:---|:---|
-| **Víctor Hugo Lima Schmidt** | [@moonshinerd](https://github.com/moonshinerd) | Product Owner | Dupla de Código A (Coleta, Triagem e Infra) |
-| **Marlon Martins Braga** | [@MylinDev](https://github.com/MylinDev) | Scrum Master | Dupla de Código A (Coleta, Triagem e Infra) |
-| **Raissa Silva** | [@RaissaOliveira19](https://github.com/RaissaOliveira19) | Developer | Dupla de Código B (Verificação e Benchmark) |
-| **Samantha Yumi Tanaka** | [@ySamantha](https://github.com/ySamantha) | Developer | Dupla de Código B (Verificação e Benchmark) |
-| **Kyara Esteves de Sousa** | [@Kyara2](https://github.com/Kyara2) | Developer | Dupla de Documentação (Governança e Showcase) |
-| **Antonio Leonardo Souto Gomes** | [@AntonioLeonardoUNB](https://github.com/AntonioLeonardoUNB) | Developer | Dupla de Documentação (Governança e Showcase) |
+| **Víctor Hugo Lima Schmidt** | [@moonshinerd](https://github.com/moonshinerd) | Product Owner & Tech Lead | Trilha de Plataforma (Coleta, Triagem, Infra e E2E) |
+| **Raissa Silva** | [@RaissaOliveira19](https://github.com/RaissaOliveira19) | Developer (IA & Verificação) | Trilha de Verificação Factual e IA (Self-RAG, CRC e Benchmark) |
+| **Samantha Yumi Tanaka** | [@ySamantha](https://github.com/ySamantha) | Developer (IA & Verificação) | Trilha de Verificação Factual e IA (CoVe, MAD, Pré-filtro e Feeds) |
+| **Kyara Esteves de Sousa** | [@Kyara2](https://github.com/Kyara2) | Developer (Pesquisa & Requisitos) | Trilha de Documentação e Governança (GQ01–GQ07, Requisitos e Matrizes) |
+| **Antonio Leonardo Souto Gomes** | [@AntonioLeonardoUNB](https://github.com/AntonioLeonardoUNB) | Developer (Arquitetura & Processo) | Trilha de Documentação e Governança (Arquitetura, CI/CD, ADRs e Showcase) |
 
 ---
 
