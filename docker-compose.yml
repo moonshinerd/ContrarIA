@@ -4,6 +4,7 @@
 services:
   db:
     image: pgvector/pgvector:pg16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: contraria
       POSTGRES_PASSWORD: contraria
@@ -18,22 +19,65 @@ services:
       timeout: 5s
       retries: 10
 
-  api:
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Uma única cópia do modelo Jev em memória (ver docstring de
+  # app/jev_server.py) -- api e worker chamam este serviço por HTTP em vez
+  # de cada um carregar sua própria cópia (~3-4GB), o que estourava a RAM
+  # do Docker Desktop com os dois rodando ao mesmo tempo.
+  jev:
+    restart: unless-stopped
     build: ./api
     env_file: ./api/.env
     environment:
       DATABASE_URL: postgresql+psycopg://contraria:contraria@db:5432/contraria
+    volumes:
+      - ./api/app:/srv/app
+      - contraria-model-cache:/root/.cache/huggingface
+    command: uvicorn app.jev_server:app --host 0.0.0.0 --port 8100
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8100/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    env_file: ./api/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://contraria:contraria@db:5432/contraria
       BLUESKY_SESSION_PATH: /srv/data/bluesky.session
+      JEV_SERVER_URL: http://jev:8100
+      SEARXNG_BASE_URL: http://searxng:8080
     ports:
       - "8000:8000"
     depends_on:
       db:
+        condition: service_healthy
+      jev:
+        condition: service_healthy
+      searxng:
         condition: service_healthy
     volumes:
       - ./api/app:/srv/app
       - contraria-model-cache:/root/.cache/huggingface
       - contraria-app-data:/srv/data
       - ./api/tests:/srv/tests
+      - ./research:/research:ro
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
@@ -43,12 +87,19 @@ services:
 
   worker:
     build: ./api
+    restart: unless-stopped
     env_file: ./api/.env
     environment:
       DATABASE_URL: postgresql+psycopg://contraria:contraria@db:5432/contraria
       BLUESKY_SESSION_PATH: /srv/data/bluesky.session
+      JEV_SERVER_URL: http://jev:8100
+      SEARXNG_BASE_URL: http://searxng:8080
     depends_on:
       db:
+        condition: service_healthy
+      jev:
+        condition: service_healthy
+      searxng:
         condition: service_healthy
     volumes:
       - ./api/app:/srv/app

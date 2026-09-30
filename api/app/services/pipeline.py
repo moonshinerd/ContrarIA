@@ -15,6 +15,8 @@ from app.db.orm.decisions import DecisionLog
 from app.domain.entities import Post, VerdictLabel
 from app.services.bot_scoring import BotScoringService
 from app.services.intervention import InterventionService
+from app.services.intervention_queue import InterventionCandidate, InterventionQueue
+from app.services.jev_verification import JevVerificationService
 from app.services.verification import VerificationService
 
 logger = logging.getLogger("contraria.services.pipeline")
@@ -34,8 +36,9 @@ class PipelineService:
         bluesky: BlueskyClient,
         ozone: OzoneClient,
         bots: BotScoringService,
-        verification: VerificationService,
+        verification: VerificationService | JevVerificationService,
         intervention: InterventionService,
+        intervention_queue: InterventionQueue | None = None,
     ) -> None:
         self.settings = settings
         self.db = db_session
@@ -44,6 +47,8 @@ class PipelineService:
         self.bots = bots
         self.verification = verification
         self.intervention = intervention
+        # Com fila (worker), o candidato espera a rodada em vez de ser publicado já.
+        self.intervention_queue = intervention_queue
 
     async def analyze(self, post: Post) -> DecisionLog:  # noqa: C901
         """Processa um post sob demanda (POST /analyze ou pelo worker)."""
@@ -68,7 +73,8 @@ class PipelineService:
         verification_enabled = getattr(self.settings, "pipeline_verification_enabled", True)
         if not verification_enabled:
             raise RuntimeError("Pipeline de verificação está desabilitado")
-        verdict = await self.verification.verify(post)
+        thread_context = await self._thread_context(post)
+        verdict = await self.verification.verify(post, parent_text=thread_context)
         is_adverse = verdict.label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING)
         is_insufficient = verdict.label == VerdictLabel.INSUFFICIENT_EVIDENCE
 
@@ -97,6 +103,9 @@ class PipelineService:
                     justification = (
                         "Intervenção desabilitada por feature flag. Apenas monitoramento."
                     )
+                elif self.intervention_queue is not None:
+                    action = "INTERVENE_QUEUED"
+                    justification = "Veredito adverso: candidato à próxima rodada de intervenção."
                 else:
                     intervention_result = await self.intervention.execute_intervention(
                         post, author, verdict, bot_score or 0.0
@@ -122,10 +131,17 @@ class PipelineService:
                 "author_did": post.author_did,
                 "cid": post.cid,
                 "created_at": post.created_at.isoformat(),
+                "thread_context": thread_context,
             },
             bot_score=bot_score,
             bot_features=assessment.features if assessment else None,
-            sources=[s.__dict__ for s in evidences],
+            sources=[
+                {
+                    **s.__dict__,
+                    "published_at": s.published_at.isoformat() if s.published_at else None,
+                }
+                for s in evidences
+            ],
             agent_outputs=verdict.agent_outputs,
             verdict=verdict.label.value,
             confidence=verdict.confidence,
@@ -138,4 +154,22 @@ class PipelineService:
         self.db.commit()
         self.db.refresh(decision)
 
+        if action == "INTERVENE_QUEUED" and self.intervention_queue is not None:
+            self.intervention_queue.add(
+                InterventionCandidate(decision.id, post, author, verdict, bot_score or 0.0)
+            )
+
         return decision
+
+    async def _thread_context(self, post: Post) -> str | None:
+        try:
+            return await self.bluesky.get_thread_context(
+                post.uri,
+                max_posts=self.settings.thread_context_max_posts,
+                max_chars=self.settings.thread_context_max_chars,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Falha ao buscar contexto do fio para %s: %s", post.uri, type(exc).__name__
+            )
+            return None

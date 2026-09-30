@@ -1,12 +1,18 @@
 # 0007 — Verificação com CoVe, Self-RAG, Debate Multiagente e Conformal Risk Control
 
-- **Status:** Aceita
+- **Status:** Aceita — fluxo alternativo; backend operacional substituído pelo ADR 0013
 - **Data:** 16/09/2026
 - **Requisitos / GQs:** RF03, RF15, RF16, RNF01, GQ02, GQ03
 - **Origem:** [#22](https://github.com/moonshinerd/ContrarIA/issues/22), [#23](https://github.com/moonshinerd/ContrarIA/issues/23), [#24](https://github.com/moonshinerd/ContrarIA/issues/24), [#25](https://github.com/moonshinerd/ContrarIA/issues/25)
 
 ## Contexto
 Uma única resposta de LLM pode reproduzir informação desatualizada, ignorar sátira ou confirmar o viés da alegação. O MVP precisa cruzar evidências e se abster quando não dispõe de suporte suficiente. Confiança declarada pelo modelo não equivale a uma garantia de verdade.
+
+Este ADR registra o fluxo originalmente adotado para o backend LLM. Desde
+28/09/2026, a operação padrão usa a verificação Jev descrita no
+[ADR 0013](0013-backend-local-jev.md). Este fluxo continua disponível quando
+`VERIFICATION_BACKEND=llm`, e sua calibração CRC permanece separada da
+calibração do Jev.
 
 ## Decisão
 Compor as seguintes etapas em `VerificationService.verify(post)`:

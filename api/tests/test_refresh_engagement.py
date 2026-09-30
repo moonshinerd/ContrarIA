@@ -176,3 +176,42 @@ def test_save_snapshots_with_velocity(mock_engine, mock_bsky):
         post_db = session.get(Post, "at://p2")
         assert post_db.priority is not None
         assert post_db.priority > 0
+
+
+@pytest.mark.parametrize("final_status", ["processed", "ignored"])
+def test_refresh_does_not_requeue_already_decided_post(mock_engine, mock_bsky, final_status):
+    from sqlalchemy.orm import Session
+
+    from app.db.orm.posts import Post
+
+    refresher = EngagementRefresher(mock_engine, mock_bsky, tick_seconds=0)
+    now = datetime.now(UTC)
+    with Session(mock_engine) as session:
+        p = Post(
+            uri="at://p3", cid="c3", author_did="d3", text="u", created_at=now, source="search"
+        )
+        p.triage_status = final_status
+        p.first_seen_at = now - timedelta(hours=1)
+        session.add(p)
+        session.commit()
+
+    refresher._save_snapshots_and_update_priority(
+        [
+            DomainPost(
+                uri="at://p3",
+                cid="c3",
+                author_did="d3",
+                text="u",
+                created_at=now,
+                like_count=10000,
+                repost_count=5,
+                reply_count=2,
+                quote_count=1,
+            )
+        ]
+    )
+
+    with Session(mock_engine) as session:
+        post_db = session.get(Post, "at://p3")
+        assert post_db.triage_status == final_status
+        assert post_db.priority is not None

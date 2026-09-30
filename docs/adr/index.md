@@ -20,6 +20,8 @@ Registro formal das decisões técnicas de engenharia e arquitetura do projeto *
 | [**0010**](0010-frontend-fora-do-mvp.md) | Postergação de Interface Web (Frontend React) para Pós-MVP | `Aceita` | 16/09/2026 | RF13, Épico #8 |
 | [**0011**](0011-deploy-vps-caddy-cloudflare.md) | Infraestrutura de Deploy em VPS com Docker Compose, Caddy e Cloudflare | `Aceita` | 16/09/2026 | RNF03, RNF05, RNF07, Issue #15 |
 | [**0012**](0012-organizacao-sem-sprints.md) | Organização de Trabalho sem Sprints: Duplas Paralelas e Dependências Explícitas | `Aceita` | 16/09/2026 | docs/planejamento.md, Épico #7 |
+| [**0013**](0013-backend-local-jev.md) | Backend de Verificação Local Jev com CRC por Modelo | `Aceita` | 28/09/2026 | RF03, RNF01, RNF05, PR #57 |
+| [**0014**](0014-busca-web-searxng-trafilatura.md) | Busca Web Self-Hosted com SearXNG e Extração via Trafilatura | `Aceita` | 30/09/2026 | RF11, RNF02, RNF05 |
 
 ---
 
@@ -27,7 +29,10 @@ Registro formal das decisões técnicas de engenharia e arquitetura do projeto *
 
 A [issue #31](https://github.com/moonshinerd/ContrarIA/issues/31) exige que cada um dos 12 ADRs seja revisado por alguém de uma dupla de código (Victor/Marlon ou Raissa/Samantha). O status `Aceita` registra a decisão arquitetural e não substitui essa revisão.
 
-A revisão dos ADRs 0001 a 0012 está **pendente de registro no PR #45**. A pessoa revisora deve indicar explicitamente quais ADRs revisou, podendo cobrir os 12 em uma única revisão. A issue só deve ser considerada concluída após essa revisão e a publicação dos documentos.
+A revisão dos ADRs 0001 a 0012 está **pendente de registro no PR #45**. O ADR
+0013 deve ser revisado junto ao PR #57. A pessoa revisora deve indicar
+explicitamente quais ADRs revisou. A issue só deve ser considerada concluída
+após essa revisão e a publicação dos documentos.
 
 ## Template Padrão de ADR
 

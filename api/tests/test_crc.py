@@ -5,9 +5,11 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import create_engine
 
+from app.core.config import Settings
 from app.db.base import Base
 from app.repositories.crc_calibration import CRCCalibrationRepository
 from app.services.crc import CalibrationExample, CRCCalibration, calibrate_threshold
+from app.services.crc_seed import ensure_calibration_seeded
 
 
 def test_calibration_respects_finite_sample_bound_and_false_positive_rate():
@@ -53,3 +55,60 @@ def test_repository_returns_latest_calibration_for_requested_model():
     assert latest is not None
     assert latest.lambda_hat == 0.82
     assert repository.get_latest("unknown") is None
+
+
+def test_ensure_calibration_seeded_persists_seed_for_configured_model():
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = CRCCalibrationRepository(engine)
+    # Fixado para bater com o modelo do seed, independente do LLM_MODEL_NAME
+    # do ambiente (api/.env muda de modelo com frequência durante testes ao vivo).
+    settings = Settings(_env_file=None, llm_model_name="openrouter/google/gemini-2.5-flash")
+
+    ensure_calibration_seeded(repository, settings)
+
+    model = settings.crc_model_name or settings.llm_model_name
+    seeded = repository.get_latest(model)
+    assert seeded is not None
+    assert seeded.lambda_hat == 0.0
+    assert seeded.n == 52
+
+
+def test_ensure_calibration_seeded_does_not_override_existing_calibration():
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = CRCCalibrationRepository(engine)
+    settings = Settings(_env_file=None, llm_model_name="openrouter/google/gemini-2.5-flash")
+    model = settings.crc_model_name or settings.llm_model_name
+    repository.save(CRCCalibration(0.42, 0.05, 100, model, datetime.now(UTC)))
+
+    ensure_calibration_seeded(repository, settings)
+
+    latest = repository.get_latest(model)
+    assert latest is not None
+    assert latest.lambda_hat == 0.42
+    assert latest.n == 100
+
+
+def test_ensure_calibration_seeded_seeds_jev_under_its_own_key(tmp_path, monkeypatch):
+    import json
+
+    from app.services import crc_seed
+    from app.services.jev_verification import jev_model_key
+
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = CRCCalibrationRepository(engine)
+    settings = Settings(_env_file=None, llm_model_name="openrouter/google/gemini-2.5-flash")
+    jev_seed = tmp_path / "crc_calibration_seed_jev.json"
+    jev_seed.write_text(
+        json.dumps({"lambda_hat": 0.87, "alpha": 0.05, "n": 40, "model": jev_model_key(settings)})
+    )
+    monkeypatch.setattr(crc_seed, "JEV_SEED_PATH", jev_seed)
+
+    ensure_calibration_seeded(repository, settings)
+
+    seeded = repository.get_latest(jev_model_key(settings))
+    assert seeded is not None
+    assert seeded.lambda_hat == 0.87
+    assert repository.get_latest(settings.llm_model_name).lambda_hat == 0.0

@@ -18,15 +18,37 @@ from app.core.logging import configure_logging
 from app.jobs.collector import JetstreamConsumer, SearchPoller
 from app.jobs.ingest_fact_articles import FeedIngestor
 from app.models.llm.litellm_model import LiteLLMModel
+from app.repositories.crc_calibration import CRCCalibrationRepository
 from app.repositories.fact_articles import FactArticleRepository
 from app.repositories.interventions import InterventionRepository
 from app.repositories.posts import PostRepository
+from app.services import build_verification_service
 from app.services.bot_scoring import BotScoringService
+from app.services.crc_seed import ensure_calibration_seeded
 from app.services.intervention import InterventionService
+from app.services.intervention_queue import InterventionQueue, expire_stale_candidates
 from app.services.pipeline import PipelineService
-from app.services.verification import VerificationService
 
 logger = logging.getLogger("contraria.worker")
+
+
+async def run_due_intervention_round(
+    queue: InterventionQueue,
+    next_round: float,
+    round_seconds: float,
+    *,
+    now: float | None = None,
+) -> float:
+    """Publica a rodada vencida sem deixar um lote lento segurar a fila."""
+    current = monotonic() if now is None else now
+    if current < next_round:
+        return next_round
+    try:
+        await queue.run_round()
+    except Exception:
+        logger.exception("Falha na rodada de intervenção")
+        queue.db.rollback()
+    return current + round_seconds
 
 
 async def main() -> None:
@@ -34,6 +56,7 @@ async def main() -> None:
     configure_logging(settings)
     logger.info("worker started", extra={"tick_seconds": settings.worker_tick_seconds})
     engine = create_engine(settings.database_url, pool_pre_ping=True)
+    ensure_calibration_seeded(CRCCalibrationRepository(engine), settings)
 
     # Repositórios e Clientes
     bsky_client = BlueskyClient(settings)
@@ -43,14 +66,22 @@ async def main() -> None:
     jetstream = JetstreamConsumer(post_repo)
     poller = SearchPoller(post_repo, bsky_client, poll_interval_seconds=600)
     llm = LiteLLMModel(settings)
+    ozone = OzoneClient(settings=settings)
+    intervention = InterventionService(InterventionRepository(engine), bsky_client, llm)
+    queue_session = Session(engine)
+    expired = expire_stale_candidates(queue_session)
+    if expired:
+        logger.warning("%d candidato(s) de intervenção expirado(s) ao iniciar", expired)
+    queue = InterventionQueue(settings, queue_session, intervention, ozone)
     pipeline = PipelineService(
         settings=settings,
         db_session=Session(engine),
         bluesky=bsky_client,
-        ozone=OzoneClient(settings=settings),
+        ozone=ozone,
         bots=BotScoringService(engine, bsky_client),
-        verification=VerificationService.from_settings(llm, settings=settings, engine=engine),
-        intervention=InterventionService(InterventionRepository(engine), bsky_client, llm),
+        verification=build_verification_service(llm, settings=settings, engine=engine),
+        intervention=intervention,
+        intervention_queue=queue,
     )
 
     # Inicia as tasks em background
@@ -63,8 +94,11 @@ async def main() -> None:
     refresher_task = asyncio.create_task(refresher.run())
 
     next_ingestion = 0.0
+    round_seconds = settings.intervention_round_minutes * 60
+    next_round = monotonic() + round_seconds
     try:
         while True:
+            next_round = await run_due_intervention_round(queue, next_round, round_seconds)
             if settings.rss_checkers_enabled and monotonic() >= next_ingestion:
                 try:
                     report = await ingestor.run()
@@ -74,12 +108,16 @@ async def main() -> None:
                 next_ingestion = monotonic() + settings.rss_poll_seconds
             candidates = post_repo.get_triage_candidates(settings.worker_pipeline_batch_size)
             for post, _relevance in candidates:
+                next_round = await run_due_intervention_round(queue, next_round, round_seconds)
                 try:
                     decision = await pipeline.analyze(post)
                     status = "ignored" if decision.action == "IGNORE" else "processed"
                     post_repo.update_triage(post.uri, status=status, priority=0.0)
                 except Exception:
                     logger.exception("Falha no pipeline GQ01 para %s", post.uri)
+                    pipeline.db.rollback()
+                next_round = await run_due_intervention_round(queue, next_round, round_seconds)
+            next_round = await run_due_intervention_round(queue, next_round, round_seconds)
             await asyncio.sleep(settings.worker_tick_seconds)
     finally:
         jetstream_task.cancel()

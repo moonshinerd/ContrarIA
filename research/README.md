@@ -11,7 +11,17 @@ research/
 
 Ambiente próprio (`requirements.txt`) para não levar pandas/scikit-learn para a imagem da API.
 
-## Calibração CRC (#25)
+## Calibração CRC
+
+Há uma calibração por backend/modelo. A calibração histórica do backend LLM
+permanece abaixo para reprodução. A arquitetura operacional usa o Jev e o
+procedimento que deve ser seguido está em
+[`docs/calibracao-jev.md`](../docs/calibracao-jev.md): ele gera previsões cruas
+do classificador local, calcula o CRC e versiona um seed em
+`api/app/domain/crc_calibration_seed_jev.json`. Não misture previsões ou
+limiares do LLM com a chave `jev:<repositório>:<arquivo>`.
+
+### Backend LLM (legado/alternativo)
 
 Use preferencialmente 100–200 ClaimReviews em português. O dataset de
 calibração deve conter `actual_label` (ou `textualRating`),

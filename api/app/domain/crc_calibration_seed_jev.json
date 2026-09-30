@@ -1,0 +1,7 @@
+{
+  "lambda_hat": 0.00,
+  "alpha": 0.05,
+  "n": 40,
+  "model": "jev:MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7",
+  "source": "research/datasets/crc_calibration_predictions_jev.csv (mDeBERTa-v3-base-xnli NLI cross-encoder)"
+}

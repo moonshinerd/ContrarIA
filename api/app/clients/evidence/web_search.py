@@ -6,6 +6,7 @@ from collections import OrderedDict
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from time import monotonic
+from urllib.parse import urlparse
 
 import httpx
 
@@ -14,6 +15,39 @@ from app.core.config import Settings
 from app.domain.entities import Evidence
 
 logger = logging.getLogger(__name__)
+
+BLOCKED_EVIDENCE_DOMAINS = {
+    "instagram.com",
+    "facebook.com",
+    "fb.com",
+    "tiktok.com",
+    "twitter.com",
+    "x.com",
+    "bsky.app",
+    "threads.net",
+    "reddit.com",
+    "youtube.com",
+    "youtu.be",
+    "pinterest.com",
+}
+
+
+def is_valid_evidence_url(url: str) -> bool:
+    """Rejeita redes sociais e plataformas de UGC como fontes de verificação factual."""
+    if not url:
+        return False
+    try:
+        domain = urlparse(url).netloc.lower()
+        if domain.startswith("www."):
+            domain = domain[4:]
+        if domain.startswith("m."):
+            domain = domain[2:]
+        for blocked in BLOCKED_EVIDENCE_DOMAINS:
+            if domain == blocked or domain.endswith("." + blocked):
+                return False
+        return True
+    except Exception:
+        return False
 
 
 def parse_date(value: str | None) -> datetime | None:
@@ -61,6 +95,75 @@ class CachedSource(EvidenceSource):
         raise NotImplementedError
 
 
+class SearXNGClient(CachedSource):
+    name = "searxng"
+
+    def __init__(self, settings: Settings, *, transport=None):
+        super().__init__(settings)
+        self.transport = transport
+        self._unavailable_until = 0.0
+
+    @property
+    def enabled(self) -> bool:
+        if monotonic() < self._unavailable_until:
+            return False
+        return self.settings.searxng_enabled and bool(self.settings.searxng_base_url)
+
+    async def _search(self, query: str, limit: int) -> list[Evidence]:
+        if monotonic() < self._unavailable_until:
+            raise RuntimeError("SearXNG temporariamente em espera")
+
+        params: dict[str, str] = {
+            "q": query,
+            "format": "json",
+            "language": self.settings.searxng_language,
+        }
+        if self.settings.searxng_categories:
+            params["categories"] = self.settings.searxng_categories
+
+        base_url = self.settings.searxng_base_url.rstrip("/")
+        try:
+            async with httpx.AsyncClient(
+                timeout=self.settings.evidence_timeout_seconds, transport=self.transport
+            ) as client:
+                response = await client.get(f"{base_url}/search", params=params)
+        except Exception:
+            self._unavailable_until = monotonic() + 10.0
+            raise
+
+        if response.status_code != 200:
+            self._unavailable_until = monotonic() + 10.0
+            response.raise_for_status()
+
+        data = response.json()
+        raw_results = data.get("results", [])
+
+        evidences: list[Evidence] = []
+        seen_urls: set[str] = set()
+
+        for row in raw_results:
+            url = row.get("url")
+            if not url or url in seen_urls or not is_valid_evidence_url(url):
+                continue
+            seen_urls.add(url)
+            title = (row.get("title") or "").strip()
+            content = (row.get("content") or row.get("snippet") or "").strip()
+            published_date = row.get("publishedDate") or row.get("pubdate")
+            evidences.append(
+                Evidence(
+                    source=self.name,
+                    url=url,
+                    title=title,
+                    snippet=content,
+                    published_at=parse_date(published_date),
+                )
+            )
+            if len(evidences) >= limit:
+                break
+
+        return evidences
+
+
 class TavilyClient(CachedSource):
     name = "tavily"
 
@@ -71,6 +174,8 @@ class TavilyClient(CachedSource):
 
     @property
     def enabled(self) -> bool:
+        if monotonic() < self._unavailable_until:
+            return False
         return self.settings.tavily_enabled and bool(self.settings.tavily_api_key)
 
     async def _search(self, query: str, limit: int) -> list[Evidence]:
@@ -92,6 +197,11 @@ class TavilyClient(CachedSource):
             )
         if response.status_code in (429, 432, 433):
             self._unavailable_until = monotonic() + self.settings.tavily_cooldown_seconds
+            logger.warning(
+                "Tavily atingiu limite de créditos/plano (status %d). Em espera por %ds.",
+                response.status_code,
+                self.settings.tavily_cooldown_seconds,
+            )
         response.raise_for_status()
         return [
             Evidence(
@@ -102,7 +212,7 @@ class TavilyClient(CachedSource):
                 published_at=parse_date(row.get("published_date")),
             )
             for row in response.json().get("results", [])
-            if row.get("url")
+            if row.get("url") and is_valid_evidence_url(row["url"])
         ][:limit]
 
 
@@ -151,7 +261,8 @@ class DuckDuckGoClient(CachedSource):
                 published_at=parse_date(row.get("date")),
             )
             for row in rows
-            if row.get("url") or row.get("href")
+            if (row.get("url") or row.get("href"))
+            and is_valid_evidence_url(row.get("url") or row.get("href", ""))
         ][:limit]
 
 
@@ -160,18 +271,36 @@ class EvidenceSearchUnavailable(RuntimeError):
 
 
 class WebSearchSource(EvidenceSource):
-    """Usar esta fonte no pipeline para aplicar a ordem Tavily → DuckDuckGo."""
+    """Usar esta fonte no pipeline para aplicar a ordem SearXNG → Tavily → DuckDuckGo."""
 
     name = "web_search"
 
-    def __init__(self, settings: Settings, *, tavily=None, duckduckgo=None, raise_on_failure=False):
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        searxng=None,
+        tavily=None,
+        duckduckgo=None,
+        raise_on_failure: bool = False,
+    ):
         self.raise_on_failure = raise_on_failure
+        if searxng is not None:
+            self.searxng = searxng
+        elif tavily is not None or duckduckgo is not None:
+            self.searxng = None
+        else:
+            self.searxng = SearXNGClient(settings)
+
         self.tavily = tavily or TavilyClient(settings)
         self.duckduckgo = duckduckgo or DuckDuckGoClient(settings)
 
     async def search(self, query: str, *, limit: int = 5) -> list[Evidence]:
         failures = []
-        for source in (self.tavily, self.duckduckgo):
+        sources = [
+            s for s in (self.searxng, self.tavily, self.duckduckgo) if s is not None and s.enabled
+        ]
+        for source in sources:
             try:
                 result = await source.search(query, limit=limit)
                 if result:

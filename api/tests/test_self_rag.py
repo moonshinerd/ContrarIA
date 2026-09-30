@@ -328,7 +328,7 @@ async def test_invalid_output_twice_raises_typed_error():
     llm = FakeLLM(responses=["não é json", '{"retrieve": true}'])
     service = SelfRAGService(llm, [], limits=one_question_limits())
 
-    with pytest.raises(StructuredSelfRAGOutputError, match="após 2 tentativas"):
+    with pytest.raises(StructuredSelfRAGOutputError, match="após 3 tentativas"):
         await service.run(cove_plan())
 
 

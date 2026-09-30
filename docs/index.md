@@ -30,7 +30,9 @@
 
     ---
 
-    Debate Multiagente (MAD) com promotor, defensor e juiz, enriquecido com CoVe, Self-RAG e calibração por Conformal Risk Control.
+    Verificação local Jev com fontes de evidência, classificação discriminativa Cross-Encoder NLI (mDeBERTa-v3) e
+    calibração por Conformal Risk Control. O fluxo multiagente anterior segue
+    disponível como alternativa experimental.
 
     [:octicons-arrow-right-24: Ver Decisões de Arquitetura (ADRs)](adr/index.md)
 

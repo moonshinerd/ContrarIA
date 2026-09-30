@@ -72,6 +72,7 @@ nav:
       - Metodologia Scrum e Papéis: processo/scrum.md
       - Avaliações da Equipe: processo/avaliacoes.md
   - Guia de Uso: guia-de-uso.md
+  - Calibração do Jev: calibracao-jev.md
   - Arquitetura:
       - Visão Geral: arquitetura/index.md
       - O Pipeline do Agente: arquitetura/pipeline.md
@@ -89,6 +90,8 @@ nav:
       - "0010 – Frontend fora do MVP": adr/0010-frontend-fora-do-mvp.md
       - "0011 – Deploy em VPS": adr/0011-deploy-vps-caddy-cloudflare.md
       - "0012 – Organização sem Sprints": adr/0012-organizacao-sem-sprints.md
+      - "0013 – Backend Local Jev": adr/0013-backend-local-jev.md
+      - "0014 – Busca Web Self-Hosted": adr/0014-busca-web-searxng-trafilatura.md
   - Glossário: glossario.md
   - Atas:
       - Índice: atas/index.md

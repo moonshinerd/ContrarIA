@@ -21,7 +21,7 @@ def bsky():
 @pytest.mark.asyncio
 async def test_quote_post(bsky, monkeypatch):
     # Mock atproto TextBuilder
-    bsky._auth.send_post.return_value = MagicMock(uri="at://new_post")
+    bsky._auth.send_post.return_value = MagicMock(uri="at://new_post", cid="cid_new_post")
 
     # We patch _authenticated to just run the fn
     async def mock_auth(fn):
@@ -29,9 +29,33 @@ async def test_quote_post(bsky, monkeypatch):
 
     monkeypatch.setattr(bsky, "_authenticated", mock_auth)
 
-    uri = await bsky.quote_post("at://target", "cid_target", "Hello", "http://fonte.com")
+    uri, cid = await bsky.quote_post("at://target", "cid_target", "Hello", "http://fonte.com")
     assert uri == "at://new_post"
+    assert cid == "cid_new_post"
     bsky._auth.send_post.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_reply_post(bsky, monkeypatch):
+    bsky._auth.send_post.return_value = MagicMock(uri="at://reply_2", cid="cid_reply_2")
+
+    async def mock_auth(fn):
+        return await fn()
+
+    monkeypatch.setattr(bsky, "_authenticated", mock_auth)
+
+    uri, cid = await bsky.reply_post(
+        root_uri="at://root",
+        root_cid="cid_root",
+        parent_uri="at://reply_1",
+        parent_cid="cid_reply_1",
+        text="continuação",
+    )
+    assert uri == "at://reply_2"
+    assert cid == "cid_reply_2"
+    call_kwargs = bsky._auth.send_post.call_args.kwargs
+    assert call_kwargs["reply_to"].root.uri == "at://root"
+    assert call_kwargs["reply_to"].parent.uri == "at://reply_1"
 
 
 @pytest.mark.asyncio

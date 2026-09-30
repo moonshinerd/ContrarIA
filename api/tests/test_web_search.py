@@ -7,6 +7,7 @@ import pytest
 from app.clients.evidence.web_search import (
     DuckDuckGoClient,
     EvidenceSearchUnavailable,
+    SearXNGClient,
     TavilyClient,
     WebSearchSource,
     parse_date,
@@ -15,7 +16,9 @@ from app.core.config import Settings
 
 
 def settings(**kwargs):
-    return Settings(_env_file=None, tavily_api_key="test-key", **kwargs)
+    kwargs.setdefault("searxng_enabled", False)
+    kwargs.setdefault("tavily_api_key", "test-key")
+    return Settings(_env_file=None, **kwargs)
 
 
 def test_tavily_payload_mapping_and_concurrent_cache():
@@ -267,7 +270,7 @@ def test_web_search_fallback_from_tavily_missing_key_to_ddg_general(monkeypatch,
             return [{"href": "https://example.org/tse-papa", "title": "TSE Papa", "body": "Falso"}]
 
     monkeypatch.setattr("ddgs.DDGS", FakeDDGS)
-    config = Settings(_env_file=None, tavily_api_key="", duckduckgo_enabled=True)
+    config = settings(tavily_api_key="", duckduckgo_enabled=True)
     source = WebSearchSource(config)
 
     results = asyncio.run(source.search("TSE eleição papa urnas eletrônicas"))
@@ -293,9 +296,98 @@ def test_no_results_anywhere_is_not_treated_as_failure_even_with_raise_on_failur
         text = news
 
     monkeypatch.setattr("ddgs.DDGS", FakeDDGS)
-    config = Settings(_env_file=None, tavily_api_key="", duckduckgo_enabled=True)
+    config = settings(tavily_api_key="", duckduckgo_enabled=True)
     source = WebSearchSource(config, raise_on_failure=True)
 
     results = asyncio.run(source.search("TSE eleição papa urnas eletrônicas"))
     assert results == []
     assert "indisponível" not in caplog.text
+
+
+def test_searxng_payload_mapping_and_concurrent_cache():
+    requests = []
+
+    def handler(request: httpx.Request):
+        requests.append(request)
+        assert request.url.params["q"] == "Ana Clara Flávio Bolsonaro"
+        assert request.url.params["format"] == "json"
+        assert request.url.params["language"] == "pt-BR"
+        assert request.url.params["categories"] == "news,general"
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "url": "https://atarde.com.br/politica/materia-teste",
+                        "title": "A Tarde Teste",
+                        "content": "Conteúdo factual da matéria",
+                        "publishedDate": "2026-09-30T10:00:00Z",
+                    },
+                    {
+                        "url": "https://twitter.com/post/12345",
+                        "title": "Post do Twitter",
+                        "content": "Deve ser filtrado por is_valid_evidence_url",
+                    },
+                ]
+            },
+        )
+
+    config = settings(
+        searxng_enabled=True,
+        searxng_base_url="http://mock-searxng:8080",
+        searxng_categories="news,general",
+    )
+    source = SearXNGClient(config, transport=httpx.MockTransport(handler))
+
+    async def run():
+        return await asyncio.gather(
+            *[source.search(" Ana Clara  Flávio Bolsonaro ") for _ in range(3)]
+        )
+
+    results = asyncio.run(run())
+    assert len(requests) == 1  # Cache funcionou para chamadas simultâneas
+    assert len(results[0]) == 1  # Twitter filtrado
+    evidence = results[0][0]
+    assert evidence.source == "searxng"
+    assert evidence.url == "https://atarde.com.br/politica/materia-teste"
+    assert evidence.title == "A Tarde Teste"
+    assert evidence.snippet == "Conteúdo factual da matéria"
+    assert evidence.published_at.year == 2026
+
+
+def test_searxng_cooldown_and_fallback_to_tavily():
+    calls = []
+
+    def searxng_handler(request):
+        calls.append("searxng")
+        return httpx.Response(500)
+
+    def tavily_handler(request):
+        calls.append("tavily")
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "url": "https://g1.globo.com/fato-ou-fake/materia",
+                        "title": "G1 Fato ou Fake",
+                        "content": "Evidência do Tavily",
+                    }
+                ]
+            },
+        )
+
+    config = settings(searxng_enabled=True, searxng_base_url="http://mock-searxng:8080")
+    searxng = SearXNGClient(config, transport=httpx.MockTransport(searxng_handler))
+    tavily = TavilyClient(config, transport=httpx.MockTransport(tavily_handler))
+    source = WebSearchSource(config, searxng=searxng, tavily=tavily)
+
+    async def run():
+        res1 = await source.search("alegação teste 1")
+        assert res1[0].source == "tavily"
+        # Segunda chamada: SearXNG em cooldown de 10s não deve ser chamado
+        res2 = await source.search("alegação teste 2")
+        assert res2[0].source == "tavily"
+
+    asyncio.run(run())
+    assert calls == ["searxng", "tavily", "tavily"]

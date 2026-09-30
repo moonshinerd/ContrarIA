@@ -39,3 +39,15 @@ all_no_origin,True,google_factcheck+wikipedia+tavily+duckduckgo+rss_checkers,394
 all_no_origin,True,google_factcheck+wikipedia+tavily+duckduckgo+rss_checkers,445ea009a4fd5f576bdf,true,insufficient_evidence,0.0,31.80533770799957,0.009851400000000038,0,
 all_no_origin,True,google_factcheck+wikipedia+tavily+duckduckgo+rss_checkers,b79944e7d1f1e9f7435f,true,insufficient_evidence,0.8,64.8995065830004,0.01927799999999999,2,
 all_no_origin,True,google_factcheck+wikipedia+tavily+duckduckgo+rss_checkers,ffd4a5d5bac5340847d9,true,insufficient_evidence,0.0,6.099153999999544,0.0012822999999999862,0,StructuredLLMOutputError
+live_bsky_showcase,False,google_factcheck+wikipedia+web_search+rss_checkers,bsky:3mwacmzachs27,misleading,insufficient_evidence,0.0,,,0,StructuredSelfRAGOutputError
+live_bsky_showcase,False,google_factcheck+wikipedia+web_search+rss_checkers,bsky:3mwbdpbkg2227,true,insufficient_evidence,0.0,,,0,BudgetExceeded
+live_bsky_showcase,False,google_factcheck+wikipedia+web_search+rss_checkers,bsky:3mwa6d2oudc2f,true,insufficient_evidence,0.0,,,0,StructuredSelfRAGOutputError
+live_bsky_showcase,False,google_factcheck+wikipedia+web_search+rss_checkers,bsky:3mwbhpdplmk2l,true,insufficient_evidence,0.0,,,0,BudgetExceeded
+live_bsky_showcase,False,google_factcheck+wikipedia+web_search+rss_checkers,bsky:3mwb5wvyza22w,true,insufficient_evidence,0.0,,,0,StructuredSelfRAGOutputError
+live_bsky_showcase,False,rss_checkers+tavily,bsky:3mwadkrlapk2k,true,insufficient_evidence,0.7,,,1,
+live_bsky_showcase,False,rss_checkers+tavily,bsky:3mw7yoquw722w,false,insufficient_evidence,0.0,,,0,
+live_bsky_showcase,False,google_factcheck+wikipedia+web_search+rss_checkers,bsky:3mw5osmvwxk2f,true,insufficient_evidence,0.0,,,0,StructuredSelfRAGOutputError
+live_bsky_showcase,False,rss_checkers+tavily+wikipedia,bsky:3mwb3lhhh6k2b,true,true,0.9,,,6,
+live_bsky_showcase,False,rss_checkers+tavily+wikipedia,bsky:3mw7yqprcok25,true,insufficient_evidence,0.8,,,2,
+live_bsky_showcase,False,rss_checkers+tavily+wikipedia,bsky:3mw7zzrlef22e,true,true,0.8,,,2,
+live_bsky_showcase,False,google_factcheck+wikipedia+web_search+rss_checkers,bsky:3mwad57l5rc2g,misleading,insufficient_evidence,0.0,,,0,BudgetExceeded

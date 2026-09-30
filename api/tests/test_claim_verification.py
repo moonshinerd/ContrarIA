@@ -211,7 +211,7 @@ async def test_invalid_json_is_retried_and_never_leaks_unvalidated_output():
 @pytest.mark.anyio
 async def test_invalid_json_twice_raises_typed_error():
     fake = FakeLLM(responses=["não é json", '{"items": []}'])
-    with pytest.raises(StructuredLLMOutputError, match="após 2 tentativas"):
+    with pytest.raises(StructuredLLMOutputError, match="após 3 tentativas"):
         await ClaimVerificationPlanner(fake).extract(PostContext(post="Conteúdo."))
 
 
@@ -289,9 +289,9 @@ async def test_cove_requires_exact_factual_claim_coverage():
             )
         ]
     )
-    with pytest.raises(StructuredLLMOutputError, match="após 2 tentativas"):
+    with pytest.raises(StructuredLLMOutputError, match="após 3 tentativas"):
         await ClaimVerificationPlanner(fake).generate_questions(extraction)
-    assert fake.call_count == 2
+    assert fake.call_count == 3
 
 
 def test_post_context_rejects_blank_and_oversized_input():

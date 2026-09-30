@@ -1,16 +1,44 @@
+import asyncio
 import logging
+import re
 import unicodedata
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
+from app.clients.articles import fetch_article_text
 from app.clients.bluesky_client import BlueskyClient
 from app.core.config import get_settings
-from app.domain.entities import Account, Post, Verdict, VerdictLabel
+from app.domain.entities import Account, Evidence, Post, Verdict, VerdictLabel
 from app.models.llm.base import LLMPort
+from app.models.llm.model_limits import get_max_input_tokens
 from app.repositories.interventions import InterventionRepository
 from app.services.prompts_loader import load_prompt
 
 logger = logging.getLogger("contraria.services.intervention")
 
 _AGGRESSIVE_TERMS = ("idiota", "burro", "imbecil", "estúpido", "estupido", "lixo")
+
+_BLUESKY_LIMIT = 300
+_THREAD_MARK = " 🧵"
+_SOURCE_LABEL = " [1] [2] [3]"
+
+_BRASILIA = timezone(timedelta(hours=-3))
+
+# A revisão lê as cinco fontes mais relevantes por inteiro. Quando o conjunto
+# excede a janela de entrada, o texto é dividido em lotes sem descartar trechos.
+_MAX_SOURCES_LISTED = 5
+_MAX_ARTICLE_READS = 0
+_CHARS_PER_TOKEN_ESTIMATE = 3
+_SOURCE_REVIEW_RESERVED_TOKENS = 16_000
+_TYPE_LINE = re.compile(r"\s*TIPO:\s*(\w+)[^\n]*\n?", re.IGNORECASE)
+_VERDICT_LINE = re.compile(r"\s*VEREDITO:\s*(\w+)[^\n]*\n?", re.IGNORECASE)
+_SOURCE_LINE = re.compile(r"\s*FONTE:\s*([0-9, ]+)[^\n]*\n?", re.IGNORECASE)
+_ACTIONABLE_VERDICTS = {"DESMENTE", "DISTORCE"}
+
+
+async def _no_tool_call(name: str, arguments: dict[str, Any]) -> str:
+    """Defesa para a interface de tool calling; a redação final não usa ferramentas."""
+    return "Não há ferramentas disponíveis nesta etapa; responda usando as revisões."
 
 
 def _grapheme_len(text: str) -> int:
@@ -30,6 +58,111 @@ def _truncate_graphemes(text: str, limit: int) -> str:
             break
         result.append(char)
     return "".join(result).rstrip() + "…"
+
+
+def _format_sources(sources: list[Evidence]) -> str:
+    return "\n".join(
+        f"{index}. {item.title} ({item.url})\n   {item.snippet[:300]}"
+        for index, item in enumerate(sources, start=1)
+    )
+
+
+def _split_text(text: str, max_chars: int) -> list[str]:
+    """Divide texto preservando todos os caracteres e preferindo fronteira de palavra."""
+    if len(text) <= max_chars:
+        return [text]
+    chunks: list[str] = []
+    remaining = text
+    while remaining:
+        if len(remaining) <= max_chars:
+            chunks.append(remaining)
+            break
+        cut = remaining.rfind(" ", 0, max_chars + 1)
+        if cut <= 0:
+            cut = max_chars
+        chunks.append(remaining[:cut])
+        remaining = remaining[cut:]
+    return chunks
+
+
+def _build_source_batches(
+    sources: list[Evidence], articles: list[str], input_budget_tokens: int
+) -> list[str]:
+    """Agrupa fontes inteiras em lotes que cabem na margem de contexto configurada."""
+    max_chars = input_budget_tokens * _CHARS_PER_TOKEN_ESTIMATE
+    batches: list[str] = []
+    current = ""
+    for number, (source, article) in enumerate(zip(sources, articles, strict=True), start=1):
+        header = f"FONTE {number}: {source.title}\nURL: {source.url}\nTEXTO:\n"
+        for part in _split_text(article, max_chars - len(header)):
+            block = f"{header}{part}\n"
+            if current and len(current) + len(block) > max_chars:
+                batches.append(current)
+                current = ""
+            current += block
+    if current:
+        batches.append(current)
+    return batches
+
+
+def _parse_agent_output(text: str, sources: list[Evidence]) -> tuple[str, list[str]]:
+    """Lê `TIPO:`, `VEREDITO:` e `FONTE: n, m` e devolve (texto, lista de urls das fontes).
+
+    urls vazia = não publicar: o post é opinião/previsão (TIPO: OPINIAO), o
+    agente concluiu CONFIRMA, ou não seguiu o formato (na dúvida, não responde).
+    """
+    claim_type = _TYPE_LINE.match(text)
+    if not claim_type or claim_type.group(1).upper() != "FATO":
+        return "", []
+    text = text[claim_type.end() :]
+    verdict = _VERDICT_LINE.match(text)
+    if not verdict or verdict.group(1).upper() not in _ACTIONABLE_VERDICTS:
+        return "", []
+    rest = text[verdict.end() :]
+    source_match = _SOURCE_LINE.match(rest)
+    if not source_match:
+        return rest, [sources[0].url] if sources else []
+    raw_numbers = [x.strip() for x in source_match.group(1).split(",") if x.strip().isdigit()]
+    numbers = [int(x) for x in raw_numbers]
+    if not numbers or 0 in numbers:
+        return "", []
+    urls: list[str] = []
+    for num in numbers:
+        if 1 <= num <= len(sources):
+            u = sources[num - 1].url
+            if u not in urls:
+                urls.append(u)
+    if not urls and sources:
+        urls.append(sources[0].url)
+    return rest[source_match.end() :], urls[:3]
+
+
+def _split_for_thread(text: str, limit: int = _BLUESKY_LIMIT) -> list[str]:
+    """Quebra `text` em pedaços que cabem no limite do Bluesky.
+
+    Reserva espaço (o maior dos dois) tanto para o emoji de thread (🧵, nos
+    pedaços que não são o último) quanto para o link [Fonte] (no último),
+    já que não sabemos até o fim da divisão qual pedaço será o último.
+    """
+    normalized = " ".join(text.split())
+    reserve = max(_grapheme_len(_THREAD_MARK), _grapheme_len(_SOURCE_LABEL))
+    budget = limit - reserve
+    words = normalized.split(" ")
+    chunks: list[str] = []
+    current = ""
+    for word in words:
+        if _grapheme_len(word) > budget:
+            word = _truncate_graphemes(word, budget)
+        candidate = f"{current} {word}".strip()
+        if _grapheme_len(candidate) > budget:
+            if current:
+                chunks.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        chunks.append(current)
+    return chunks or [_truncate_graphemes(normalized, budget)]
 
 
 class InterventionService:
@@ -113,44 +246,158 @@ class InterventionService:
         if not verdict.evidences:
             logger.info("Sem evidências para citar a fonte")
             return None
-        source_url = verdict.evidences[0].url
+        candidate_sources = verdict.evidences[:_MAX_SOURCES_LISTED]
 
-        prompt_template = load_prompt("quote_post")
-        prompt = prompt_template.format(
-            claim=verdict.claim, rationale=verdict.rationale, tone=target_tone
+        async def fetch_source(source: Evidence) -> str | None:
+            logger.info("Lendo obrigatoriamente a fonte: %s", source.url)
+            return await fetch_article_text(source.url)
+
+        article_results = await asyncio.gather(
+            *(fetch_source(source) for source in candidate_sources)
+        )
+        readable_pairs = [
+            (source, text)
+            for source, text in zip(candidate_sources, article_results, strict=True)
+            if text
+        ]
+        if not readable_pairs:
+            logger.info("Nenhuma fonte pôde ser lida integralmente; não intervém")
+            return None
+        sources = [source for source, _ in readable_pairs]
+        articles = [text for _, text in readable_pairs]
+        total_article_chars = sum(len(article) for article in articles)
+        if total_article_chars > self.settings.llm_source_review_max_chars:
+            logger.info(
+                "Fontes somam %d caracteres, acima do limite seguro de %d; não intervém",
+                total_article_chars,
+                self.settings.llm_source_review_max_chars,
+            )
+            return None
+
+        model_input_limit = get_max_input_tokens(
+            self.settings.llm_model_name, self.settings.llm_context_window_tokens
+        )
+        usable_context_tokens = max(
+            4_000,
+            model_input_limit - _SOURCE_REVIEW_RESERVED_TOKENS,
+        )
+        batch_budget_tokens = min(
+            self.settings.llm_source_review_input_budget_tokens,
+            usable_context_tokens,
+        )
+        batches = _build_source_batches(sources, articles, batch_budget_tokens)
+        if len(batches) > self.settings.llm_source_review_max_batches:
+            logger.info(
+                "Revisão exigiria %d lotes, acima do limite seguro de %d; não intervém",
+                len(batches),
+                self.settings.llm_source_review_max_batches,
+            )
+            return None
+        review_system = load_prompt("source_review", version=1).format(
+            post_text=post.text,
+            claim=verdict.claim,
+        )
+        source_reviews: list[str] = []
+        for index, batch in enumerate(batches, start=1):
+            logger.info("Revisando lote de fontes %d/%d", index, len(batches))
+            review = await self.llm.complete(
+                system=review_system,
+                user=f"LOTE {index}/{len(batches)}:\n{batch}",
+                purpose="source_review",
+            )
+            if not review.strip():
+                logger.info("Lote de fontes sem revisão; não intervém")
+                return None
+            source_reviews.append(f"LOTE {index}/{len(batches)}:\n{review.strip()}")
+
+        now = datetime.now(_BRASILIA)
+        prompt = load_prompt("quote_post", version=2).format(
+            current_datetime=f"{now:%d/%m/%Y %H:%M} (horário de Brasília)",
+            post_text=post.text,
+            claim=verdict.claim,
+            rationale=verdict.rationale,
+            tone=target_tone,
+            sources=_format_sources(sources),
+            source_reviews="\n\n".join(source_reviews),
         )
 
-        logger.info("Gerando texto de intervenção (LLM)...")
-        generated_text = await self.llm.complete(
+        logger.info("Gerando texto de intervenção após revisão integral das fontes...")
+        generated_text = await self.llm.complete_with_tools(
             system=prompt,
-            user="Gere apenas o texto final do quote post.",
+            user="Use somente as revisões das fontes e gere o quote post.",
+            tools=[],
+            call_tool=_no_tool_call,
+            max_tool_calls=_MAX_ARTICLE_READS,
             purpose="quote_post",
         )
+        agent_output = generated_text
+        generated_text, source_urls = _parse_agent_output(agent_output, sources)
+        if not source_urls:
+            logger.info(
+                "Agente de consulta vetou a intervenção em %s: fontes confirmam o post", post.uri
+            )
+            return None
 
-        # Guardrails pós-geração
-        generated_text = _truncate_graphemes(generated_text.strip(), 292)
+        # Guardrails pós-geração (sobre o texto completo, antes de dividir em thread)
+        generated_text = generated_text.strip()
         is_aggressive = any(term in generated_text.casefold() for term in _AGGRESSIVE_TERMS)
         if not generated_text or is_aggressive:
             logger.warning("Texto de intervenção reprovado pelos guardrails")
             return None
 
+        # Quando o texto não cabe em um post só, continua como resposta
+        # encadeada (thread) em vez de cortar o final com "…" -- cada pedaço
+        # que não é o último termina com 🧵; o link da fonte vai só no último.
+        chunks = _split_for_thread(generated_text)
+
         is_dry_run = getattr(self.settings, "intervention_dry_run", True)
 
         if is_dry_run:
             logger.info(
-                "[DRY RUN] Intervenção gerada (não publicada): %s | Fonte: %s",
-                generated_text,
-                source_url,
+                "[DRY RUN] Intervenção gerada (não publicada, %d post(s)): %s | Fontes: %s",
+                len(chunks),
+                " | ".join(chunks),
+                ", ".join(source_urls),
             )
             return "dry_run_uri"
 
-        logger.info("Publicando quote post para %s...", post.uri)
+        logger.info("Publicando quote post para %s (%d post(s))...", post.uri, len(chunks))
         try:
-            quote_uri = await self.bsky_client.quote_post(
-                target_uri=post.uri, target_cid=post.cid, text=generated_text, source_url=source_url
+            first_text = chunks[0] + (_THREAD_MARK if len(chunks) > 1 else "")
+            first_sources = source_urls if len(chunks) == 1 else None
+            first_source = first_sources[0] if first_sources else None
+            root_uri, root_cid = await self.bsky_client.quote_post(
+                target_uri=post.uri,
+                target_cid=post.cid,
+                text=first_text,
+                source_url=first_source,
+                source_urls=first_sources,
             )
             self.repo.record_intervention(post.uri, post.author_did, "quote_post")
-            return quote_uri
+
+            parent_uri, parent_cid = root_uri, root_cid
+            for index, chunk in enumerate(chunks[1:], start=1):
+                is_last = index == len(chunks) - 1
+                text = chunk if is_last else chunk + _THREAD_MARK
+                sources_to_pass = source_urls if is_last else None
+                source_to_pass = sources_to_pass[0] if sources_to_pass else None
+                try:
+                    parent_uri, parent_cid = await self.bsky_client.reply_post(
+                        root_uri=root_uri,
+                        root_cid=root_cid,
+                        parent_uri=parent_uri,
+                        parent_cid=parent_cid,
+                        text=text,
+                        source_url=source_to_pass,
+                        source_urls=sources_to_pass,
+                    )
+                except Exception as e:
+                    logger.error(
+                        "Falha ao publicar continuação %d/%d: %s", index + 1, len(chunks), e
+                    )
+                    break
+
+            return root_uri
         except Exception as e:
             logger.error("Falha ao publicar quote post: %s", e)
             return None

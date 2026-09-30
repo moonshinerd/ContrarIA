@@ -184,6 +184,45 @@ async def test_get_author_feed_paginates_and_flags_reposts(
     assert router.called("app.bsky.feed.getAuthorFeed")[1].url.params["cursor"] == "c1"
 
 
+async def test_get_thread_context_limits_posts_and_keeps_author_continuation(
+    client: BlueskyClient, router: Router
+) -> None:
+    parent = _post_view(1)
+    target = _post_view(2)
+    reply_same_author = _post_view(3)
+    reply_other_author = _post_view(4, did="did:plc:other")
+    parent["record"]["text"] = "contexto anterior"
+    target["record"]["text"] = "post principal"
+    reply_same_author["record"]["text"] = "continuação do autor"
+    reply_other_author["record"]["text"] = "resposta de outra pessoa"
+    router.on(
+        "app.bsky.feed.getPostThread",
+        httpx.Response(
+            200,
+            json={
+                "thread": {
+                    "$type": "app.bsky.feed.defs#threadViewPost",
+                    "post": target,
+                    "parent": {
+                        "$type": "app.bsky.feed.defs#threadViewPost",
+                        "post": parent,
+                    },
+                    "replies": [
+                        {"$type": "app.bsky.feed.defs#threadViewPost", "post": reply_same_author},
+                        {"$type": "app.bsky.feed.defs#threadViewPost", "post": reply_other_author},
+                    ],
+                }
+            },
+        ),
+    )
+
+    context = await client.get_thread_context(target["uri"], max_posts=2, max_chars=1000)
+
+    assert context == "post anterior: contexto anterior\ncontinuação do autor: continuação do autor"
+    assert "post principal" not in context
+    assert "resposta de outra pessoa" not in context
+
+
 async def test_search_requires_login_and_persists_session(
     client: BlueskyClient, router: Router, settings: Settings
 ) -> None:

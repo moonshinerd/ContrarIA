@@ -11,6 +11,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
+from datetime import UTC, date, datetime
 from typing import Any
 
 from app.core.config import Settings, get_settings
@@ -147,6 +148,7 @@ class DebateService:
         evidences: list[Evidence],
         rounds: int | None = None,
         verified_answers: list[str] | None = None,
+        current_date: date | None = None,
     ) -> DebateVerdict:
         """Executa as N rodadas de debate e emite o veredito final do Juiz."""
         num_rounds = rounds or self.settings.debate_rounds
@@ -159,7 +161,17 @@ class DebateService:
 
         promotor_prompt = load_prompt("promotor", version=1)
         defensor_prompt = load_prompt("defensor", version=1)
-        juiz_prompt = load_prompt("juiz", version=1)
+        # O juiz não recebia nenhuma noção de "hoje": medido ao vivo (25/09/2026),
+        # ele confundiu a data de publicação de uma matéria real (a data de
+        # hoje) com uma data futura e classificou uma notícia verdadeira como
+        # "misleading" por esse motivo. Data e hora são injetadas explicitamente
+        # para eliminar essa classe de erro.
+        analysis_date = current_date or datetime.now(UTC).date()
+        current_time = datetime.now(UTC).strftime("%H:%M UTC")
+        current_datetime_display = f"{analysis_date.isoformat()} (horário atual: {current_time})"
+        juiz_prompt = load_prompt("juiz", version=1).replace(
+            "{{CURRENT_DATETIME}}", current_datetime_display
+        )
 
         transcript: list[DebateTurn] = []
 
@@ -269,10 +281,15 @@ class DebateService:
         consensus = self._parse_consensus(parsed.get("consensus", False))
         p_ik = float(parsed.get("p_ik", confidence))
 
-        # Aplicação das regras de Humildade Epistêmica P(IK) e Consenso
-        # Se não há consenso ou P(IK) está abaixo da margem de segurança, abstém-se
+        # Aplicação da regra de Humildade Epistêmica P(IK).
+        # "consensus" continua sendo registrado (é o autorrelato do juiz sobre
+        # ter havido divergência não resolvida no debate), mas não bloqueia
+        # mais sozinho: era um veto binário redundante sobre o próprio p_ik
+        # (medida contínua e mais proporcional), e na prática abstinha mesmo
+        # com p_ik alto (ex.: p_ik=0.9, consensus=false) -- calibrado a pedido
+        # explícito (25/09/2026) para reduzir esse excesso de cautela.
         abstained = False
-        if not consensus or p_ik < self.settings.debate_p_ik_threshold:
+        if p_ik < self.settings.debate_p_ik_threshold:
             label = VerdictLabel.INSUFFICIENT_EVIDENCE
             abstained = True
             if not rationale:

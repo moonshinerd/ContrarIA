@@ -153,6 +153,7 @@ class VerificationService:
                     post_text=post.text,
                     evidences=evidences,
                     verified_answers=[item.answer for item in answers],
+                    current_date=current_date,
                 )
             except Exception as exc:
                 logger.exception("Falha no debate da alegação %s", claim)
@@ -199,8 +200,6 @@ class VerificationService:
             reasons.append("calibração usa alpha acima do limite configurado")
         if not isfinite(debated.confidence) or not 0 <= debated.confidence <= 1:
             reasons.append("confiança inválida")
-        if not debated.consensus:
-            reasons.append("não houve consenso")
         if not isfinite(debated.p_ik) or not 0 <= debated.p_ik <= 1:
             reasons.append("P(IK) inválido")
         elif debated.p_ik < self.settings.debate_p_ik_threshold:

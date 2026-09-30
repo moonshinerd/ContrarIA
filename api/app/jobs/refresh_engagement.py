@@ -2,7 +2,7 @@ import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,8 @@ from app.db.orm.posts import Post, PostEngagementSnapshot
 from app.domain.prioritization import calculate_relevance, evaluate_gq04_matrix
 
 logger = logging.getLogger("contraria.jobs.refresh_engagement")
+
+_FINAL_TRIAGE_STATUSES = ("processed", "ignored")
 
 
 class EngagementRefresher:
@@ -126,7 +128,15 @@ class EngagementRefresher:
                     .where(Post.uri == p.uri)
                     .values(
                         priority=triage_result.priority,
-                        triage_status=triage_result.triage_status,
+                        # Sem isso, todo post já decidido voltava à fila a cada refresh e era
+                        # reanalisado (e o LLM, pago de novo) indefinidamente.
+                        triage_status=case(
+                            (
+                                Post.triage_status.in_(_FINAL_TRIAGE_STATUSES),
+                                Post.triage_status,
+                            ),
+                            else_=triage_result.triage_status,
+                        ),
                     )
                 )
                 session.execute(up_stmt)

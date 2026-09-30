@@ -76,12 +76,30 @@ sequenceDiagram
 
 Esta seção orienta como subir a infraestrutura completa do ContrarIA para desenvolvimento local, execução de testes e operação em produção.
 
-### 3.1 Pré-requisitos de Ambiente
+### 3.1 Pré-requisitos de Ambiente e Requisitos de Hardware
 
 * **Sistema Operacional:** Linux, macOS ou Windows (com WSL2).
 * **Docker Engine:** Versão 24.0+ e **Docker Compose** v2+.
 * **Python:** 3.12+ (gerenciado preferencialmente com [`uv`](https://github.com/astral-sh/uv)).
 * **Git:** Para controle de versão.
+
+#### Requisitos de Hardware (Mínimo vs Recomendado)
+
+Com a adoção do modelo local discriminativo **Jev** (`mDeBERTa-v3` NLI via Transformers / PyTorch) e do metabuscador self-hosted **SearXNG**, a aplicação tornou-se significativamente mais leve: a pilha completa consome em torno de **3,3 GiB a 4,5 GiB de RAM** em regime operacional contínuo.
+
+| Recurso | Mínimo (rodar aplicação minimamente) | Recomendado (rodar "de boa" com folga) |
+|---|---|---|
+| **Memória RAM na máquina** | **8 GB** (com ao menos **5 a 6 GB** alocados ao Docker Desktop) | **16 GB** (com **8 a 10 GB** alocados ao Docker Desktop) |
+| **Processador (CPU)** | 4 núcleos (x86_64 ou Apple Silicon) | 8 núcleos (x86_64 ou Apple Silicon) |
+| **Armazenamento (Disco)** | 15 GB livres (imagens Docker + modelo NLI ~500 MB + banco) | 30 GB+ livres em SSD rápido |
+
+> [!NOTE] **Telemetria de Consumo Médio em Operação Real:**
+> - `jev` (mDeBERTa-v3 NLI / Transformers): ~800 MiB a 1,2 GiB de RAM (peso de ~500 MB)
+> - `worker` (pipeline assíncrono + Jetstream + Trafilatura): ~1,2 a 1,5 GiB de RAM
+> - `api` (FastAPI / Uvicorn): ~500 a 650 MiB de RAM
+> - `searxng` (metabuscador web multi-engine): ~250 a 300 MiB de RAM
+> - `db` (PostgreSQL 16 + pgvector): ~120 a 180 MiB de RAM
+> - **Total da Pilha:** **~3,3 a 4,5 GiB de RAM**
 
 ---
 
@@ -104,8 +122,17 @@ O ContrarIA mantém uma separação rígida entre código e credenciais. Nunca c
 | `BLUESKY_APP_PASSWORD` | App Password gerada exclusivamente para o bot | Configurações do Bluesky $\rightarrow$ *App Passwords* |
 | `BLUESKY_SESSION_PATH` | Caminho do arquivo de sessão em disco | `/srv/data/bluesky.session` (padrão no container) |
 | `GOOGLE_FACTCHECK_API_KEY` | Chave da Google Fact Check Tools API | Console do Google Cloud (projeto com a API ativada) |
-| `LITELLM_MODEL` | Identificador do modelo de linguagem | `openrouter/meta-llama/llama-3.1-70b-instruct` ou `ollama/...` |
-| `OPENROUTER_API_KEY` | Chave de acesso à OpenRouter | Console da OpenRouter (se utilizar modelos em nuvem) |
+| `VERIFICATION_BACKEND` | Backend de verificação | `jev` na operação local; `llm` apenas para o fluxo alternativo de CoVe/Self-RAG/debate |
+| `JEV_MODEL_REPO` | Repositório HuggingFace do modelo NLI Cross-Encoder | `MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7` |
+| `JEV_SERVER_URL` | Endereço interno do serviço compartilhado | `http://jev:8100` no Docker Compose |
+| `JEV_ALLOW_UNCALIBRATED` | Libera decisão sem CRC | Mantenha `false` em produção |
+| `LLM_MODEL_NAME` | Modelo que redige o quote post após decisão elegível | Ex.: `openrouter/openai/gpt-5-mini` |
+| `LLM_CONTEXT_WINDOW_TOKENS` | Fallback de janela quando LiteLLM não conhece o modelo | `400000` para GPT-5 mini |
+| `LLM_SOURCE_REVIEW_INPUT_BUDGET_TOKENS` | Máximo de tokens estimados de cada lote de leitura | `320000`, preservando margem para instruções e saída; o limite real vem do LiteLLM |
+| `LLM_SOURCE_REVIEW_MAX_CHARS` | Teto somado de caracteres extraídos das cinco fontes | `2500000`; acima dele o bot se abstém, sem truncar |
+| `LLM_SOURCE_REVIEW_MAX_BATCHES` | Máximo de lotes integrais por intervenção | `3`; impede custo e latência descontrolados |
+| `LLM_API_KEY` | Chave do provedor do LLM de redação | Necessária para publicar quote posts |
+| `SEARXNG_BASE_URL` | Endereço interno do metabuscador SearXNG | `http://searxng:8080` no Docker Compose |
 | `DATABASE_URL` | String de conexão SQLAlchemy | `postgresql+psycopg://contraria:contraria@db:5432/contraria` |
 | `RSS_CHECKERS_ENABLED` | Ativação do job de ingestão de feeds | `true` |
 
@@ -116,7 +143,10 @@ O ContrarIA mantém uma separação rígida entre código e credenciais. Nunca c
 
 ### 3.3 Inicialização via Docker Compose
 
-A forma recomendada de executar todo o ecossistema (banco com pgvector, API FastAPI e worker assíncrono) é através do Docker Compose:
+A forma recomendada de executar todo o ecossistema (banco com pgvector,
+serviço Jev, metabuscador SearXNG, API FastAPI e worker assíncrono) é através do Docker Compose. O
+serviço `jev` mantém uma única cópia do modelo local em memória e é
+compartilhado por API e worker:
 
 ```bash
 # Subir todo o ambiente em segundo plano com build das imagens
@@ -161,11 +191,12 @@ Dispara manualmente a coleta das checagens mais recentes das agências jornalís
 docker compose run --rm api python -m app.jobs.ingest_fact_articles
 ```
 
-#### 4. Execução do Experimento de Calibração CRC
-Roda a validação estatística de abstenção com notas de corte empíricas sobre o dataset de avaliação:
-```bash
-docker compose run --rm api python -m research.experiments.calibrate_crc
-```
+#### 4. Calibração do backend Jev
+O Jev só toma decisões publicáveis se houver calibração CRC para a combinação
+atual de modelo e arquivo. O procedimento completo, incluindo teste rápido,
+dataset, seed para novos bancos e validações, está em
+[Calibração CRC do Jev](calibracao-jev.md). Não defina
+`JEV_ALLOW_UNCALIBRATED=true` fora de testes controlados.
 
 ---
 
@@ -188,3 +219,7 @@ O serviço HTTP do ContrarIA é construído em **FastAPI** e roda por padrão na
 * **Rate Limits do Google Fact Check:** A cota da API é de 300 chamadas por minuto. O cliente nativo do ContrarIA (`app/clients/evidence/ratelimit.py`) aplica automaticamente uma janela deslizante calibrada para 240 chamadas/minuto com margem de segurança de 20%.
 * **Limite de Sessões no Bluesky:** O AT Protocol permite até 300 criações de sessão por dia e 30 a cada 5 minutos. O sistema armazena a sessão ativa em arquivo (`BLUESKY_SESSION_PATH`). Nunca delete esse arquivo sem necessidade.
 * **Princípio do Silêncio em Falhas:** Se uma API externa cair ou a rede falhar momentaneamente, o ContrarIA **não interrompe o fluxo com exceções fatais**; ele adota o princípio da abstenção fundamentada (`insufficient_evidence`), garantindo que nenhum post seja rotulado erroneamente por falta de dados.
+* **Saúde do Jev:** `curl http://localhost:8000/health` confirma a API; use
+  `docker compose ps` para confirmar que `jev` está `healthy` e
+  `docker compose logs -f worker jev` para acompanhar classificação e fila.
+  A primeira classificação baixa o modelo e pode demorar mais.

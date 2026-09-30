@@ -90,6 +90,10 @@ def _post_from_view(view: Any, *, is_repost: bool = False) -> Post:
     )
 
 
+def _post_text_from_view(view: Any) -> str:
+    return (getattr(view.record, "text", "") or "").strip()
+
+
 def _account_from_profile(profile: Any) -> Account:
     labels = profile.labels or []
     return Account(
@@ -184,6 +188,7 @@ class BlueskyClient:
                         session_string=path.read_text().strip(), fetch_bsky_profile=False
                     )
                     self._logged_in = True
+                    self._populate_me()
                     logger.info("bluesky session resumed")
                     return self._did_from_session()
                 except (UnauthorizedError, ValueError):
@@ -197,6 +202,7 @@ class BlueskyClient:
                 )
             await self._auth.login(login=handle, password=password, fetch_bsky_profile=False)
             self._logged_in = True
+            self._populate_me()
             logger.info("bluesky session created", extra={"handle": handle})
             return self._did_from_session()
 
@@ -205,6 +211,25 @@ class BlueskyClient:
         if session is None:
             raise BlueskyAuthError("sessão ausente após login")
         return session.did
+
+    def _populate_me(self) -> None:
+        """Preenche ``self._auth.me`` sem round-trip de rede.
+
+        `login(..., fetch_bsky_profile=False)` deixa `self._auth.me = None` de
+        propósito, para não validar a sessão retomada contra a rede. Só que
+        métodos de conveniência do SDK como `send_post` (usado em
+        `quote_post`) checam `self.me and self.me.did` e levantam
+        `LoginRequiredError` incondicionalmente se `me` for `None` -- medido
+        ao vivo (25/09/2026): toda tentativa de publicar falhava por isso,
+        mesmo com sessão válida. DID e handle já vêm da sessão persistida,
+        então um `ProfileViewDetailed` mínimo resolve sem custo de rede.
+        """
+        session = self._auth._session  # noqa: SLF001 -- ver _did_from_session
+        if session is None:
+            return
+        self._auth.me = models.AppBskyActorDefs.ProfileViewDetailed(
+            did=session.did, handle=session.handle
+        )
 
     # ---- rate limit -----------------------------------------------------
 
@@ -296,6 +321,72 @@ class BlueskyClient:
                 break
         return posts[:limit]
 
+    async def get_thread_context(
+        self, uri: str, *, max_posts: int = 4, max_chars: int = 3000
+    ) -> str | None:
+        """Resumo limitado do fio ao redor do post para dar contexto à verificação.
+
+        Inclui posts anteriores do fio e continuações do mesmo autor. O próprio
+        post alvo não entra aqui, porque ele já é passado separadamente como
+        `post.text`.
+        """
+        if max_posts <= 0 or max_chars <= 0:
+            return None
+        response = await self._call(
+            lambda: self._public.app.bsky.feed.get_post_thread(
+                {"uri": uri, "depth": max_posts, "parentHeight": max_posts}
+            )
+        )
+        thread = response.thread
+        if not hasattr(thread, "post"):
+            return None
+
+        target_author = thread.post.author.did
+        parts: list[tuple[str, str]] = []
+
+        ancestors = []
+        parent = getattr(thread, "parent", None)
+        while parent is not None and hasattr(parent, "post"):
+            ancestors.append(parent)
+            parent = getattr(parent, "parent", None)
+        for item in reversed(ancestors):
+            text = _post_text_from_view(item.post)
+            if text:
+                parts.append(("post anterior", text))
+
+        def collect_same_author_replies(node: Any) -> None:
+            if len(parts) >= max_posts:
+                return
+            for reply in getattr(node, "replies", None) or []:
+                if len(parts) >= max_posts:
+                    return
+                post = getattr(reply, "post", None)
+                if post is None:
+                    continue
+                if post.author.did != target_author:
+                    continue
+                text = _post_text_from_view(post)
+                if text:
+                    parts.append(("continuação do autor", text))
+                collect_same_author_replies(reply)
+
+        collect_same_author_replies(thread)
+
+        if not parts:
+            return None
+        selected: list[str] = []
+        total = 0
+        for label, text in parts[:max_posts]:
+            block = f"{label}: {text}"
+            remaining = max_chars - total
+            if remaining <= 0:
+                break
+            if len(block) > remaining:
+                block = block[: max(0, remaining - 1)].rstrip() + "…"
+            selected.append(block)
+            total += len(block) + 1
+        return "\n".join(selected) or None
+
     # ---- autenticado ----------------------------------------------------
 
     async def search_posts(
@@ -366,18 +457,34 @@ class BlueskyClient:
         return True
 
     async def quote_post(
-        self, target_uri: str, target_cid: str, text: str, source_url: str | None = None
-    ) -> str:
-        """Cria um quote post para o alvo com o texto fornecido (e link opcional)."""
+        self,
+        target_uri: str,
+        target_cid: str,
+        text: str,
+        source_url: str | None = None,
+        source_urls: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Cria um quote post para o alvo com o texto fornecido (e link(s) de fontes).
+
+        Devolve (uri, cid) do post criado. Suporta uma ou múltiplas fontes ([Fonte] ou [1] [2]).
+        """
         await self.login()
 
         from atproto import client_utils, models
 
+        urls = list(source_urls) if source_urls else ([source_url] if source_url else [])
+
         tb = client_utils.TextBuilder()
         tb.text(text)
-        if source_url:
+        if len(urls) == 1:
             tb.text(" ")
-            tb.link("[Fonte]", source_url)
+            tb.link("[Fonte]", urls[0])
+        elif len(urls) > 1:
+            tb.text(" ")
+            for idx, u in enumerate(urls[:3], start=1):
+                if idx > 1:
+                    tb.text(" ")
+                tb.link(f"[{idx}]", u)
 
         # O embed deve ser um embed record apontando pro alvo
         embed = models.AppBskyEmbedRecord.Main(
@@ -385,7 +492,50 @@ class BlueskyClient:
         )
 
         response = await self._authenticated(lambda: self._auth.send_post(text=tb, embed=embed))
-        return response.uri
+        return response.uri, response.cid
+
+    async def reply_post(
+        self,
+        root_uri: str,
+        root_cid: str,
+        parent_uri: str,
+        parent_cid: str,
+        text: str,
+        source_url: str | None = None,
+        source_urls: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Publica `text` como resposta na thread (root/parent via StrongRef).
+
+        Usado para continuar uma intervenção que não coube em um post só:
+        root é sempre o primeiro post da nossa própria thread (o quote
+        original), parent é o post imediatamente anterior na continuação.
+        """
+        await self.login()
+
+        from atproto import client_utils, models
+
+        urls = list(source_urls) if source_urls else ([source_url] if source_url else [])
+
+        tb = client_utils.TextBuilder()
+        tb.text(text)
+        if len(urls) == 1:
+            tb.text(" ")
+            tb.link("[Fonte]", urls[0])
+        elif len(urls) > 1:
+            tb.text(" ")
+            for idx, u in enumerate(urls[:3], start=1):
+                if idx > 1:
+                    tb.text(" ")
+                tb.link(f"[{idx}]", u)
+
+        reply_ref = models.AppBskyFeedPost.ReplyRef(
+            root=models.ComAtprotoRepoStrongRef.Main(uri=root_uri, cid=root_cid),
+            parent=models.ComAtprotoRepoStrongRef.Main(uri=parent_uri, cid=parent_cid),
+        )
+        response = await self._authenticated(
+            lambda: self._auth.send_post(text=tb, reply_to=reply_ref)
+        )
+        return response.uri, response.cid
 
     async def has_postgate_quote_disabled(self, post_uri: str) -> bool:
         """Verifica se o autor do post desabilitou citações via postgate."""
