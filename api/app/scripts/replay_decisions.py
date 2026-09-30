@@ -83,7 +83,7 @@ async def main():
     service = JevVerificationService.from_settings(settings=settings, engine=engine)
 
     with Session(engine) as session:
-        for did in [624, 493, 467]:
+        for did in [650, 624, 493, 467]:
             decision = session.execute(
                 select(DecisionLog).where(DecisionLog.id == did)
             ).scalar_one_or_none()

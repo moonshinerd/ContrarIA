@@ -282,3 +282,65 @@ async def test_jev_searches_with_post_date_for_temporal_claim():
 
     assert query.endswith("27/09/2026")
     assert source.queries == [query]
+
+
+def test_candidate_sentences_rejects_questions_and_idioms():
+    from app.services.jev_verification import _candidate_sentences
+
+    text = (
+        "BOMBÁSTICO\n\n"
+        "VOCÊS LEMBRAM DAS FESTINHAS ÍNTIMAS DO FLÁVIO BOLSONARO?\n\n"
+        "Corre. A casa começou a cair. Saiu hoje no PlatôBR: Ex-sócio da loja de chocolate, "
+        "prints, áudios, notas fiscais, whatsApp pedindo “festinha igual à do Grand Hyatt”.\n\n"
+        "Foto da varanda, recado na"
+    )
+    candidates = _candidate_sentences(text)
+    assert not any("VOCÊS LEMBRAM" in c for c in candidates)
+    assert not any("A casa começou a cair" in c for c in candidates)
+    assert not any("recado na" in c for c in candidates)
+    assert any("Saiu hoje no PlatôBR" in c for c in candidates)
+
+
+def test_candidate_sentences_extracts_metrics_and_entities():
+    from app.services.jev_verification import _candidate_sentences
+
+    text = (
+        "Rolex de R$ 305 mil.\n"
+        "Academia de R$ 90 mil.\n"
+        "Casa de R$ 5,9 milhões.\n"
+        "Caixa dos amigos.\n"
+        "conversa com Kassio pra empurrar processo."
+    )
+    candidates = _candidate_sentences(text)
+    assert "Rolex de R$ 305 mil." in candidates
+    assert "Academia de R$ 90 mil." in candidates
+    assert "Casa de R$ 5,9 milhões." in candidates
+    assert "conversa com Kassio pra empurrar processo." in candidates
+    assert "Caixa dos amigos." not in candidates
+
+
+def test_has_direct_anchor_overlap_rejects_literal_metaphor_and_weather():
+    from app.services.jev_verification import _has_direct_anchor_overlap
+
+    claim = "A casa começou a cair."
+    ev_pelotas = Evidence(
+        source="tavily",
+        url="https://www.instagram.com/reel/Dd3mlMZARkR",
+        title="Caroline Mendes, de Pelotas (RS ...",
+        snippet=(
+            "Segundo Caroline, a força do vento provocou danos na estrutura "
+            "da residência e parte do telhado começou a cair."
+        ),
+    )
+    assert not _has_direct_anchor_overlap(claim, ev_pelotas, context_entity="Flávio Bolsonaro")
+
+
+async def test_search_contextualizes_with_entity():
+    source = EmptySource()
+    service = build_service(None)
+    service.sources = [source]
+
+    _, _, query = await service._search("Rolex de R$ 305 mil.", context_entity="Flávio Bolsonaro")
+
+    assert query == "Rolex de R$ 305 mil. Flávio Bolsonaro"
+    assert source.queries == [query]

@@ -94,6 +94,284 @@ _NEGATION_PATTERN = re.compile(
     r"\b(n[ãa]o|falso|boato|desistiu|impugnada|impugnado)\b", re.IGNORECASE
 )
 
+# Palavras funcionais, verbos e substantivos genéricos que não devem contar
+# como âncoras informativas isoladas (evita que 'começou a cair' dê match
+# com matérias de tempestades e telhados quando a frase é metafórica).
+_PORTUGUESE_STOPWORDS = {
+    "a",
+    "o",
+    "os",
+    "as",
+    "um",
+    "uma",
+    "uns",
+    "umas",
+    "de",
+    "do",
+    "da",
+    "dos",
+    "das",
+    "em",
+    "no",
+    "na",
+    "nos",
+    "nas",
+    "por",
+    "para",
+    "pra",
+    "com",
+    "sem",
+    "sob",
+    "sobre",
+    "entre",
+    "ate",
+    "até",
+    "e",
+    "ou",
+    "mas",
+    "porem",
+    "porém",
+    "contudo",
+    "todavia",
+    "que",
+    "se",
+    "como",
+    "quando",
+    "onde",
+    "porque",
+    "por que",
+    "qual",
+    "quais",
+    "quem",
+    "este",
+    "esta",
+    "estes",
+    "estas",
+    "esse",
+    "essa",
+    "esses",
+    "essas",
+    "aquele",
+    "aquela",
+    "aqueles",
+    "aquelas",
+    "isto",
+    "isso",
+    "aquilo",
+    "ele",
+    "ela",
+    "eles",
+    "elas",
+    "dele",
+    "dela",
+    "deles",
+    "delas",
+    "seu",
+    "sua",
+    "seus",
+    "suas",
+    "meu",
+    "minha",
+    "nosso",
+    "nossa",
+    "foi",
+    "foram",
+    "era",
+    "eram",
+    "ser",
+    "sendo",
+    "sido",
+    "é",
+    "sao",
+    "são",
+    "ter",
+    "tinha",
+    "tinham",
+    "teve",
+    "tiveram",
+    "tem",
+    "têm",
+    "estar",
+    "estava",
+    "estavam",
+    "esteve",
+    "estiveram",
+    "está",
+    "estao",
+    "estão",
+    "fazer",
+    "fez",
+    "fizeram",
+    "faz",
+    "fazem",
+    "dizer",
+    "disse",
+    "disseram",
+    "diz",
+    "dizem",
+    "ir",
+    "vai",
+    "vao",
+    "vão",
+    "dar",
+    "deu",
+    "deram",
+    "dá",
+    "dao",
+    "dão",
+    "ficar",
+    "ficou",
+    "ficaram",
+    "fica",
+    "ficam",
+    "comecar",
+    "começar",
+    "comecou",
+    "começou",
+    "comecam",
+    "começam",
+    "cair",
+    "caiu",
+    "cai",
+    "caem",
+    "casa",
+    "parte",
+    "partes",
+    "ponto",
+    "pontos",
+    "coisa",
+    "coisas",
+    "gente",
+    "pessoas",
+    "pessoa",
+    "mundo",
+    "brasil",
+    "hoje",
+    "ontem",
+    "amanha",
+    "amanhã",
+    "agora",
+    "depois",
+    "antes",
+    "sempre",
+    "nunca",
+    "ja",
+    "já",
+    "ainda",
+    "mais",
+    "menos",
+    "muito",
+    "muitos",
+    "muita",
+    "muitas",
+    "pouco",
+    "poucos",
+    "pouca",
+    "poucas",
+    "todo",
+    "toda",
+    "todos",
+    "todas",
+    "tudo",
+    "nada",
+    "outro",
+    "outra",
+    "outros",
+    "outras",
+    "mesmo",
+    "mesma",
+    "mesmos",
+    "mesmas",
+    "assim",
+    "entao",
+    "então",
+    "apenas",
+    "somente",
+    "tambem",
+    "também",
+    "alem",
+    "além",
+    "bem",
+    "mal",
+    "segundo",
+    "conforme",
+    "durante",
+    "desde",
+    "contra",
+    "maior",
+    "menor",
+    "primeiro",
+    "primeira",
+    "novo",
+    "nova",
+    "novos",
+    "novas",
+    "ano",
+    "anos",
+    "dia",
+    "dias",
+    "mes",
+    "mês",
+    "meses",
+    "vez",
+    "vezes",
+}
+
+_IDIOM_PATTERNS = re.compile(
+    r"\b("
+    r"a\s+casa\s+(caiu|vai\s+cair|t[aá]\s+caindo|come[çc]ou\s+a\s+cair)|"
+    r"caiu\s+a\s+ficha|cair\s+a\s+ficha|"
+    r"a\s+chapa\s+(esquentou|vai\s+esquentar|t[aá]\s+quente)|"
+    r"a\s+batata\s+(t[aá]\s+assando|vai\s+assar)|"
+    r"dar\s+com\s+os\s+burros\s+n['’]?\s*[aá]gua|"
+    r"jogar\s+(a\s+toalha|merda\s+no\s+ventilador)|"
+    r"enfiar\s+o\s+p[eé]\s+na\s+jaca|"
+    r"pisar\s+em\s+ovos|"
+    r"colocar\s+panos\s+quentes|"
+    r"puxar\s+o\s+tapete|"
+    r"com\s+a\s+corda\s+no\s+pesco[çc]o|"
+    r"meter\s+os\s+p[eé]s\s+pelas\s+m[aã]os|"
+    r"soltar\s+os\s+cachorros|"
+    r"dar\s+o\s+troco|"
+    r"sangue\s+nos\s+olhos|"
+    r"acorda\s+brasil|"
+    r"o\s+circo\s+pegar\s+fogo|"
+    r"o\s+bicho\s+vai\s+pegar"
+    r")\b",
+    re.IGNORECASE,
+)
+
+_QUESTION_PATTERN = re.compile(
+    r"^(o\s+que|quem|quando|onde|por\s*que|por\s*qu[eê]|como|qual|quais|ser[aá]\s+que|voc[eê]s?\s+lembram|voc[eê]s?\s+sabiam|lembra)\b",
+    re.IGNORECASE,
+)
+
+_DANGLING_END_PATTERN = re.compile(
+    r"(\b(na|no|em|de|da|do|para|pra|com|por|que|se|e|ou|mas)\b\s*|[,\-:])$",
+    re.IGNORECASE,
+)
+
+_METRIC_PATTERN = re.compile(
+    r"(?:R\$\s*[\d.,]+|\b\d+(?:[.,]\d+)?\s*(?:%|por\s+cento|mil(?:h[õo]es)?|bilh[õo]es)?\b|\b\d{4}\b)"
+)
+
+_POLITICAL_TITLES_PATTERN = re.compile(
+    r"\b(ministro|ministra|senador|senadora|deputado|deputada|presidente|presidenta|governador|governadora|prefeito|prefeita|juiz|juíza|desembargador|desembargadora|vereador|vereadora|candidat[oa]s?|relator|relatora)\b",
+    re.IGNORECASE,
+)
+
+_FACTUAL_PREDICATE_PATTERN = re.compile(
+    r"\b(derrubou|suspendeu|anulou|aprovou|rejeitou|votou|prendeu|foi\s+pres[oa]|investigad[oa]|denunciad[oa]|indiciad[oa]|condenad[oa]|processad[oa]|processo|propina|corrup[çc][ãa]o|liminar|decreto|portaria|nota\s+fiscal|notas\s+fiscais|gabinete|reuni[ãa]o|áudios?|prints?|whatsApp|contrato|licita[çc][ãa]o|elei[çc][ãa]o|candidatura)\b",
+    re.IGNORECASE,
+)
+
+_ACRONYM_PATTERN = re.compile(r"\b[A-Z]{2,6}\b")
+_PROPER_NOUN_PATTERN = re.compile(
+    r"\b[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+(?:\s+[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+)*\b"
+)
+_PROPER_NOUN_TOKEN_PATTERN = re.compile(r"\b[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+\b|\b[A-Z]{2,6}\b")
+_CLICKBAIT_TERMS = {"BOMBÁSTICO", "URGENTE", "ATENÇÃO", "CORRE", "ALERTA"}
+
 
 def _explicit_candidate_support(claim: str, evidences: list[Evidence]) -> str | None:
     """Detecta fonte que chama a pessoa da alegação de candidata ao Senado.
@@ -131,7 +409,9 @@ def _word_overlap(claim: str, evidence: Evidence) -> int:
     return len(claim_words & evidence_words)
 
 
-def _has_direct_anchor_overlap(claim: str, evidence: Evidence) -> bool:
+def _has_direct_anchor_overlap(
+    claim: str, evidence: Evidence, context_entity: str | None = None
+) -> bool:
     """Exige âncoras e uma expressão factual compartilhada no título/trecho.
 
     Isto é um guardrail determinístico antes do classificador local. O Jev
@@ -140,20 +420,112 @@ def _has_direct_anchor_overlap(claim: str, evidence: Evidence) -> bool:
     desmentir o fato.
     """
     claim_words = [word.casefold() for word in _WORD_PATTERN.findall(claim)]
-    evidence_words = [
-        word.casefold() for word in _WORD_PATTERN.findall(f"{evidence.title} {evidence.snippet}")
-    ]
-    claim_pairs = set(zip(claim_words, claim_words[1:], strict=False))
+    evidence_text = f"{evidence.title} {evidence.snippet}".casefold()
+    evidence_words = [word.casefold() for word in _WORD_PATTERN.findall(evidence_text)]
+
+    claim_informative = {w for w in claim_words if w not in _PORTUGUESE_STOPWORDS}
+    evidence_informative = {w for w in evidence_words if w not in _PORTUGUESE_STOPWORDS}
+
+    claim_numbers = set(re.findall(r"\b\d+(?:[.,]\d+)?\b", claim))
+    evidence_numbers = set(re.findall(r"\b\d+(?:[.,]\d+)?\b", evidence_text))
+
+    claim_entities = {
+        w.casefold()
+        for w in _PROPER_NOUN_TOKEN_PATTERN.findall(claim)
+        if w.casefold() not in _PORTUGUESE_STOPWORDS and w.upper() not in _CLICKBAIT_TERMS
+    }
+    if context_entity:
+        for w in _PROPER_NOUN_TOKEN_PATTERN.findall(context_entity):
+            if w.casefold() not in _PORTUGUESE_STOPWORDS and w.upper() not in _CLICKBAIT_TERMS:
+                claim_entities.add(w.casefold())
+
+    if claim_entities and not (claim_entities & set(evidence_words)):
+        return False
+    if claim_numbers and not (claim_numbers & evidence_numbers):
+        return False
+
+    shared_informative = claim_informative & evidence_informative
+    if len(shared_informative) < _MIN_DIRECT_ANCHOR_OVERLAP:
+        return False
+
+    claim_pairs = {
+        (w1, w2)
+        for w1, w2 in zip(claim_words, claim_words[1:], strict=False)
+        if (w1 in claim_informative or w2 in claim_informative)
+    }
     evidence_pairs = set(zip(evidence_words, evidence_words[1:], strict=False))
-    return len(set(claim_words) & set(evidence_words)) >= _MIN_DIRECT_ANCHOR_OVERLAP and bool(
-        claim_pairs & evidence_pairs
-    )
+    return bool(claim_pairs & evidence_pairs)
 
 
 def _is_campaign_label(fragment: str) -> bool:
     """Identificadores de comitê/núcleo não são alegações a contestar."""
     first_word = fragment.split(maxsplit=1)[0].casefold() if fragment.split() else ""
     return first_word in {"comitê", "comite", "núcleo", "nucleo"}
+
+
+def _extract_primary_entities(post_text: str) -> list[str]:
+    """Extrai as entidades principais (pessoas, instituições, siglas) do post."""
+    entities: list[str] = []
+    # Siglas em caixa alta (STF, TSE, PF, PL, PT, etc)
+    for match in _ACRONYM_PATTERN.finditer(post_text):
+        acronym = match.group(0)
+        if acronym not in _CLICKBAIT_TERMS and len(acronym) >= 2:
+            if acronym not in entities:
+                entities.append(acronym)
+    # Nomes próprios (sequências capitalizadas)
+    for match in _PROPER_NOUN_PATTERN.finditer(post_text):
+        name = match.group(0).strip()
+        first = name.split()[0].casefold()
+        if (
+            first not in _PORTUGUESE_STOPWORDS
+            and name.upper() not in _CLICKBAIT_TERMS
+            and len(name) >= 3
+        ):
+            if name not in entities:
+                entities.append(name)
+    return entities
+
+
+def _is_verifiable_claim(fragment: str) -> bool:
+    """Filtra fragmentos que não constituem uma alegação factual verificável."""
+    # Perguntas (retóricas ou diretas) não são asserções fáticas
+    if fragment.endswith("?") or _QUESTION_PATTERN.match(fragment):
+        return False
+    # Frases incompletas ou cortadas com conectivos soltos ou pontuação intermediária
+    if _DANGLING_END_PATTERN.search(fragment):
+        return False
+    # Expressões idiomáticas ou metafóricas isoladas ("a casa começou a cair", "caiu a ficha")
+    if _IDIOM_PATTERNS.search(fragment):
+        words = fragment.split()
+        if len(words) <= 8 and not _METRIC_PATTERN.search(fragment):
+            return False
+    # Exige ao menos um ancoramento factual verificável:
+    # 1. Métrica numérica, monetária, percentual ou ano
+    if _METRIC_PATTERN.search(fragment):
+        return True
+    # 2. Título político ou institucional (ministro, senador, presidente, juiz, candidato)
+    if _POLITICAL_TITLES_PATTERN.search(fragment):
+        return True
+    # 3. Predicado fático, judicial ou investigativo específico
+    if _FACTUAL_PREDICATE_PATTERN.search(fragment):
+        return True
+    # 4. Sigla institucional (STF, TSE, PF, CPMI, etc)
+    acronyms = [a for a in _ACRONYM_PATTERN.findall(fragment) if a not in _CLICKBAIT_TERMS]
+    if acronyms:
+        return True
+    # 5. Entidade nomeada ou nome próprio além da primeira palavra capitalizada
+    proper_nouns = _PROPER_NOUN_PATTERN.findall(fragment)
+    first_word = fragment.split()[0].rstrip(",.:;!?").casefold() if fragment.split() else ""
+    meaningful = [
+        p
+        for p in proper_nouns
+        if p.casefold() != first_word
+        and p.upper() not in _CLICKBAIT_TERMS
+        and p.casefold() not in _PORTUGUESE_STOPWORDS
+    ]
+    if meaningful:
+        return True
+    return False
 
 
 def jev_model_key(settings: Settings) -> str:
@@ -187,19 +559,26 @@ def _candidate_sentences(post_text: str) -> list[str]:
         # ser verificada. Antes elas chegavam ao Jev como uma frase factual.
         if not line or line.startswith("#"):
             continue
+        # Remove prefixos de thread comuns que quebram o parser
+        line = re.sub(r"^continua[çc][ãa]o\s+do\s+autor:\s*", "", line, flags=re.IGNORECASE)
         fragments.extend(part.strip() for part in re.split(r"(?<=[.!?])\s+", line))
 
     seen: set[str] = set()
     candidates: list[str] = []
     for fragment in fragments:
         cleaned = _clean_query(fragment)
-        if len(cleaned) < _MIN_SENTENCE_LEN or cleaned in seen or _is_campaign_label(cleaned):
+        if (
+            len(cleaned) < _MIN_SENTENCE_LEN
+            or cleaned in seen
+            or _is_campaign_label(cleaned)
+            or not _is_verifiable_claim(cleaned)
+        ):
             continue
         seen.add(cleaned)
         candidates.append(cleaned)
         if len(candidates) >= _MAX_CANDIDATE_CLAIMS:
             break
-    return candidates or [_clean_query(post_text)]
+    return candidates
 
 
 class JevVerificationService:
@@ -257,6 +636,19 @@ class JevVerificationService:
         if parent_text:
             agent_outputs["jev.thread_context"] = parent_text
 
+        if not candidates:
+            return Verdict(
+                claim=post.text,
+                label=VerdictLabel.INSUFFICIENT_EVIDENCE,
+                confidence=0.0,
+                rationale="Nenhuma alegação factual verificável identificada (classificado "
+                "localmente).",
+                agent_outputs=agent_outputs,
+            )
+
+        primary_entities = _extract_primary_entities(context_text)
+        primary_entity = primary_entities[0] if primary_entities else None
+
         classification_log = []
         factual_claims: list[str] = []
         for sentence in candidates:
@@ -291,6 +683,7 @@ class JevVerificationService:
                 agent_outputs,
                 prefix=f"jev.c{index:02d}",
                 post_date=post.created_at.date(),
+                context_entity=primary_entity,
             )
             if candidate_verdict.label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING):
                 return candidate_verdict  # já passou pela calibração -- pode agir
@@ -312,8 +705,11 @@ class JevVerificationService:
         *,
         prefix: str,
         post_date: date,
+        context_entity: str | None = None,
     ) -> Verdict:
-        evidences, source_errors, query = await self._search(claim, post_date=post_date)
+        evidences, source_errors, query = await self._search(
+            claim, post_date=post_date, context_entity=context_entity
+        )
         agent_outputs[f"{prefix}.search_query"] = query
         agent_outputs[f"{prefix}.evidence_count"] = str(len(evidences))
         if source_errors:
@@ -327,7 +723,9 @@ class JevVerificationService:
                 agent_outputs=agent_outputs,
             )
 
-        relevant, relevance_log = await self._filter_relevant(claim, evidences, post_date=post_date)
+        relevant, relevance_log = await self._filter_relevant(
+            claim, evidences, post_date=post_date, context_entity=context_entity
+        )
         agent_outputs[f"{prefix}.relevance"] = json.dumps(relevance_log, ensure_ascii=False)
         if not relevant:
             return Verdict(
@@ -369,7 +767,12 @@ class JevVerificationService:
         )
 
     async def _filter_relevant(
-        self, claim: str, evidences: list[Evidence], *, post_date: date | None = None
+        self,
+        claim: str,
+        evidences: list[Evidence],
+        *,
+        post_date: date | None = None,
+        context_entity: str | None = None,
     ) -> tuple[list[Evidence], list[dict]]:
         # Pré-filtro determinístico: sem duas âncoras específicas em comum, a
         # fonte não fala do fato. Isso impede que o modelo trate, por exemplo,
@@ -379,7 +782,7 @@ class JevVerificationService:
         anchored: list[Evidence] = []
         for evidence in evidences:
             overlap = _word_overlap(claim, evidence)
-            if not _has_direct_anchor_overlap(claim, evidence):
+            if not _has_direct_anchor_overlap(claim, evidence, context_entity=context_entity):
                 log.append(
                     {
                         "url": evidence.url,
@@ -499,15 +902,23 @@ class JevVerificationService:
         return label, confidence, rationale
 
     async def _search(
-        self, query: str, *, post_date: date | None = None
+        self,
+        query: str,
+        *,
+        post_date: date | None = None,
+        context_entity: str | None = None,
     ) -> tuple[list[Evidence], dict[str, str], str]:
         clean_query = _clean_query(query)
         search_query = clean_query
-        # Acrescenta a data somente para referências temporais explícitas. Não
-        # impõe janela de recência: uma checagem posterior ainda pode refutar
-        # corretamente um post antigo.
+
+        # Se a frase for uma anáfora ou omitir o sujeito principal do post,
+        # injeta a entidade principal na query de busca externa.
+        if context_entity and context_entity.casefold() not in clean_query.casefold():
+            search_query = f"{clean_query} {context_entity}"
+
+        # Acrescenta a data somente para referências temporais explícitas.
         if post_date and _TEMPORAL_REFERENCE_PATTERN.search(clean_query):
-            search_query = f"{clean_query} {post_date:%d/%m/%Y}"
+            search_query = f"{search_query} {post_date:%d/%m/%Y}"
 
         async def search_one(source: EvidenceSource):
             try:

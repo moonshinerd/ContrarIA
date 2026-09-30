@@ -15,6 +15,15 @@ ARG INSTALL_JEV=false
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
+# Pré-baixa o modelo NLI durante o build da imagem para que os pesos fiquem
+# em cache (/root/.cache/huggingface), eliminando downloads em runtime.
+RUN python -c "\
+from transformers import AutoModelForSequenceClassification, AutoTokenizer; \
+model_name = 'MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7'; \
+AutoTokenizer.from_pretrained(model_name); \
+AutoModelForSequenceClassification.from_pretrained(model_name); \
+print('Modelo mDeBERTa pre-baixado com sucesso!')"
+
 COPY app ./app
 COPY alembic.ini ./
 COPY migrations ./migrations
