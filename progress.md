@@ -380,3 +380,10 @@ API e worker foram reiniciados após a validação. A API respondeu
 sessão Bluesky. Um candidato que estava somente na fila em memória expirou no
 restart; ele não foi publicado. O `.env` local agora aponta o redator para
 `openrouter/openai/gpt-5-mini`; credenciais continuam fora do Git.
+
+### Entrega
+
+A implementação foi commitada e enviada ao PR #57 no commit `e9c33af`
+(`fix: revisar fontes integrais antes de intervir`). O commit contém o GPT-5
+mini como padrão de redação, revisão integral em lotes, consulta de limites ao
+LiteLLM, tetos de custo por caracteres/lotes, prompts, testes e documentação.
