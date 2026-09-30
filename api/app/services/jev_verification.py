@@ -870,7 +870,7 @@ class JevVerificationService:
                 ["factual", "opiniao"],
             )
             classification_log.append({"text": sentence, **judgment})
-            if judgment["factual"] > 0.55 and judgment["factual"] > judgment["opiniao"]:
+            if judgment["factual"] > judgment["opiniao"]:
                 factual_claims.append(sentence)
         agent_outputs["jev.claim_classification"] = json.dumps(
             classification_log, ensure_ascii=False
