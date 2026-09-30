@@ -533,3 +533,48 @@ Bluesky ou o banco.
 6. Reiniciar o worker somente depois dos testes, observar logs sem publicar
    manualmente e então decidir se a trava do Jev deve ser commitada e enviada
    ao PR.
+
+### Comandos para continuar
+
+Executar a validação focada dentro do contêiner:
+
+```bash
+docker compose run --rm --no-deps \
+  -e BLUESKY_HANDLE= -e BLUESKY_APP_PASSWORD= \
+  -v "$PWD/api/tests:/srv/tests" \
+  -v "$PWD/api/pyproject.toml:/srv/pyproject.toml" \
+  api sh -c 'uv sync --frozen -q && \
+    uv run --frozen pytest -q tests/test_jev_verification.py && \
+    uv run --frozen ruff check app/services/jev_verification.py tests/test_jev_verification.py && \
+    uv run --frozen ruff format --check app/services/jev_verification.py tests/test_jev_verification.py'
+```
+
+Depois executar a suíte completa, montando o golden set exigido pelos testes:
+
+```bash
+docker compose run --rm --no-deps \
+  -e BLUESKY_HANDLE= -e BLUESKY_APP_PASSWORD= \
+  -v "$PWD/api/tests:/srv/tests" \
+  -v "$PWD/api/pyproject.toml:/srv/pyproject.toml" \
+  -v "$PWD/research:/research" \
+  api sh -c 'uv sync --frozen -q && uv run --frozen pytest -q && \
+    uv run --frozen ruff check . && uv run --frozen ruff format --check .'
+```
+
+Para o replay da Benedita, usar o snapshot da decisão `624`, chamar
+`JevVerificationService.verify` em modo somente leitura e confirmar
+`insufficient_evidence` com a evidência do g1. Não chamar `PipelineService`,
+`InterventionQueue`, `quote_post` ou qualquer método de escrita.
+
+Se os testes passarem, reiniciar e verificar os serviços:
+
+```bash
+docker compose restart api worker
+sleep 8
+docker compose ps
+curl -fsS http://localhost:8000/health
+```
+
+Só depois revisar `git diff`, atualizar este diário com os resultados, e então
+decidir se os arquivos `api/app/services/jev_verification.py` e
+`api/tests/test_jev_verification.py` devem ser commitados e enviados ao PR.
