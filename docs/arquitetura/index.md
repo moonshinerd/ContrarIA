@@ -47,7 +47,7 @@ ContrarIA/
 └── docs/                # este site (MkDocs)
 ```
 
-Padrão herdado do [Medscriba](https://github.com/Medscriba/medscriba): `domain/` não conhece framework; `models/` e `clients/evidence/` expõem **portas abstratas**, então cada dupla desenvolve contra a interface com fakes nos testes, e as issues de integração só ligam as pontas.
+A arquitetura adota os princípios de **Portas e Adaptadores (Arquitetura Hexagonal)**: a camada `domain/` é estritamente pura e agnóstica a frameworks; `models/` e `clients/evidence/` expõem **portas abstratas** (interfaces), permitindo que cada frente desenvolva e valide seus módulos de forma independente com dublês de teste (*fakes*), convergindo com estabilidade nas etapas de integração ponta a ponta (*E2E*).
 
 ## Backend de verificação em produção
 
@@ -62,7 +62,7 @@ continuam sendo Google Fact Check, Wikipédia, busca web (SearXNG/Tavily/DDG) e 
 CRC é aplicado à confiança final usando uma calibração exclusiva da chave
 `jev:<repositório>`; ausência de calibração resulta em abstenção.
 
-O backend antigo, selecionável por `VERIFICATION_BACKEND=llm`, mantém
+O backend anterior, selecionável por `VERIFICATION_BACKEND=llm`, mantém
 CoVe/Self-RAG/debate para experimentos e compatibilidade. O LLM também segue
 necessário no caminho Jev para compor a mensagem socrática somente depois de a
 decisão já ser elegível para intervenção.

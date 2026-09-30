@@ -5,7 +5,7 @@
 - **Requisitos / GQs:** RF13, Épico #8
 
 ## Contexto
-O projeto ContrarIA tem como prazo fatal de entrega do protótipo funcional o dia 26 de setembro de 2026 (Semana 6 - Showcase), dispondo de apenas 10 dias úteis para desenvolvimento integrado. 
+O projeto ContrarIA tem como prazo fatal de entrega do protótipo funcional o dia 26 de setembro de 2026 (Semana 6 - Showcase), dispondo de apenas 10 dias corridos para desenvolvimento integrado. 
 Na ideação inicial (Semana 1), cogitou-se a construção de um painel administrativo web (*dashboard* em React) com telas de visualização gráfica de contas analisadas, gráficos de redes sociais e relatórios interativos.
 No entanto, a equipe possui apenas duas pessoas focadas em infraestrutura e duas pessoas focadas no motor de inteligência artificial, demandando foco absoluto no núcleo que define o sucesso do desafio.
 

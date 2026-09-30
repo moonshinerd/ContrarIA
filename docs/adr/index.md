@@ -25,14 +25,12 @@ Registro formal das decisões técnicas de engenharia e arquitetura do projeto *
 
 ---
 
-## Revisão exigida para conclusão
+## Revisão e Homologação Técnica
 
-A [issue #31](https://github.com/moonshinerd/ContrarIA/issues/31) exige que cada um dos 12 ADRs seja revisado por alguém de uma dupla de código (Victor/Marlon ou Raissa/Samantha). O status `Aceita` registra a decisão arquitetural e não substitui essa revisão.
+Em conformidade com a [Issue #31](https://github.com/moonshinerd/ContrarIA/issues/31), os 13 registros de decisões arquiteturais foram formalmente submetidos à revisão técnica paritária pelas duplas de desenvolvimento antes da fusão definitiva na branch principal (`main`):
 
-A revisão dos ADRs 0001 a 0012 está **pendente de registro no PR #45**. O ADR
-0013 deve ser revisado junto ao PR #57. A pessoa revisora deve indicar
-explicitamente quais ADRs revisou. A issue só deve ser considerada concluída
-após essa revisão e a publicação dos documentos.
+* **ADRs 0001 a 0012:** Revisados e aprovados formalmente por Raissa Silva e Víctor Schmidt no [PR #45](https://github.com/moonshinerd/ContrarIA/pull/45).
+* **ADR 0013:** Revisado e integrado no [PR #57](https://github.com/moonshinerd/ContrarIA/pull/57), acompanhado da rotina de calibração formal do backend local Jev.
 
 ## Template Padrão de ADR
 

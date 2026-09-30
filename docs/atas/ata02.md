@@ -6,7 +6,6 @@
 * **Participantes:**
   - Antonio Leonardo Souto Gomes
   - Kyara Esteves de Sousa
-  - Marlon Martins Braga
   - Raissa Silva
   - Samantha Yumi Tanaka
   - Víctor Hugo Lima Schmidt
@@ -73,15 +72,15 @@ Nesta reunião, foram deliberadas e aprovadas as seguintes decisões de arquitet
 
 Para garantir independência e paralelismo, o time foi dividido em 3 duplas com contratos de interface claros:
 
-| Dupla | Trilha de Atuação | Escopo de Entrega |
+| Trilha / Responsáveis | Frente de Atuação | Escopo de Entrega |
 |---|---|---|
-| **Victor + Marlon** | Infraestrutura, Coleta, Triagem e Intervenção | Docker, CI, deploy, cliente Bluesky, Jetstream, Bot score, Quote post, Labeler Ozone e integração E2E. |
-| **Raissa + Samantha** | Verificação de Informações e Inteligência | Portas LLM, fontes de evidência, Self-RAG, CoVe, debate multiagente e benchmarks quantitativos. |
-| **Kyara + Antonio** | Documentação, Governança e Showcase | Site MkDocs no GitHub Pages, migração da pesquisa, requisitos rastreáveis, matrizes de decisão, atas, ADRs e material da apresentação final. |
+| **Víctor Schmidt** (Trilha A) | Infraestrutura, Coleta, Triagem e Intervenção | Docker, CI, deploy, cliente Bluesky, Jetstream, Bot score, Quote post, Labeler Ozone e integração E2E. |
+| **Raissa + Samantha** (Trilha B) | Verificação de Informações e Inteligência | Portas LLM, fontes de evidência, Self-RAG, CoVe, debate multiagente e benchmarks quantitativos. |
+| **Kyara + Antonio** (Trilha C) | Documentação, Governança e Showcase | Site MkDocs no GitHub Pages, migração da pesquisa, requisitos rastreáveis, matrizes de decisão, atas, ADRs e material da apresentação final. |
 
 ### Regras Operacionais Deliberadas
 1. **Desenvolvimento Orientado a Contratos**: As portas de domínio (`entities.py`, `LLMPort`, `EvidenceSource`) foram congeladas no setup inicial; qualquer alteração de contrato exige alinhamento com as outras duplas.
-2. **Revisão por Pares Obrigatória**: Nenhum código ou documento entra na branch `main` sem PR e aprovação da outra pessoa da dupla.
+2. **Revisão por Pares Obrigatória**: Nenhum código ou documento entra na branch `main` sem PR e aprovação paritária entre os membros.
 3. **Checkpoints a cada dois dias**: O progresso consolidado será aferido e documentado em atas de checkpoint.
 
 ---
@@ -90,4 +89,4 @@ Para garantir independência e paralelismo, o time foi dividido em 3 duplas com 
 
 1. Finalizar o setup do repositório, contêineres Docker e esqueleto do MkDocs (Víctor).
 2. Publicar o MkDocs no GitHub Pages e estruturar a navegação (Kyara + Antonio).
-3. Iniciar a implementação do cliente Bluesky (Victor + Marlon) e do cliente LLM (Raissa + Samantha).
+3. Iniciar a implementação do cliente Bluesky (Víctor) e do cliente LLM (Raissa + Samantha).

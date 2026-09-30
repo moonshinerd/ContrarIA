@@ -39,7 +39,7 @@ Metodologia de engenharia de prompts desenvolvida para mitigar alucinações em 
 Arquitetura avançada de geração aumentada por recuperação na qual o modelo de linguagem possui a capacidade de **autocrítica em tempo real**. Em vez de confiar cegamente nos documentos recuperados de buscas, o modelo avalia se as passagens encontradas são realmente relevantes (*ISREL*), se a alegação é sustentada pelas evidências (*ISSUP*) e se a resposta gerada é factual (*ISUSE*).
 
 ### Debate Multiagente (MAD - Multi-Agent Debate)
-Abordagem em que múltiplos agentes autônomos de IA, configurados com papéis e perspectivas conflitantes, confrontam argumentos estruturados sobre uma alegação. No ContrarIA, um **Agente Analista** (focado na correlação das evidências) debate contra um **Agente Cético** (que atua como advogado do diabo procurando hipóteses alternativas, sátiras ou falta de contexto) antes de consolidar o laudo.
+Abordagem em que múltiplos agentes autônomos de IA, configurados com papéis e perspectivas conflitantes, confrontam argumentos estruturados sobre uma alegação. No ContrarIA, o **Promotor** (focado na sustentação e acusação documental das evidências) debate contra o **Defensor** (que atua procurando contraprovas, contexto, sátiras ou hipóteses alternativas), com o veredito arbitrado pelo **Juiz** epistêmico através do consenso dialético e do cálculo da métrica $P(IK)$ antes de consolidar o laudo.
 
 ### Jev
 Backend local de verificação do ContrarIA. Utiliza o modelo discriminativo mDeBERTa-v3 Cross-Encoder NLI (`MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7`) servido de forma compartilhada pelo contêiner `jev` via PyTorch/Transformers. Ele avalia a relação lógica entre premissa (evidências) e hipótese (alegação) com suporte nativo à classe neutra (*neutral*), filtra a relevância semântica e gera o veredito factual sem geração livre de texto, operando com consumo enxuto (~500 MB de peso de modelo) e latência em torno de 50-80ms por par em CPU. API e worker chamam o mesmo serviço `jev` via HTTP interno para não duplicar memória.
@@ -47,12 +47,12 @@ Backend local de verificação do ContrarIA. Utiliza o modelo discriminativo mDe
 ### CRC (Conformal Risk Control)
 Procedimento estatístico que calibra a confiança de um modelo a partir de
 exemplos rotulados. No ContrarIA, o CRC calcula um limiar por combinação de
-backend e modelo, com tolerância de falso positivo `alpha = 0,05`. Não é
+backend e modelo, com tolerância de falso positivo $\alpha = 0,05$. Não é
 consenso entre agentes nem limiar fixo de 80%. Abaixo do limiar — ou sem
 calibração para o Jev — o sistema faz **abstenção mandatória** e não intervém.
 
 ### P(IK) – Probabilidade de Conhecimento Intrínseco
-Métrica que quantifica a certeza com que um modelo de linguagem "sabe" internamente um determinado fato histórico ou factual sem precisar de consulta externa. Se $P(IK)$ for baixa para um determinado tópico temporal ou político emergente, o sistema é obrigado a realizar recuperação de evidências em fontes vivas antes de qualquer resposta.
+Métrica que quantifica a certeza com que um modelo de linguagem "sabe" internamente um determinado fato histórico ou factual sem precisar de consulta externa. Se P(IK) for baixa para um determinado tópico temporal ou político emergente, o sistema é obrigado a realizar recuperação de evidências em fontes vivas antes de qualquer resposta.
 
 ---
 

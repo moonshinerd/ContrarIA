@@ -10,10 +10,10 @@ No entanto, o projeto ContrarIA opera sob uma restrição temporal singular: **a
 
 ## Decisão
 Abolir o conceito de sprints temporais e adotar um **modelo de engenharia concorrente baseado em três mecanismos complementares**:
-1. **Três Duplas Paralelas Especializadas**:
-   - Victor + Marlon: Infraestrutura, cliente Bluesky, coleta, bot score e intervenção.
-   - Raissa + Samantha: Inteligência artificial, fontes de evidência, debate multiagente e benchmarks.
-   - Kyara + Antonio: Governança, documentação no MkDocs, matrizes de decisão, atas e showcase.
+1. **Três Trilhas Paralelas Especializadas**:
+   - Trilha A (Víctor Schmidt): Infraestrutura, cliente Bluesky, coleta, bot score e intervenção.
+   - Trilha B (Raissa + Samantha): Inteligência artificial, fontes de evidência, debate multiagente e benchmarks.
+   - Trilha C (Kyara + Antonio): Governança, documentação no MkDocs, matrizes de decisão, atas e showcase.
 2. **Desenvolvimento Orientado a Contratos (*Contract-First*)**:
    - As interfaces de dados fundamentais (`app/domain/entities.py`) e as portas abstratas (`LLMPort`, `EvidenceSource`, `TextClassifierPort`) foram padronizadas logo no setup inicial (#9). Cada dupla desenvolve seu código contra essas interfaces utilizando objetos simulados (*fakes*) nos testes unitários, sem precisar esperar o código real das outras duplas.
 3. **Mapeamento de Dependências Reais no GitHub**:

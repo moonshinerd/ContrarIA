@@ -10,15 +10,31 @@
 /* --------------------------------------------------------------------------
    Modo Claro (Default)
    -------------------------------------------------------------------------- */
-:root {
-  --md-primary-fg-color:              #1D2144;
-  --md-primary-fg-color--light:       #2A3063;
-  --md-primary-fg-color--dark:        #12152E;
-  --md-primary-bg-color:              #FFFFFF;
-  --md-primary-bg-color--light:       rgba(255, 255, 255, 0.75);
+:root,
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color:              #2FA4E0;
+  --md-primary-fg-color--light:       #52B5E6;
+  --md-primary-fg-color--dark:        #228CC2;
+  --md-primary-bg-color:              #000000;
+  --md-primary-bg-color--light:       rgba(0, 0, 0, 0.75);
   --md-accent-fg-color:               #0284C7;
   --md-accent-fg-color--transparent:  rgba(2, 132, 199, 0.10);
   --md-typeset-a-color:               #0284C7;
+}
+
+/* Links no Modo Claro: sempre azuis e visíveis, com reforço de hover */
+[data-md-color-scheme="default"] .md-typeset a:not(.md-button):not(.md-icon):not(.headerlink) {
+  color: #0284C7;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2.5px;
+  text-decoration-color: rgba(2, 132, 199, 0.35);
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+[data-md-color-scheme="default"] .md-typeset a:not(.md-button):not(.md-icon):not(.headerlink):hover {
+  color: #0369A1;
+  text-decoration-color: #0369A1;
 }
 
 /* --------------------------------------------------------------------------
@@ -54,35 +70,136 @@
   --md-code-fg-color:                 #E2E8F0;
 }
 
+/* Links no Modo Noturno: ciano luminoso sempre visível */
+[data-md-color-scheme="slate"] .md-typeset a:not(.md-button):not(.md-icon):not(.headerlink) {
+  color: #42BBFB;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2.5px;
+  text-decoration-color: rgba(66, 187, 251, 0.35);
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+[data-md-color-scheme="slate"] .md-typeset a:not(.md-button):not(.md-icon):not(.headerlink):hover {
+  color: #8AD9FC;
+  text-decoration-color: #8AD9FC;
+}
+
 /* --------------------------------------------------------------------------
    Header & Abas de Navegação (Garantia de Contraste e Legibilidade)
    -------------------------------------------------------------------------- */
-.md-header {
+
+/* Logo: recorte circular e transparência */
+.md-header__button.md-logo img,
+.md-logo img {
+  border-radius: 50% !important;
+  background-color: transparent !important;
+  display: block;
+}
+
+/* Modo Claro: Fundo azul (#2FA4E0) com letras e ícones em Preto (#000000) com pesos idênticos ao modo noturno */
+[data-md-color-scheme="default"] .md-header {
+  background-color: #2FA4E0;
+  color: #000000 !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+[data-md-color-scheme="default"] .md-header__title,
+[data-md-color-scheme="default"] .md-header__topic,
+[data-md-color-scheme="default"] .md-header__button {
+  color: #000000 !important;
+}
+
+[data-md-color-scheme="default"] .md-header__button svg {
+  fill: #000000 !important;
+}
+
+[data-md-color-scheme="default"] .md-header__source,
+[data-md-color-scheme="default"] .md-source,
+[data-md-color-scheme="default"] .md-source__repository {
+  color: #000000 !important;
+}
+
+[data-md-color-scheme="default"] .md-source svg {
+  fill: #000000 !important;
+}
+
+[data-md-color-scheme="default"] .md-tabs {
+  background-color: #2FA4E0;
+  color: #000000 !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+[data-md-color-scheme="default"] .md-tabs__link {
+  color: rgba(0, 0, 0, 0.82) !important;
+  font-weight: 500;
+  transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+[data-md-color-scheme="default"] .md-tabs__link:hover {
+  color: #000000 !important;
+  opacity: 1 !important;
+}
+
+[data-md-color-scheme="default"] .md-tabs__item--active .md-tabs__link {
+  color: #000000 !important;
+  font-weight: 700;
+  opacity: 1 !important;
+}
+
+[data-md-color-scheme="default"] .md-search__form {
+  background-color: rgba(255, 255, 255, 0.90);
+  border-radius: 6px;
+}
+
+[data-md-color-scheme="default"] .md-search__input {
+  color: #000000 !important;
+}
+
+[data-md-color-scheme="default"] .md-search__input::placeholder {
+  color: rgba(0, 0, 0, 0.60) !important;
+}
+
+[data-md-color-scheme="default"] .md-search__icon,
+[data-md-color-scheme="default"] .md-search__reset {
+  color: #000000 !important;
+}
+
+[data-md-color-scheme="default"] .md-search__icon svg,
+[data-md-color-scheme="default"] .md-search__reset svg {
+  fill: #000000 !important;
+}
+
+/* Modo Noturno: Fundo Navy suave (#16192E) com letras e ícones em Branco (#FFFFFF) e realce em Ciano (#42BBFB) */
+[data-md-color-scheme="slate"] .md-header {
   color: #FFFFFF !important;
 }
 
-.md-header__title,
-.md-header__topic,
-.md-header__button {
+[data-md-color-scheme="slate"] .md-header__title,
+[data-md-color-scheme="slate"] .md-header__topic,
+[data-md-color-scheme="slate"] .md-header__button {
   color: #FFFFFF !important;
 }
 
-.md-tabs {
+[data-md-color-scheme="slate"] .md-tabs {
   color: #FFFFFF !important;
 }
 
-.md-tabs__link {
+[data-md-color-scheme="slate"] .md-tabs__link {
   color: rgba(255, 255, 255, 0.82) !important;
   font-weight: 500;
   transition: color 0.15s ease, opacity 0.15s ease;
 }
 
-.md-tabs__link:hover {
+[data-md-color-scheme="slate"] .md-tabs__link:hover {
   color: #42BBFB !important;
   opacity: 1 !important;
 }
 
-.md-tabs__item--active .md-tabs__link {
+[data-md-color-scheme="slate"] .md-tabs__item--active .md-tabs__link {
   color: #42BBFB !important;
   font-weight: 700;
   opacity: 1 !important;
@@ -144,7 +261,22 @@
 
 .md-typeset table:not([class]) td {
   padding: 10px 14px;
+  vertical-align: top;
   transition: background-color 0.15s ease;
+}
+
+.md-typeset table:not([class]) td ul {
+  margin: 0;
+  padding-left: 1.15rem;
+  line-height: 1.45;
+}
+
+.md-typeset table:not([class]) td li {
+  margin-bottom: 0.35rem;
+}
+
+.md-typeset table:not([class]) td li:last-child {
+  margin-bottom: 0;
 }
 
 .md-typeset table:not([class]) tr:hover td {
@@ -175,6 +307,10 @@
   border-radius: 8px;
   border: 1px solid var(--md-default-bg-color--lighter);
 }
+
+
+
+
 
 /* --------------------------------------------------------------------------
    Badges de Engenharia do ContrarIA (Light & Dark)

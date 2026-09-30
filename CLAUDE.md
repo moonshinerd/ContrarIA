@@ -90,5 +90,5 @@ Os `-e BLUESKY_*=` vazios são necessários: o `env_file` injeta as credenciais 
 
 - Toda tarefa é sub-issue de um épico e tem dupla (dois assignees), labels `area/*`, `prioridade/P0-P3`, `dupla/*`, milestone `MVP – Showcase (26/09)` e campos `Status`, `Área`, `Prioridade`, `Dupla`, `Início` e `Entrega` no Project.
 - Dependências: só as reais, via *Blocked by* nativo (`POST /repos/{o}/{r}/issues/{n}/dependencies/blocked_by`).
-- Duplas: Victor (`moonshinerd`) + Marlon (`MylinDev`); Raissa (`RaissaOliveira19`) + Samantha (`ySamantha`); Kyara (`Kyara2`) + Antonio (`AntonioLeonardoUNB`), estes últimos só na documentação.
+- Trilhas/Duplas: Trilha A: Victor (`moonshinerd`); Trilha B: Raissa (`RaissaOliveira19`) + Samantha (`ySamantha`); Trilha C: Kyara (`Kyara2`) + Antonio (`AntonioLeonardoUNB`), estes últimos na documentação e governança.
 - Views do Project com agrupamento: criar pela REST `POST /users/moonshinerd/projectsV2/4/views` (aceita `group_by`/`sort_by`). O GraphQL não aceita esses campos.

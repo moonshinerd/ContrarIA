@@ -47,23 +47,22 @@ No Bluesky, a moderação é personalizável e não centralizada. Qualquer pesso
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    actor User as Usuário no Bluesky
-    participant App as Aplicativo Bluesky
-    participant Ozone as Servidor Ozone ContrarIA
+    participant User as 👤 Usuário (Feed Bluesky)
+    participant App as 🦋 Aplicativo Bluesky
+    participant Ozone as 🛡️ Servidor Ozone ContrarIA
 
-    User->>App: Acessa Configurações > Moderação > Serviços de Moderação
-    User->>App: Busca por @contraria-bot.bsky.social
-    User->>App: Clica em "Assinar Serviço de Moderação" (Subscribe)
-    App->>Ozone: Registra preferência de rotulagem no feed do usuário
-    Ozone-->>App: Emite badges contextuais nos posts triados
-    App-->>User: Exibe tarja amigável "Desinformação Verificada" com link
+    User->>App: 1. Acessa Configurações → Moderação → Serviços de Moderação
+    User->>App: 2. Localiza perfil @contraria-bot.bsky.social
+    User->>App: 3. Clica em "Assinar Serviço de Moderação" (Subscribe)
+    App->>Ozone: 4. Registra inscrição no protocolo AT
+    Ozone-->>App: 5. Emite rótulos contextuais nos posts checados
+    App-->>User: 6. Exibe tarja amigável "Desinformação Verificada" com link
 ```
 
 #### Passo a Passo de Configuração:
 1. Abra o aplicativo do Bluesky (ou acesse [bsky.app](https://bsky.app)) e faça login.
 2. Navegue até o menu lateral e clique em **Configurações** (*Settings*).
-3. Selecione a opção **Moderação** (*Moderation*) $\rightarrow$ **Serviços de Moderação** (*Moderation Services*).
+3. Selecione a opção **Moderação** (*Moderation*) → **Serviços de Moderação** (*Moderation Services*).
 4. Localize o serviço do **ContrarIA Labeler** ou acesse diretamente o perfil `@contraria-bot.bsky.social`.
 5. Clique no botão **Assinar** (*Subscribe to labeler*).
 6. Configure as suas preferências visuais para cada tipo de selo emitido:
@@ -119,7 +118,7 @@ O ContrarIA mantém uma separação rígida entre código e credenciais. Nunca c
 | Variável | Descrição | Onde Obter / Padrão |
 |---|---|---|
 | `BLUESKY_HANDLE` | Handle público da conta do bot | Ex.: `contraria-bot.bsky.social` |
-| `BLUESKY_APP_PASSWORD` | App Password gerada exclusivamente para o bot | Configurações do Bluesky $\rightarrow$ *App Passwords* |
+| `BLUESKY_APP_PASSWORD` | App Password gerada exclusivamente para o bot | Configurações do Bluesky → *App Passwords* |
 | `BLUESKY_SESSION_PATH` | Caminho do arquivo de sessão em disco | `/srv/data/bluesky.session` (padrão no container) |
 | `GOOGLE_FACTCHECK_API_KEY` | Chave da Google Fact Check Tools API | Console do Google Cloud (projeto com a API ativada) |
 | `VERIFICATION_BACKEND` | Backend de verificação | `jev` na operação local; `llm` apenas para o fluxo alternativo de CoVe/Self-RAG/debate |
