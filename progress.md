@@ -387,3 +387,10 @@ A implementação foi commitada e enviada ao PR #57 no commit `e9c33af`
 (`fix: revisar fontes integrais antes de intervir`). O commit contém o GPT-5
 mini como padrão de redação, revisão integral em lotes, consulta de limites ao
 LiteLLM, tetos de custo por caracteres/lotes, prompts, testes e documentação.
+
+### Smoke test da etapa final
+
+Foi executada uma chamada real, sem ferramentas, pelo mesmo modo de conclusão
+usado após a revisão em lotes. O GPT-5 mini respondeu `modo final ok`; nenhuma
+fila, decisão ou publicação Bluesky foi acionada. API, banco, Jev e worker
+continuam em estado saudável.
