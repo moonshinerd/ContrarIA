@@ -196,11 +196,13 @@ class TavilyClient(CachedSource):
                 },
             )
         if response.status_code in (429, 432, 433):
-            self._unavailable_until = monotonic() + self.settings.tavily_cooldown_seconds
+            # Quota/plano esgotado: desabilita Tavily pelo resto da sessão
+            # para não bloquear o pipeline com esperas. O fallback (SearXNG/DDG)
+            # assume imediatamente sem delay.
+            self._unavailable_until = float("inf")
             logger.warning(
-                "Tavily atingiu limite de créditos/plano (status %d). Em espera por %ds.",
+                "Tavily com quota esgotada (status %d). Desabilitando pelo resto da sessão.",
                 response.status_code,
-                self.settings.tavily_cooldown_seconds,
             )
         response.raise_for_status()
         return [
