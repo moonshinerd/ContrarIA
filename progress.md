@@ -630,3 +630,25 @@ Recebemos e analisamos a pesquisa técnica detalhada sobre sistemas RAG para Fac
    - O repositório já possui `sentence-transformers>=3` e `torch>=2.2` instalados e funcionais.
    - Modelos como `mDeBERTa-v3-base-xnli` possuem ~278M parâmetros (14x menores que o Qwen3-4B), rodam em ~50ms em CPU e consomem apenas ~500MB de RAM.
    - Podem ser testados como um classificador NLI determinístico ultrarrápido que elimina a necessidade de prompts de 4000 tokens no Jev.
+
+
+## Validação Empírica da Solução Proposta — Teste com Cross-Encoder NLI Multilíngue (30/09/2026)
+
+Para endereçar a diretriz de **adotar soluções que funcionam, são baratas e rodam sem gargalo localmente**, executamos um benchmark experimental com o modelo de Inferência de Linguagem Natural multilíngue **`MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7`** diretamente na CPU do container da API (`app.scripts.benchmark_nli`).
+
+O modelo tem ~278M parâmetros (peso de ~560MB, contra 2.5GB do Qwen3-4B) e consome apenas ~500MB de RAM.
+
+### Resultados Empíricos nos Casos Críticos de Falha
+
+| Caso Testado | Premissa (Fonte Recuperada) | Hipótese (Alegação do Post) | Entailment | Neutral | Contradiction | Diagnóstico |
+|---|---|---|---|---|---|---|
+| **1. Barcelona** *(Falso Positivo de Ausência)* | "A atriz Fernanda Serrano participou de um filme rodado em Barcelona em 1996." | "Hoje em Barcelona, Bloco Amantes Latinos aquecendo os tambores." | 26.6% | **65.8%** | **7.5%** | **Sucesso Total:** O modelo rejeita contradição (<8%) e classifica como Neutro/Insuficiente, eliminando o falso desmentido sem precisar de travas de string! |
+| **2. Benedita** *(Suporte Explícito em Debate)* | "Benedita da Silva, Carlos Jordy e outros candidatos ao Senado pelo Rio..." | "Benedita da Silva concorre a senadora pelo Rio de Janeiro." | **74.7%** | 23.0% | **2.2%** | **Sucesso Total:** O modelo identifica suporte (74.7%) e quase zero contradição (2.2%), dispensando a regra manual de candidatura! |
+| **3. Desmentido Real** *(Fato Comprovadamente Falso)* | "É falso que Benedita da Silva concorra ao Senado pelo Rio..." | "Benedita da Silva concorre a senadora pelo Rio de Janeiro." | 4.4% | 3.5% | **92.0%** | **Sucesso Total:** Detecta com alta confiança (92%) que a alegação foi ativamente desmentida. |
+| **4. Flávio Dino** *(Confirmação Judicial)* | "O ministro Flávio Dino derrubou neste domingo a decisão liminar de Mendonça..." | "Ministro Flávio Dino suspendeu a decisão de André Mendonça..." | **97.9%** | 1.7% | 0.35% | **Sucesso Total:** Entailment quase absoluto (97.9%), provando que a alegação é verdadeira e não deve sofrer intervenção adversa. |
+
+### Conclusão e Próximos Passos Recomendados
+
+1. **Eficiência e Custo:** O modelo roda em ~1.5 a 2.0s por par na CPU padrão do Docker, tem pegada de memória desprezível (~500MB de RAM) e custo de nuvem zero.
+2. **Eliminação de Heurísticas Frágeis:** O NLI resolve o problema fundamental de triagem porque a classe `Neutral` é nativa. Não é mais necessário acumular dezenas de `if/else`, contagem de âncoras ou expressões regulares para forçar abstenção.
+3. **Integração sem Impacto:** O `sentence-transformers` e `torch` já estão no `pyproject.toml` da API e do worker. O modelo pode ser integrado como um verificador de suporte/contradição prévio antes de qualquer decisão de quote.
