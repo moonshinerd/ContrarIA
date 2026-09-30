@@ -1,11 +1,12 @@
 from datetime import UTC, date, datetime
+from unittest.mock import AsyncMock
 
 import pytest
 
 from app.core.config import Settings
 from app.domain.entities import Evidence, Post, VerdictLabel
 from app.services.crc import CRCCalibration
-from app.services.jev_verification import JevVerificationService
+from app.services.jev_verification import JevVerificationService, _explicit_candidate_support
 
 
 class StaticCalibrations:
@@ -78,6 +79,58 @@ class ScriptedClassifier:
 
 def evidence(url: str, title: str) -> Evidence:
     return Evidence(source="test", url=url, title=title, snippet="")
+
+
+def test_explicit_candidate_support_blocks_benedita_false_positive():
+    claim = (
+        "É com muito orgulho que recebo o apoio da deputada federal Benedita da Silva, "
+        "que nesta eleição concorre a senadora pelo Rio de Janeiro."
+    )
+    source = Evidence(
+        "g1",
+        "https://g1.example/eleicoes",
+        "Debate de candidatos ao Senado pelo Rio",
+        "Benedita da Silva, Carlos Jordy e outros candidatos ao Senado pelo Rio "
+        "participaram dos debates no g1.",
+    )
+
+    assert _explicit_candidate_support(claim, [source]) == source.url
+
+
+def test_candidate_guard_does_not_treat_a_denial_as_support():
+    claim = "Benedita da Silva concorre a senadora pelo Rio de Janeiro."
+    source = Evidence(
+        "test",
+        "https://example.org/negacao",
+        "Checagem de candidatura",
+        "É falso que Benedita da Silva seja candidata ao Senado pelo Rio.",
+    )
+
+    assert _explicit_candidate_support(claim, [source]) is None
+
+
+async def test_jev_abstains_when_its_false_verdict_conflicts_with_explicit_support(monkeypatch):
+    claim = "Benedita da Silva concorre a senadora pelo Rio de Janeiro."
+    source = Evidence(
+        "g1",
+        "https://g1.example/eleicoes",
+        "Debate de candidatos ao Senado pelo Rio",
+        "Benedita da Silva e outros candidatos ao Senado pelo Rio participaram.",
+    )
+    service = build_service(calibration(0.5))
+    monkeypatch.setattr(service, "_search", AsyncMock(return_value=([source], {}, claim)))
+    monkeypatch.setattr(service, "_filter_relevant", AsyncMock(return_value=([source], [])))
+    monkeypatch.setattr(
+        service,
+        "_classify_verdict",
+        AsyncMock(return_value=(VerdictLabel.FALSE, 0.999, {"desmentem a alegação": 0.999})),
+    )
+
+    verdict = await service._verify_claim(claim, {}, prefix="jev.c01", post_date=date(2026, 9, 28))
+
+    assert verdict.label == VerdictLabel.INSUFFICIENT_EVIDENCE
+    assert verdict.confidence == 0.0
+    assert "fonte relevante apresenta" in verdict.rationale
 
 
 async def test_filter_relevant_shortlists_by_word_overlap_and_sorts_by_margin():

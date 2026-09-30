@@ -83,6 +83,38 @@ _TEMPORAL_REFERENCE_PATTERN = re.compile(
     r"\b(hoje|ontem|amanh[ãa]|agora|acaba de|esta semana|nesta semana|neste m[eê]s)\b",
     re.IGNORECASE,
 )
+_NAME_WORD = r"[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+"
+_CANDIDATE_CLAIM_PATTERN = re.compile(
+    rf"(?P<name>{_NAME_WORD}(?:\s+(?:d[aeo]s?|{_NAME_WORD})){{1,4}})"
+    r"\s*,?\s*(?:que\s+)?(?:nesta\s+elei[çc][ãa]o\s+)?"
+    r"concorre\s+a[o]?\s+senad",
+)
+_SENATE_CANDIDATE_PATTERN = re.compile(r"candidat[oa]s?\s+ao\s+senado", re.IGNORECASE)
+_NEGATION_PATTERN = re.compile(
+    r"\b(n[ãa]o|falso|boato|desistiu|impugnada|impugnado)\b", re.IGNORECASE
+)
+
+
+def _explicit_candidate_support(claim: str, evidences: list[Evidence]) -> str | None:
+    """Detecta fonte que chama a pessoa da alegação de candidata ao Senado.
+
+    É uma trava estreita de abstenção, não uma prova automática de verdade:
+    evita que o Jev transforme uma lista parcial de debate em desmentido de
+    candidatura quando a própria fonte nomeia a pessoa como candidata.
+    """
+    match = _CANDIDATE_CLAIM_PATTERN.search(claim)
+    if not match:
+        return None
+    name = match.group("name").casefold()
+    for evidence in evidences:
+        text = f"{evidence.title} {evidence.snippet}".casefold()
+        for occurrence in re.finditer(re.escape(name), text):
+            surrounding = text[max(0, occurrence.start() - 120) : occurrence.end() + 180]
+            if _SENATE_CANDIDATE_PATTERN.search(surrounding) and not _NEGATION_PATTERN.search(
+                surrounding
+            ):
+                return evidence.url
+    return None
 
 
 def _url_key(url: str) -> str:
@@ -309,6 +341,20 @@ class JevVerificationService:
             claim, relevant, post_date=post_date
         )
         agent_outputs[f"{prefix}.verdict"] = json.dumps(verdict_probs, ensure_ascii=False)
+
+        if label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING):
+            supporting_url = _explicit_candidate_support(claim, relevant)
+            if supporting_url:
+                agent_outputs[f"{prefix}.explicit_support_url"] = supporting_url
+                return Verdict(
+                    claim=claim,
+                    label=VerdictLabel.INSUFFICIENT_EVIDENCE,
+                    confidence=0.0,
+                    rationale="Abstenção (Jev): fonte relevante apresenta a pessoa como "
+                    "candidata ao Senado; veredito adverso contradiz a evidência.",
+                    evidences=relevant,
+                    agent_outputs=agent_outputs,
+                )
 
         label, confidence, rationale = self._apply_calibration(label, confidence, len(relevant))
         return Verdict(

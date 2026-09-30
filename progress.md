@@ -578,3 +578,55 @@ curl -fsS http://localhost:8000/health
 Só depois revisar `git diff`, atualizar este diário com os resultados, e então
 decidir se os arquivos `api/app/services/jev_verification.py` e
 `api/tests/test_jev_verification.py` devem ser commitados e enviados ao PR.
+
+
+## Execução da validação, testes e replay histórico — 30/09/2026 (Manhã)
+
+Conforme orientado no plano de continuidade, foram executadas as validações, suítes de teste e o replay histórico completo das decisões em modo somente leitura contra o serviço Jev compartilhado.
+
+### 1. Resultados dos Testes Automatizados e Linters
+
+- **Validação Focada (`test_jev_verification.py`):**
+  `14 passed in 17.88s` via `docker compose run`. `ruff check` e `ruff format --check` passaram sem erros após reformatar 1 arquivo.
+- **Suíte Completa com Golden Set (`/research` montado):**
+  `204 passed, 2 skipped, 2 warnings in 20.16s`. `ruff check .` e `ruff format --check .` passaram com 116 arquivos já formatados e zero erros de lint.
+
+### 2. Resultados do Replay Histórico (Modo Somente Leitura)
+
+O script `app.scripts.replay_decisions` reprocessou os snapshots e as fontes históricas salvas das decisões `624`, `493` e `467`:
+
+| Decisão | Alegação avaliada | Evidências Relevantes | Veredito Bruto Jev | Confiança Bruta | Trava / CRC | Veredito Final |
+|---|---|---|---|---|---|---|
+| **624** (Benedita da Silva) | Candidatura de Benedita ao Senado pelo RJ | 1 (g1: debate de candidatos) | `misleading` | 0.632058 | **Trava `_explicit_candidate_support` disparada** | `insufficient_evidence` (0.0) |
+| **624** (Benedita da Silva) | Frase 2 (outros cargos) | 0 | - | - | Sem evidências | `insufficient_evidence` (0.0) |
+| **493** (Flávio Dino) | Suspensão da decisão de Mendonça sobre post de Tabet | 7 (UOL, Poder360, Estadão, SemPauta, Agência Brasil, etc.) | `true` | 0.511525 | Abaixo de `lambda_hat` (0.9996) | `insufficient_evidence` (0.0) |
+| **493** (Flávio Dino) | "A medida também se aplica a outras publicações censuradas." | 0 | - | - | Sem âncoras/contexto | `insufficient_evidence` (0.0) |
+| **493** (Flávio Dino) | "VITÓRIA DE DEMOCRACIA E DA LIBERDADE DE EXPRESSÃO" | 5 | `true` | 0.916249 | Abaixo de `lambda_hat` (0.9996) | `insufficient_evidence` (0.0) |
+| **467** (Projeto evangélico) | Todas as 3 alegações do post | 0 para todas | - | - | Nenhuma evidência relevante encontrada | `insufficient_evidence` (0.0) |
+
+### 3. Diagnóstico e Conclusões Técnicas
+
+1. **Eficácia da trava da Benedita:** A trava determinística `_explicit_candidate_support` funcionou exatamente como especificado. Quando a fonte relevante cita explicitamente a pessoa como candidata ao cargo, o sistema bloqueia vereditos de `false`/`misleading`, gerando abstenção segura e impedindo a publicação errônea.
+2. **Caso Flávio Dino com fontes históricas:** Com as 11 matérias históricas originais, o Jev **não** gera veredito adverso: ele deu `true` tanto na frase principal (51,15% confirmam vs 0,00001% desmentem) quanto na frase de encerramento (91,62% confirmam). Portanto, a intervenção antiga como `misleading` decorreu de uma rodada anterior do LLM, não do Jev atual diante das fontes completas.
+3. **Causa raiz da busca inadequada no replay ao vivo (Apostas):**
+   Identificamos por que a busca ao vivo trouxe matérias sobre apostas para o caso Dino: a função `_candidate_sentences` quebrou o post em frases isoladas por pontuação. A frase 2 (*"A medida também se aplica a outras publicações censuradas."*) é uma **anáfora** (perdeu o sujeito "Dino" e "Mendonça"). Ao buscar na web essa frase genérica, a busca retornou medidas cautelares sobre bloqueio de apostas online.
+4. **Causa raiz das alucinações de desmentido no Jev:**
+   No `jev_verification.py`, as opções oferecidas ao modelo são estritamente:
+   - `confirmam a alegação`
+   - `desmentem a alegação`
+   - `confirmam o fato, mas desmentem a conclusão ou o exagero da alegação`
+   **Não existia uma opção para "as evidências não abordam ou não contêm informação suficiente"**. Isso forçava o Qwen3-4B a distribuir 100% da probabilidade entre opções fáticas, convertendo ausência de confirmação em desmentido.
+
+---
+
+## Análise do Relatório Técnico de Estado da Arte e Plano de Adoção Local
+
+Recebemos e analisamos a pesquisa técnica detalhada sobre sistemas RAG para Fact-Checking. O relatório aponta com precisão matemática os limites de usar um LLM gerativo autorregressivo (Qwen3-4B) forçado a classificar poucas opções via logprobs sem classe neutra, e o custo absurdo de enviar 320k tokens em lotes para a nuvem.
+
+### Diretrizes de Implementação (Custo Quase Zero e Baixa Latência Local):
+1. **Opção de Neutralidade no Jev:** Adicionar formalmente a opção de abstenção/neutralidade (*"as evidências não abordam o fato ou não contêm informação suficiente para confirmar ou desmentir"*) nas opções do prompt do Jev, eliminando o viés autorregressivo de forçar desmentido.
+2. **Contexto de Anáfora na Decomposição de Sentenças:** Ao quebrar o post em candidatos a alegação factual, injetar o sujeito/entidade principal do post nas frases dependentes para que a busca na web não busque termos genéricos descontextualizados.
+3. **Exploração de Modelos Especializados Leves (NLI Cross-Encoder):**
+   - O repositório já possui `sentence-transformers>=3` e `torch>=2.2` instalados e funcionais.
+   - Modelos como `mDeBERTa-v3-base-xnli` possuem ~278M parâmetros (14x menores que o Qwen3-4B), rodam em ~50ms em CPU e consomem apenas ~500MB de RAM.
+   - Podem ser testados como um classificador NLI determinístico ultrarrápido que elimina a necessidade de prompts de 4000 tokens no Jev.
