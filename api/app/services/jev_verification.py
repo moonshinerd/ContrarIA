@@ -75,6 +75,14 @@ _MAX_EVIDENCE_FOR_VERDICT = 5
 _ARTICLE_MAX_CHARS = 8000
 _SNIPPET_MAX_CHARS = 400
 _WORD_PATTERN = re.compile(r"\w{4,}")
+# Uma coincidência isolada (sobretudo cidade, país ou tema amplo) não mostra
+# que a fonte trata da mesma alegação. Ex.: uma página que menciona Barcelona
+# não é evidência sobre um evento específico ocorrido em Barcelona.
+_MIN_DIRECT_ANCHOR_OVERLAP = 2
+_TEMPORAL_REFERENCE_PATTERN = re.compile(
+    r"\b(hoje|ontem|amanh[ãa]|agora|acaba de|esta semana|nesta semana|neste m[eê]s)\b",
+    re.IGNORECASE,
+)
 
 
 def _url_key(url: str) -> str:
@@ -89,6 +97,31 @@ def _word_overlap(claim: str, evidence: Evidence) -> int:
         word.casefold() for word in _WORD_PATTERN.findall(f"{evidence.title} {evidence.snippet}")
     }
     return len(claim_words & evidence_words)
+
+
+def _has_direct_anchor_overlap(claim: str, evidence: Evidence) -> bool:
+    """Exige âncoras e uma expressão factual compartilhada no título/trecho.
+
+    Isto é um guardrail determinístico antes do classificador local. O Jev
+    pode confundir uma coincidência geográfica ou temática com relevância; sem
+    âncoras e uma expressão compartilhadas, uma fonte não pode confirmar nem
+    desmentir o fato.
+    """
+    claim_words = [word.casefold() for word in _WORD_PATTERN.findall(claim)]
+    evidence_words = [
+        word.casefold() for word in _WORD_PATTERN.findall(f"{evidence.title} {evidence.snippet}")
+    ]
+    claim_pairs = set(zip(claim_words, claim_words[1:], strict=False))
+    evidence_pairs = set(zip(evidence_words, evidence_words[1:], strict=False))
+    return len(set(claim_words) & set(evidence_words)) >= _MIN_DIRECT_ANCHOR_OVERLAP and bool(
+        claim_pairs & evidence_pairs
+    )
+
+
+def _is_campaign_label(fragment: str) -> bool:
+    """Identificadores de comitê/núcleo não são alegações a contestar."""
+    first_word = fragment.split(maxsplit=1)[0].casefold() if fragment.split() else ""
+    return first_word in {"comitê", "comite", "núcleo", "nucleo"}
 
 
 def jev_model_key(settings: Settings) -> str:
@@ -116,7 +149,9 @@ def _candidate_sentences(post_text: str) -> list[str]:
     fragments: list[str] = []
     for line in post_text.splitlines():
         line = line.strip()
-        if not line:
+        # Hashtags isoladas expressam campanha/posição, não uma alegação a
+        # ser verificada. Antes elas chegavam ao Jev como uma frase factual.
+        if not line or line.startswith("#"):
             continue
         fragments.extend(part.strip() for part in re.split(r"(?<=[.!?])\s+", line))
 
@@ -124,7 +159,7 @@ def _candidate_sentences(post_text: str) -> list[str]:
     candidates: list[str] = []
     for fragment in fragments:
         cleaned = _clean_query(fragment)
-        if len(cleaned) < _MIN_SENTENCE_LEN or cleaned in seen:
+        if len(cleaned) < _MIN_SENTENCE_LEN or cleaned in seen or _is_campaign_label(cleaned):
             continue
         seen.add(cleaned)
         candidates.append(cleaned)
@@ -218,7 +253,10 @@ class JevVerificationService:
         best: Verdict | None = None
         for index, claim in enumerate(factual_claims, start=1):
             candidate_verdict = await self._verify_claim(
-                claim, agent_outputs, prefix=f"jev.c{index:02d}"
+                claim,
+                agent_outputs,
+                prefix=f"jev.c{index:02d}",
+                post_date=post.created_at.date(),
             )
             if candidate_verdict.label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING):
                 return candidate_verdict  # já passou pela calibração -- pode agir
@@ -234,9 +272,15 @@ class JevVerificationService:
         )
 
     async def _verify_claim(
-        self, claim: str, agent_outputs: dict[str, str], *, prefix: str
+        self,
+        claim: str,
+        agent_outputs: dict[str, str],
+        *,
+        prefix: str,
+        post_date: date,
     ) -> Verdict:
-        evidences, source_errors = await self._search(claim)
+        evidences, source_errors, query = await self._search(claim, post_date=post_date)
+        agent_outputs[f"{prefix}.search_query"] = query
         agent_outputs[f"{prefix}.evidence_count"] = str(len(evidences))
         if source_errors:
             agent_outputs[f"{prefix}.source_errors"] = json.dumps(source_errors, ensure_ascii=False)
@@ -249,7 +293,7 @@ class JevVerificationService:
                 agent_outputs=agent_outputs,
             )
 
-        relevant, relevance_log = await self._filter_relevant(claim, evidences)
+        relevant, relevance_log = await self._filter_relevant(claim, evidences, post_date=post_date)
         agent_outputs[f"{prefix}.relevance"] = json.dumps(relevance_log, ensure_ascii=False)
         if not relevant:
             return Verdict(
@@ -261,7 +305,9 @@ class JevVerificationService:
                 evidences=evidences,
             )
 
-        label, confidence, verdict_probs = await self._classify_verdict(claim, relevant)
+        label, confidence, verdict_probs = await self._classify_verdict(
+            claim, relevant, post_date=post_date
+        )
         agent_outputs[f"{prefix}.verdict"] = json.dumps(verdict_probs, ensure_ascii=False)
 
         label, confidence, rationale = self._apply_calibration(label, confidence, len(relevant))
@@ -275,15 +321,35 @@ class JevVerificationService:
         )
 
     async def _filter_relevant(
-        self, claim: str, evidences: list[Evidence]
+        self, claim: str, evidences: list[Evidence], *, post_date: date | None = None
     ) -> tuple[list[Evidence], list[dict]]:
-        # Pré-ordenação sem modelo: só as que mais compartilham palavras com a
-        # alegação vão para o Jev.
-        shortlist = sorted(evidences, key=lambda item: _word_overlap(claim, item), reverse=True)[
+        # Pré-filtro determinístico: sem duas âncoras específicas em comum, a
+        # fonte não fala do fato. Isso impede que o modelo trate, por exemplo,
+        # uma matéria qualquer sobre "Barcelona" como evidência sobre um bloco
+        # político específico na cidade.
+        log: list[dict] = []
+        anchored: list[Evidence] = []
+        for evidence in evidences:
+            overlap = _word_overlap(claim, evidence)
+            if not _has_direct_anchor_overlap(claim, evidence):
+                log.append(
+                    {
+                        "url": evidence.url,
+                        "relevante": 0.0,
+                        "irrelevante": 1.0,
+                        "anchor_overlap": overlap,
+                        "reason": "âncoras ou expressão factual insuficientes",
+                    }
+                )
+                continue
+            anchored.append(evidence)
+
+        # Só as fontes ancoradas mais próximas chegam ao Jev para a segunda
+        # checagem semântica de relevância.
+        shortlist = sorted(anchored, key=lambda item: _word_overlap(claim, item), reverse=True)[
             :_MAX_EVIDENCE_FOR_RELEVANCE
         ]
         scored: list[tuple[float, Evidence]] = []
-        log: list[dict] = []
         for evidence in shortlist:
             snippet = f"{evidence.title}. {evidence.snippet}"[:800]
             judgment = await self.classifier.classify(
@@ -291,10 +357,23 @@ class JevVerificationService:
                 "O trecho cita os MESMOS fatos, pessoas, números ou eventos específicos "
                 "da alegação (não conta só por ser sobre o mesmo tema genérico, como "
                 'eleições ou política em geral)? Responda "relevante" só se o trecho '
-                "realmente ajuda a confirmar ou refutar essa alegação específica.",
+                "realmente ajuda a confirmar ou refutar essa alegação específica."
+                + (
+                    f" A postagem é de {post_date:%d/%m/%Y}; se a alegação diz 'hoje', "
+                    "'ontem' ou algo equivalente, a fonte precisa sustentar ou contradizer "
+                    "o evento naquela data, não apenas citar o mesmo lugar."
+                    if post_date and _TEMPORAL_REFERENCE_PATTERN.search(claim)
+                    else ""
+                ),
                 ["relevante", "irrelevante"],
             )
-            log.append({"url": evidence.url, **judgment})
+            log.append(
+                {
+                    "url": evidence.url,
+                    "anchor_overlap": _word_overlap(claim, evidence),
+                    **judgment,
+                }
+            )
             margin = judgment["relevante"] - judgment["irrelevante"]
             if margin >= _RELEVANCE_MARGIN:
                 scored.append((margin, evidence))
@@ -302,11 +381,16 @@ class JevVerificationService:
         return [evidence for _, evidence in scored], log
 
     async def _classify_verdict(
-        self, claim: str, relevant: list[Evidence]
+        self, claim: str, relevant: list[Evidence], *, post_date: date | None = None
     ) -> tuple[VerdictLabel, float, dict[str, float]]:
         candidates = relevant[:_MAX_EVIDENCE_FOR_VERDICT]
         articles = await asyncio.gather(*(_fetch_article_text(item.url) for item in candidates))
-        head = f'Alegação: "{claim}"\nEvidências encontradas:\n'
+        temporal_context = (
+            f" A postagem foi publicada em {post_date:%d/%m/%Y}."
+            if post_date and _TEMPORAL_REFERENCE_PATTERN.search(claim)
+            else ""
+        )
+        head = f'Alegação: "{claim}"{temporal_context}\nEvidências encontradas:\n'
         tail = "O que as evidências acima dizem sobre a alegação?"
         evidence_summary = await self._pack_evidence(head + tail, candidates, articles)
         options = list(_LABEL_BY_OPTION)
@@ -366,13 +450,21 @@ class JevVerificationService:
             rationale += " Sem calibração CRC (JEV_ALLOW_UNCALIBRATED)."
         return label, confidence, rationale
 
-    async def _search(self, query: str) -> tuple[list[Evidence], dict[str, str]]:
+    async def _search(
+        self, query: str, *, post_date: date | None = None
+    ) -> tuple[list[Evidence], dict[str, str], str]:
         clean_query = _clean_query(query)
+        search_query = clean_query
+        # Acrescenta a data somente para referências temporais explícitas. Não
+        # impõe janela de recência: uma checagem posterior ainda pode refutar
+        # corretamente um post antigo.
+        if post_date and _TEMPORAL_REFERENCE_PATTERN.search(clean_query):
+            search_query = f"{clean_query} {post_date:%d/%m/%Y}"
 
         async def search_one(source: EvidenceSource):
             try:
                 found = await asyncio.wait_for(
-                    source.search(clean_query, limit=3),
+                    source.search(search_query, limit=3),
                     timeout=self.settings.evidence_timeout_seconds,
                 )
                 return source.name, found, None
@@ -392,4 +484,4 @@ class JevVerificationService:
                 if key not in seen_urls:
                     seen_urls.add(key)
                     evidences.append(item)
-        return evidences, errors
+        return evidences, errors, search_query

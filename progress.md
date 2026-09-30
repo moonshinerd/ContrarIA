@@ -109,3 +109,146 @@ Durante a validação, respostas estruturadas inválidas do LLM e respostas Self
 ## Limpeza
 
 Os contêineres de validação foram parados ao término. Volumes locais foram preservados; nenhum recurso remoto foi removido ou alterado.
+
+---
+
+# Acompanhamento operacional — backend Jev e segurança de intervenções
+
+Atualizado em 30/09/2026 (horário de Brasília). Esta seção é o registro vivo
+do trabalho atual e deve ser atualizada a cada teste, mudança relevante ou
+decisão operacional.
+
+## Estado atual
+
+- O Docker Desktop, que estava desligado após o Mac ser desligado, foi iniciado.
+  `db`, `api`, `worker` e `jev` estão saudáveis.
+- O worker está com `VERIFICATION_BACKEND=jev` e publicação real habilitada.
+  O Jev usa Qwen3-4B GGUF em um único serviço compartilhado; API e worker não
+  carregam cópias separadas do modelo.
+- A calibração CRC do Jev está registrada com 40 exemplos e `alpha=0,05`.
+- A documentação da arquitetura Jev foi consolidada e enviada ao PR
+  [#57](https://github.com/moonshinerd/ContrarIA/pull/57) no commit `11f04cb`.
+  A `main` já estava incorporada ao branch no momento da conferência.
+
+## Reconciliação com o Bluesky
+
+O banco tinha registros de quotes que haviam sido apagados manualmente no
+Bluesky. A fonte de verdade usada foi a API pública
+`app.bsky.feed.getAuthorFeed` do perfil `@contraria-bot.bsky.social`.
+
+- Nove registros operacionais antigos de quote foram removidos em uma primeira
+  reconciliação; o histórico de decisões foi preservado e recebeu revisões
+  `QUOTE_REMOVED_MANUALLY`.
+- O quote sobre o **Bloco Amantes Latinos em Barcelona** foi apagado pelo
+  operador depois. A API confirmou a remoção e mais um registro operacional foi
+  removido; a decisão `623` recebeu revisão explícita de remoção manual.
+- No momento desta atualização, a API confirma **três** quotes publicados. O
+  banco operacional (`intervention_logs`) contém exatamente esses três.
+- Não apagar decisões históricas é intencional: elas registram que a ação foi
+  tomada. A revisão registra que a publicação deixou de existir; o registro
+  operacional controla a prevenção de duplicidade.
+
+Após essa reconciliação, uma rodada antiga que já estava em memória publicou
+mais um quote às 09:15 (Brasília). A API e `intervention_logs` confirmam
+**quatro** quotes no momento desta atualização; esse quarto item não passou
+pela correção nova e deve ser revisado separadamente se houver dúvida sobre o
+conteúdo.
+
+## Incidente encontrado: falso positivo de Barcelona
+
+O post original dizia que o Bloco Amantes Latinos estava em Barcelona naquele
+dia. O Jev classificou-o como `false` com confiança de aproximadamente 100% e
+o pipeline publicou uma pergunta baseada em Fernanda Serrano.
+
+A auditoria da decisão `623` mostrou que as cinco fontes aceitas não tratavam
+do bloco nem do evento: incluíam checagens sobre Cristiano Ronaldo e clubes
+brasileiros, uma fábrica em Barcelona, uma instituição portuguesa e a página
+da atriz Fernanda Serrano. Esta última somente menciona uma participação em
+filme rodado em Barcelona em 1996; não confirma o evento nem sustenta a frase
+gerada pelo LLM de que ela seria uma pessoa capaz de confirmá-lo.
+
+Conclusão: não foi apenas um limiar de confiança inadequado. O sistema aceitou
+relevância por coincidência geográfica/temática e converteu ausência de
+confirmação em desmentido. O quote foi corretamente removido pelo operador.
+
+## Correção em implementação
+
+Arquivos alterados, ainda não commitados nesta etapa:
+
+- `api/app/services/jev_verification.py`
+  - Fontes agora precisam compartilhar pelo menos duas âncoras factuais com a
+    alegação antes de chegarem ao Jev. Cidade, país ou tema isolado não bastam.
+  - Hashtags em linha isolada não entram como alegações factuais candidatas.
+  - Alegações temporais explícitas (`hoje`, `ontem`, `agora`, etc.) recebem a
+    data original do post na consulta e no prompt de relevância. A data não é
+    um filtro rígido: fontes posteriores podem continuar refutando um post
+    antigo se tratarem diretamente do fato daquela data.
+- `api/tests/test_jev_verification.py`
+  - Teste de regressão para o caso Barcelona: fontes que só mencionam a cidade
+    são rejeitadas antes de consumirem inferência Jev.
+  - Teste para ignorar hashtags isoladas e teste para incluir a data em
+    alegações temporais.
+
+Validação já concluída: `pytest tests/test_jev_verification.py` (**10 passed**),
+`ruff check` e `ruff format --check` passaram.
+
+## Reteste em andamento
+
+O post de Barcelona está sendo reprocessado somente para leitura com a nova
+versão do Jev. O teste não chama publicação, fila, Ozone nem escrita no banco.
+Resultado esperado: `insufficient_evidence`, porque nenhuma fonte contém
+âncoras diretas do bloco e do evento. Registrar aqui o resultado antes de
+commitar a correção.
+
+### Resultado parcial do reteste
+
+O primeiro reteste ainda retornou `false`. A auditoria mostrou uma segunda
+brecha: além da frase do evento, o post era separado em `Núcleo PT Barcelona`
+e `Comitê Lula Presidente - Barcelona`; esses identificadores de campanha
+podiam encontrar coincidências genéricas e chegar ao veredito. A correção foi
+endurecida antes do commit: uma fonte agora precisa compartilhar uma expressão
+de duas palavras consecutivas **e** pelo menos duas âncoras factuais; linhas de
+`Núcleo`/`Comitê` são descartadas como identificadores, não alegações. Um novo
+reteste de Barcelona será registrado aqui após os testes unitários.
+
+### Aplicação da correção no worker
+
+O worker precisa ser reiniciado para importar mudanças em `api/app`: ele não
+usa reload. Antes do restart, uma rodada já calculada pelo código antigo
+publicou um quote às 09:15 (Brasília); ela não é resultado da correção nova.
+O worker foi reiniciado às 09:16, retomou a sessão e a coleta normalmente, e
+os candidatos que existiam apenas na fila em memória foram descartados. A
+partir desse ponto, novas análises usam as regras de âncora, expressão factual,
+identificador de campanha e data do post.
+
+### Reteste final de Barcelona
+
+Depois do endurecimento, o mesmo snapshot da decisão `623` foi reprocessado em
+modo somente leitura. Resultado: `insufficient_evidence`, confiança `0,0`,
+alegação avaliada `Hoje em Barcelona, Bloco Amantes Latinos aquecendo os
+tambores!!!!!` e zero evidências relevantes. Nenhuma publicação, fila, Ozone
+ou escrita no banco foi acionada pelo reteste. Este é o comportamento esperado:
+ausência de fonte diretamente relacionada ao evento causa abstenção, não
+desmentido.
+
+### Validação final da correção
+
+- Teste unitário focado: `11 passed` em `tests/test_jev_verification.py`.
+- Suíte completa no contêiner, com o dataset de pesquisa montado como o teste
+  exige: `196 passed, 2 skipped`.
+- `ruff check` e `ruff format --check` passaram para todo o projeto da API.
+- O primeiro comando da suíte sem o volume `/research` falhou somente porque
+  `test_claim_verification.py` procura o arquivo de golden set nesse caminho;
+  a repetição com o volume correto passou integralmente.
+
+## Próximas ações planejadas
+
+1. Concluir e registrar o reteste de Barcelona.
+2. Commitar e enviar a correção ao PR #57, após validação completa adequada.
+3. Construir um conjunto de avaliação separado para `deve_responder`, com
+   exemplos benignos e difíceis: relatos locais, eventos sem cobertura
+   jornalística, postagens políticas comuns, opinião e sátira.
+4. Recalibrar o CRC somente depois de aumentar e estratificar o conjunto. O
+   conjunto atual tem 40 exemplos (apenas seis verdadeiros) e permite um falso
+   positivo de alta confiança dentro da margem estatística de 5%; ele não mede
+   bem o gate semântico de intervenção.

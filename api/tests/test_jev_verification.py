@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -97,11 +97,48 @@ async def test_filter_relevant_shortlists_by_word_overlap_and_sorts_by_margin():
 
     relevant, log = await service._filter_relevant(claim, evidences)
 
-    assert len(log) == 8
+    # As fontes sem duas âncoras factuais são vetadas antes de consumir Jev.
+    assert len(classifier.questions) == 2
+    assert len(log) == len(evidences)
     assert {"https://a", "https://b"} <= {entry["url"] for entry in log}
     assert relevant[0].url == "https://b"
-    margins = [entry["relevante"] - entry["irrelevante"] for entry in log]
+    margins = [entry["relevante"] - entry["irrelevante"] for entry in log if "reason" not in entry]
     assert len(relevant) == sum(margin >= 0.15 for margin in margins)
+
+
+async def test_filter_relevant_rejects_location_only_match_before_jev():
+    claim = "Hoje em Barcelona, Bloco Amantes Latinos aquecendo os tambores"
+    evidences = [
+        evidence("https://fernanda", "Fernanda Serrano em Barcelona"),
+        evidence("https://factory", "Fábrica de Barcelona volta à produção"),
+        evidence("https://event", "Bloco Amantes Latinos faz evento em Barcelona"),
+    ]
+    classifier = ScriptedClassifier({"Bloco Amantes Latinos faz evento": 0.9})
+    service = build_service(None)
+    service.classifier = classifier
+
+    relevant, log = await service._filter_relevant(claim, evidences)
+
+    assert [item.url for item in relevant] == ["https://event"]
+    assert len(classifier.questions) == 1
+    rejected = {entry["url"] for entry in log if entry.get("reason")}
+    assert rejected == {"https://fernanda", "https://factory"}
+
+
+def test_candidate_sentences_ignores_hashtag_only_lines():
+    from app.services.jev_verification import _candidate_sentences
+
+    assert _candidate_sentences("#LulaNoPrimeiroTurno\nA eleição será amanhã.") == [
+        "A eleição será amanhã."
+    ]
+
+
+def test_candidate_sentences_ignores_campaign_labels():
+    from app.services.jev_verification import _candidate_sentences
+
+    assert _candidate_sentences(
+        "Núcleo PT Barcelona\nComitê Lula Presidente - Barcelona\nHoje houve um ato em Barcelona."
+    ) == ["Hoje houve um ato em Barcelona."]
 
 
 async def test_verdict_packs_full_articles_until_the_context_limit(monkeypatch):
@@ -135,7 +172,11 @@ async def test_verdict_packs_full_articles_until_the_context_limit(monkeypatch):
 class EmptySource:
     name = "empty"
 
+    def __init__(self) -> None:
+        self.queries: list[str] = []
+
     async def search(self, query: str, *, limit: int = 5):
+        self.queries.append(query)
         return []
 
 
@@ -175,3 +216,16 @@ async def test_jev_considers_limited_thread_context_as_candidate_claim():
     assert verdict.label == VerdictLabel.INSUFFICIENT_EVIDENCE
     assert "221 bi em depósitos" in verdict.claim
     assert any("221 bi em depósitos" in question for question in classifier.questions)
+
+
+async def test_jev_searches_with_post_date_for_temporal_claim():
+    source = EmptySource()
+    service = build_service(None)
+    service.sources = [source]
+
+    _, _, query = await service._search(
+        "Hoje houve um ato em Barcelona", post_date=date(2026, 9, 27)
+    )
+
+    assert query.endswith("27/09/2026")
+    assert source.queries == [query]
