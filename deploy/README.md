@@ -18,6 +18,9 @@ executa localmente o modelo mDeBERTa-v3 NLI via PyTorch/Transformers; API e work
 - **Variáveis do ambiente `production`:** secret `DEPLOY_SSH_KEY`; variáveis `DEPLOY_HOST` e
   `DEPLOY_HOST_KEY` (chave pública do servidor, fixa a identidade).
 - **Na VM:** `api/.env` em `/opt/contraria/api/.env` (permissão 600, fora do git).
+- **Scripts da VM** em `deploy/vm/`: `contraria-deploy.sh` (comando forçado da chave do GitHub) e a limpeza do Docker
+  (`contraria-docker-prune.sh` + timer semanal), instalados em `/opt/` com dono `root`. Os logs dos containers têm
+  rotação no compose. Veja [Operação na VM](../docs/arquitetura/operacao-vm.md#disco-e-cache-do-docker).
 
 ## Backend Jev
 

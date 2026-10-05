@@ -40,9 +40,9 @@ flowchart LR
   rodando normalmente.
 
 !!! warning "SSH exposto"
-    O hostname `ssh-contraria` é público (não usamos Cloudflare Access). O acesso é protegido só por chave SSH. O
-    root entra somente por chave, mas a autenticação por senha ainda está habilitada para outros usuários da VM
-    (veja [Pendências](#pendencias)).
+    O hostname `ssh-contraria` é público (não usamos Cloudflare Access). O acesso é protegido só por chave SSH: a
+    autenticação por senha está **desligada** na VM (`/etc/ssh/sshd_config.d/00-contraria.conf`) e o root entra somente
+    por chave. A chave do deploy ainda tem `command=` e só executa o script de deploy.
 
 ## Acesso administrativo
 
@@ -59,14 +59,15 @@ Depois: `ssh contraria-vm`. Funciona de qualquer rede.
 
 ## Deploy
 
-O workflow `.github/workflows/deploy.yml` roda **só em push na `main`** (nunca em `pull_request`) e usa o ambiente
-`production` do GitHub, restrito à branch `main`.
+O workflow `.github/workflows/deploy.yml` roda em **push na `main`** (inclusive o merge de um PR), nunca em
+`pull_request`, e pode ser reexecutado à mão (`workflow_dispatch`). Pushes que mexem só em `docs/**`, `mkdocs.yml` ou
+arquivos `.md` não disparam deploy. Usa o ambiente `production` do GitHub, restrito à branch `main`.
 
 1. O runner instala o `cloudflared` e entra na VM por `cloudflared access ssh`, com a chave `DEPLOY_SSH_KEY`.
 2. No `authorized_keys` do usuário `deploy`, essa chave tem `command="/opt/contraria-deploy.sh",restrict,no-pty`: ela
    **só consegue executar o script de deploy**, sem shell, sem outros comandos e sem forward.
-3. O script faz `git reset --hard origin/main`, `docker compose up -d --build --remove-orphans` e
-   `alembic upgrade head`.
+3. O script faz `git reset --hard origin/main`, `docker compose up -d --build --remove-orphans`,
+   `alembic upgrade head` e a [limpeza do Docker](#disco-e-cache-do-docker).
 4. A identidade do servidor é fixada por `DEPLOY_HOST_KEY`, e não há confiança no primeiro acesso.
 
 | Onde | Nome | Tipo |
@@ -134,6 +135,27 @@ curl -s https://plc.directory/<DID_DO_LABELER> | python3 -m json.tool   # deve l
 
 Mantenha `PIPELINE_LABELER_ENABLED=false` até testar um post autorizado.
 
+## Disco e cache do Docker
+
+Cada deploy com `--build` deixa camadas órfãs e cache de build; sem limpeza o disco enche aos poucos. Medido na VM:
+imagens ~6,7 GB, cache de build ~3,5 GB e volumes ~1,2 GB, num disco de 40 GB.
+
+- **Logs dos containers com rotação:** todos os serviços do compose de produção usam `json-file` com `max-size: 10m` e
+  `max-file: 3` (no máximo 30 MB por serviço).
+- **Limpeza no fim de cada deploy** e **toda semana** (domingo, 4h, `contraria-docker-prune.timer`), por
+  `/opt/contraria-docker-prune.sh`: remove camadas órfãs e cache de build com mais de 7 dias. Se o disco passar de 80%,
+  faz uma limpeza agressiva (todo o cache de build e as imagens que nenhum container usa).
+- **Nunca remove volumes** (bancos, cache do modelo, sessão do bot). Jamais use `docker system prune --volumes` na VM.
+- Os scripts versionados estão em `deploy/vm/`. Para instalar ou atualizar: copiar para `/opt/` com dono `root`
+  (o `contraria-deploy.sh` é o comando forçado da chave do GitHub; ele não deve ser gravável pelo usuário `deploy`) e
+  habilitar o timer com `systemctl enable --now contraria-docker-prune.timer`.
+
+```bash
+docker system df                      # imagens, cache e volumes
+df -h /                               # uso do disco
+systemctl list-timers contraria-docker-prune.timer
+```
+
 ## Rotina de operação
 
 ```bash
@@ -166,9 +188,7 @@ compartilhadas fora de um canal seguro.
 
 ## Pendências {#pendencias}
 
-- [ ] **Anunciar o Ozone no DID** e testar emissão e reversão de rótulo (veja acima).
-- [ ] **Desligar a autenticação por senha do SSH** da VM (`PasswordAuthentication no`), mantendo uma sessão aberta
-  durante a mudança para não perder o acesso.
+- [ ] **Anunciar o Ozone no DID** (a chave esperada em `#atproto_label` é a `did:key` da `OZONE_SIGNING_KEY_HEX`) e testar emissão e reversão de rótulo (veja acima).
 - [ ] Regra de IP no WAF da Cloudflare para `ssh-contraria` (faixas do GitHub Actions); reduz ruído, não é identidade.
 - [ ] Liberar a porta 7844 de saída na rede da VM e mover o `cloudflared` para ela, eliminando a dependência do talos.
 - [ ] Anotar uma amostra de posts reais para medir sinais de falsidade ([ADR 0015](../adr/0015-pre-filtro-tfidf-nao-integrado.md)).

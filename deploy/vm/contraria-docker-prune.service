@@ -1,0 +1,6 @@
+[Unit]
+Description=Limpeza segura do Docker (ContrarIA)
+
+[Service]
+Type=oneshot
+ExecStart=/opt/contraria-docker-prune.sh

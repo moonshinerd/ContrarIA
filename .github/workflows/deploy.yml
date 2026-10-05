@@ -7,6 +7,14 @@ on:
   push:
     branches:
       - main
+    # Mudança só de documentação não precisa reconstruir nada.
+    paths-ignore:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "overrides/**"
+      - "**.md"
+  # Reexecução manual (o ambiente `production` só aceita a main).
+  workflow_dispatch:
 
 permissions:
   contents: read

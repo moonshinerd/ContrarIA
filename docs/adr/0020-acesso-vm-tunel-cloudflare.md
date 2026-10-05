@@ -26,6 +26,8 @@ alcança o IP privado da VM.
   `docker compose up -d --build`, `alembic upgrade head`), sem shell. A identidade do servidor é fixada por
   `DEPLOY_HOST_KEY`.
 - **Sem Cloudflare Zero Trust/Access.** A proteção do SSH é a chave com comando forçado mais a desativação de senha.
+- **Disco:** cada deploy limpa camadas órfãs e cache de build antigos, e os logs dos containers têm rotação (sem remover
+  volumes). Detalhes em [Operação na VM](../arquitetura/operacao-vm.md#disco-e-cache-do-docker).
 
 ## Alternativas descartadas
 - **Cloudflare Access com service token:** exige ativar o Zero Trust (cadastro e forma de pagamento) só para proteger um
@@ -36,6 +38,6 @@ alcança o IP privado da VM.
 ## Consequências
 - **Dependência do talos:** com ele desligado ou sem rede, Ozone e deploy ficam indisponíveis (a VM segue rodando).
   É aceitável para o MVP; a saída é liberar a 7844 na rede da VM e rodar o `cloudflared` nela.
-- O SSH da VM fica alcançável pela internet via `ssh-contraria`. A defesa é chave única, senha desligada e comando
+- O SSH da VM fica alcançável pela internet via `ssh-contraria`. A defesa é chave única, senha desligada (feito) e comando
   forçado; uma regra de IP no WAF (faixas do GitHub Actions) pode reduzir ruído, mas não é identidade.
 - Segredos de deploy ficam só no ambiente `production` do GitHub e no `api/.env` da VM (permissão 600, fora do git).

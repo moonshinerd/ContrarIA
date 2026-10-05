@@ -1,5 +1,13 @@
+x-logging: &default-logging
+  # Sem rotação os logs dos containers crescem sem limite e enchem o disco.
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
+    logging: *default-logging
     image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
@@ -17,6 +25,7 @@ services:
     mem_limit: 512m
 
   searxng:
+    logging: *default-logging
     image: searxng/searxng:latest
     restart: unless-stopped
     volumes:
@@ -32,6 +41,7 @@ services:
 
   # Uma única cópia do modelo Jev em memória; api e worker o chamam por HTTP.
   jev:
+    logging: *default-logging
     build: ../api
     restart: unless-stopped
     env_file: ../api/.env
@@ -48,6 +58,7 @@ services:
     mem_limit: 4g
 
   api:
+    logging: *default-logging
     build: ../api
     restart: unless-stopped
     env_file: ../api/.env
@@ -75,6 +86,7 @@ services:
     mem_limit: 1g
 
   worker:
+    logging: *default-logging
     build: ../api
     restart: unless-stopped
     env_file: ../api/.env
@@ -100,6 +112,7 @@ services:
   # Serviço oficial de labeler AT Protocol. Usa banco próprio, conforme o guia
   # de hospedagem do Ozone, para isolar seus dados de moderação da aplicação.
   ozone-db:
+    logging: *default-logging
     image: postgres:14.11-bookworm
     restart: unless-stopped
     environment:
@@ -116,6 +129,7 @@ services:
     mem_limit: 512m
 
   ozone:
+    logging: *default-logging
     image: ghcr.io/bluesky-social/ozone:0.1
     restart: unless-stopped
     environment:
@@ -139,6 +153,7 @@ services:
     mem_limit: 1g
 
   ozone-daemon:
+    logging: *default-logging
     image: ghcr.io/bluesky-social/ozone:0.1
     restart: unless-stopped
     command: ["node", "./service/daemon.js"]
