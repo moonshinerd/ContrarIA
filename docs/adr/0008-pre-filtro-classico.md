@@ -1,6 +1,6 @@
 # 0008 — Pré-filtro Clássico Supervisionado em Datasets PT-BR
 
-- **Status:** Aceita
+- **Status:** Substituída por [0015](0015-pre-filtro-tfidf-nao-integrado.md)
 - **Data:** 16/09/2026
 - **Requisitos / GQs:** RNF01, RNF05, GQ04
 - **Origem:** [Issue #26](https://github.com/moonshinerd/ContrarIA/issues/26)

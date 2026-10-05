@@ -402,3 +402,24 @@ async def test_session_recovery_retries_only_once(client: BlueskyClient, router:
 
     assert len(router.called("createSession")) == 2  # login inicial + uma recuperação
     assert len(router.called("app.bsky.feed.searchPosts")) == 2
+
+
+def test_links_from_view_reune_card_facets_e_texto_sem_duplicar():
+    from types import SimpleNamespace as NS
+
+    from app.clients.bluesky_client import _links_from_view
+
+    view = NS(
+        embed=NS(external=NS(uri="https://g1.globo.com/a")),
+        record=NS(
+            text="veja https://exemplo.com/b e https://g1.globo.com/a.",
+            facets=[NS(features=[NS(uri="https://exemplo.com/c"), NS(tag="x")])],
+            embed=None,
+        ),
+    )
+    assert _links_from_view(view) == [
+        "https://g1.globo.com/a",
+        "https://exemplo.com/c",
+        "https://exemplo.com/b",
+    ]
+    assert _links_from_view(NS(embed=None, record=NS(text="sem links"))) == []

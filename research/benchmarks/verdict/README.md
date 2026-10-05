@@ -13,7 +13,7 @@ e alegações que são apenas uma URL para manter o recorte PT-BR.
 ## Execução completa
 
 1. Aplique as migrações e carregue o acervo RSS da #21.
-2. Configure OpenRouter, Google Fact Check e Tavily em `api/.env`.
+2. Configure OpenRouter, Google Fact Check em `api/.env`.
 3. Execute:
 
 ```bash

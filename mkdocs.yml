@@ -75,6 +75,8 @@ nav:
   - Arquitetura:
       - Visão Geral: arquitetura/index.md
       - O Pipeline do Agente: arquitetura/pipeline.md
+      - Dados, Infraestrutura e Deploy: arquitetura/dados-e-infra.md
+      - Operação na VM: arquitetura/operacao-vm.md
   - Decisões (ADRs):
       - Índice: adr/index.md
       - "0001 – Bluesky": adr/0001-bluesky.md
@@ -91,6 +93,12 @@ nav:
       - "0012 – Organização sem Sprints": adr/0012-organizacao-sem-sprints.md
       - "0013 – Backend Local Jev": adr/0013-backend-local-jev.md
       - "0014 – Busca Web Self-Hosted": adr/0014-busca-web-searxng-trafilatura.md
+      - "0015 – Pré-filtro TF-IDF": adr/0015-pre-filtro-tfidf-nao-integrado.md
+      - "0016 – Remoção do Tavily": adr/0016-remocao-do-tavily.md
+      - "0017 – Rotulagem de Contas": adr/0017-rotulagem-de-contas-ao-vivo.md
+      - "0018 – Concorrência do Worker": adr/0018-concorrencia-e-contrapressao-do-worker.md
+      - "0019 – Fonte Citada e Entidade": adr/0019-fonte-citada-pelo-post-e-entidade.md
+      - "0020 – Acesso à VM por Túnel": adr/0020-acesso-vm-tunel-cloudflare.md
   - Resultados e Benchmarks: resultados/benchmark.md
   - Glossário: glossario.md
   - Atas:

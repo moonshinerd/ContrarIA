@@ -2,12 +2,14 @@ import asyncio
 import json
 import logging
 import os
+import time
 from datetime import UTC, datetime, timedelta
 
 import websockets
 import yaml
 
 from app.clients.bluesky_client import BlueskyClient
+from app.domain.prioritization import calculate_relevance
 from app.repositories.posts import PostRepository
 
 logger = logging.getLogger("contraria.collector")
@@ -16,6 +18,50 @@ TOPICS_FILE = os.path.join(os.path.dirname(__file__), "..", "domain", "topics", 
 with open(TOPICS_FILE, encoding="utf-8") as f:
     _topic_data = yaml.safe_load(f)
     POLITICAL_KEYWORDS = set(_topic_data.get("keywords", []))
+
+
+class IngestGate:
+    """Contrapressão da coleta: só deixa entrar posts enquanto a fila tem vaga.
+
+    Cheia a fila (`max_pending`), os posts novos são descartados em vez de guardados,
+    para a análise nunca processar posts velhos. A contagem vem do banco no máximo a cada
+    `refresh_seconds`; entre as leituras, o que já entrou é somado localmente.
+    """
+
+    def __init__(
+        self,
+        repo: PostRepository,
+        max_pending: int,
+        refresh_seconds: float = 2.0,
+        search_reserve: int = 0,
+    ):
+        self.repo = repo
+        self.max_pending = max_pending
+        # Vagas que o Jetstream não pode ocupar: ficam para o searchPosts, cujos posts são
+        # os de maior alcance (ordenados por `top`). Sem a reserva, o firehose enche a fila
+        # antes de cada ciclo do poller.
+        self.search_reserve = min(search_reserve, max_pending)
+        self.refresh_seconds = refresh_seconds
+        self._pending = 0
+        self._checked_at = float("-inf")
+
+    def room(self, *, stream: bool = False) -> int:
+        """Vagas livres. Com `stream=True` (Jetstream), desconta a reserva do searchPosts."""
+        if self.max_pending <= 0:
+            return 1 << 30
+        now = time.monotonic()
+        if now - self._checked_at >= self.refresh_seconds:
+            self._pending = self.repo.pending_count()
+            self._checked_at = now
+        limit = self.max_pending - (self.search_reserve if stream else 0)
+        return max(0, limit - self._pending)
+
+    def consume(self, n: int = 1) -> None:
+        self._pending += n
+
+    def invalidate(self) -> None:
+        """Descarta a contagem em cache (após inserir em massa ou podar a fila)."""
+        self._checked_at = float("-inf")
 
 
 def _is_relevant(text: str) -> bool:
@@ -28,8 +74,10 @@ class JetstreamConsumer:
         self,
         repo: PostRepository,
         stream_url: str = "wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post",
+        gate: "IngestGate | None" = None,
     ):
         self.repo = repo
+        self.gate = gate
         self.stream_url = stream_url
 
     def parse_message(self, msg: str) -> dict | None:
@@ -100,7 +148,11 @@ class JetstreamConsumer:
                         time_us = json.loads(msg).get("time_us")
                         if post_data:
                             post_data.pop("time_us", None)
-                            self.repo.upsert_posts([post_data])
+                            # Fila cheia: descarta (o cursor segue andando; só entra post fresco).
+                            if self.gate is None or self.gate.room(stream=True) > 0:
+                                self.repo.upsert_posts([post_data])
+                                if self.gate is not None:
+                                    self.gate.consume()
                         if time_us:
                             self.repo.set_cursor("jetstream", time_us)
 
@@ -114,45 +166,98 @@ class JetstreamConsumer:
 
 class SearchPoller:
     def __init__(
-        self, repo: PostRepository, bsky_client: BlueskyClient, poll_interval_seconds: int = 600
+        self,
+        repo: PostRepository,
+        bsky_client: BlueskyClient,
+        poll_interval_seconds: int = 600,
+        per_keyword_limit: int = 25,
+        gate: "IngestGate | None" = None,
     ):
+        self.gate = gate
         self.repo = repo
         self.bsky_client = bsky_client
         self.poll_interval = poll_interval_seconds
+        self.per_keyword_limit = per_keyword_limit
+
+    async def poll_once(self) -> int:
+        """Busca cada palavra-chave separadamente e grava os posts novos.
+
+        O `searchPosts` não tem operador `OR`: ele vira mais um termo obrigatório,
+        então uma query única com todas as palavras devolve zero resultados.
+        """
+        since = datetime.now(UTC) - timedelta(days=1)
+        found: dict[str, dict] = {}
+        for keyword in sorted(POLITICAL_KEYWORDS):
+            try:
+                posts = await self.bsky_client.search_posts(
+                    query=keyword,
+                    lang="pt",
+                    sort="top",
+                    since=since,
+                    limit=self.per_keyword_limit,
+                )
+            except Exception as e:
+                logger.error("Erro no searchPosts para %r: %s", keyword, e)
+                continue
+            for p in posts:
+                found.setdefault(
+                    p.uri,
+                    {
+                        "uri": p.uri,
+                        "cid": p.cid,
+                        "author_did": p.author_did,
+                        "text": p.text,
+                        "langs": p.langs,
+                        "created_at": p.created_at,
+                        "source": "search",
+                        "triage_status": "monitor",
+                        "priority": calculate_relevance(
+                            likes=getattr(p, "like_count", 0),
+                            reposts=getattr(p, "repost_count", 0),
+                            replies=getattr(p, "reply_count", 0),
+                            quotes=getattr(p, "quote_count", 0),
+                            velocity=0.0,
+                            followers=0,
+                        ),
+                    },
+                )
+        # O searchPosts devolve a cada ciclo muitos posts populares que já temos: só os novos
+        # contam (e só eles ocupam vaga da fila).
+        known = self.repo.existing_uris(list(found))
+        to_insert = [post for uri, post in found.items() if uri not in known]
+        # Prioridade por popularidade já na entrada: sem ela o post ficava sem nota até o refresh
+        # de engajamento e não dava para compará-lo com os que já estão na fila.
+        to_insert.sort(key=lambda post: post["priority"], reverse=True)
+        max_pending = self.gate.max_pending if self.gate is not None else 0
+        if max_pending > 0:
+            to_insert = to_insert[:max_pending]
+        if to_insert:
+            self.repo.upsert_posts(to_insert)
+        if max_pending > 0:
+            # Fila cheia: os mais populares entram e os menos badalados saem (viram 'expired').
+            evicted = self.repo.trim_pending(max_pending)
+            if evicted:
+                logger.info(
+                    "Fila acima do teto de %d: %d expirados por menor prioridade",
+                    max_pending,
+                    evicted,
+                )
+            self.gate.invalidate()
+        elif self.gate is not None and to_insert:
+            self.gate.consume(len(to_insert))
+        logger.info(
+            "searchPosts: %d novos inseridos de %d encontrados (%d já conhecidos).",
+            len(to_insert),
+            len(found),
+            len(known),
+        )
+        return len(to_insert)
 
     async def run(self):
         while True:
             try:
                 logger.info("Iniciando busca de posts por searchPosts...")
-                # Buscar posts das últimas 24 horas
-                since = datetime.now(UTC) - timedelta(days=1)
-                query = " OR ".join(POLITICAL_KEYWORDS)
-
-                posts = await self.bsky_client.search_posts(
-                    query=query, lang="pt", sort="top", since=since, limit=50
-                )
-
-                posts_data = []
-                for p in posts:
-                    posts_data.append(
-                        {
-                            "uri": p.uri,
-                            "cid": p.cid,
-                            "author_did": p.author_did,
-                            "text": p.text,
-                            "langs": p.langs,
-                            "created_at": p.created_at,
-                            "source": "search",
-                        }
-                    )
-
-                if posts_data:
-                    self.repo.upsert_posts(posts_data)
-                    logger.info(
-                        "Foram inseridos %d posts candidatos do searchPosts.", len(posts_data)
-                    )
-
+                await self.poll_once()
             except Exception as e:
                 logger.error("Erro no SearchPoller: %s", e)
-
             await asyncio.sleep(self.poll_interval)

@@ -10,7 +10,7 @@ Este guia serve para rodar a calibração numa segunda máquina, deixando a prin
 - Cerca de 15 GB livres em disco (imagens Docker + modelo NLI de ~500 MB).
 - O `api/.env` com as **mesmas fontes de evidência da produção**, pedido à dupla por canal privado (nunca pelo repositório). O que importa para a calibração:
     - `SELF_RAG_ENABLED_SOURCES=["google_factcheck","wikipedia","web_search","rss_checkers"]`
-    - `GOOGLE_FACTCHECK_API_KEY` e `TAVILY_API_KEY` (ou SearXNG local)
+    - `GOOGLE_FACTCHECK_API_KEY` e o SearXNG local (o Tavily foi removido, [ADR 0016](adr/0016-remocao-do-tavily.md))
     - `JEV_MODEL_REPO`, se for diferente do padrão (`MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7`)
 
     As credenciais do Bluesky e do LLM não são usadas.

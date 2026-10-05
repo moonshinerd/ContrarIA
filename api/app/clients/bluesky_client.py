@@ -16,6 +16,7 @@ Respostas 429 são repetidas respeitando o header `ratelimit-reset`.
 import asyncio
 import logging
 import os
+import re
 import time
 from collections.abc import Awaitable, Callable, Iterable
 from datetime import datetime
@@ -71,6 +72,30 @@ def _parse_datetime(value: str | None) -> datetime | None:
         return None
 
 
+_TEXT_URL = re.compile(r"https?://[^\s)\]>\"']+")
+
+
+def _links_from_view(view: Any) -> list[str]:
+    """URLs que o post cita: card de link (embed), facets de link e URLs no texto."""
+    links: list[str] = []
+
+    def add(uri: Any) -> None:
+        if isinstance(uri, str) and uri.startswith("http") and uri not in links:
+            links.append(uri)
+
+    # Card de link: na view hidratada (`view.embed`) ou no próprio record; também dentro de
+    # um embed "record com mídia" (`.media`).
+    for embed in (getattr(view, "embed", None), getattr(view.record, "embed", None)):
+        for candidate in (embed, getattr(embed, "media", None)):
+            add(getattr(getattr(candidate, "external", None), "uri", None))
+    for facet in getattr(view.record, "facets", None) or []:
+        for feature in getattr(facet, "features", None) or []:
+            add(getattr(feature, "uri", None))
+    for match in _TEXT_URL.findall(getattr(view.record, "text", "") or ""):
+        add(match.rstrip(".,;"))
+    return links
+
+
 def _post_from_view(view: Any, *, is_repost: bool = False) -> Post:
     record = view.record
     created_at = _parse_datetime(getattr(record, "created_at", None))
@@ -87,6 +112,7 @@ def _post_from_view(view: Any, *, is_repost: bool = False) -> Post:
         reply_count=view.reply_count or 0,
         quote_count=view.quote_count or 0,
         is_repost=is_repost,
+        links=_links_from_view(view),
     )
 
 

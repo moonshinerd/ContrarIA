@@ -160,3 +160,120 @@ async def test_jetstream_consumer_run(monkeypatch):
 
     repo.upsert_posts.assert_called_once()
     repo.set_cursor.assert_called_once_with("jetstream", 100)
+
+
+@pytest.mark.asyncio
+async def test_search_poller_busca_uma_palavra_por_vez_e_deduplica():
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    from app.jobs.collector import POLITICAL_KEYWORDS
+
+    def post(uri):
+        return SimpleNamespace(
+            uri=uri,
+            cid="c",
+            author_did="did:1",
+            text="t",
+            langs=["pt"],
+            created_at=datetime.now(UTC),
+        )
+
+    repo = MagicMock()
+    repo.existing_uris.return_value = set()
+    bsky_client = MagicMock()
+    queries: list[str] = []
+
+    async def fake_search(query, **kwargs):
+        queries.append(query)
+        if query == "governo":
+            raise RuntimeError("falha isolada")
+        return [post("at://a"), post("at://b")]
+
+    bsky_client.search_posts = fake_search
+    total = await SearchPoller(repo, bsky_client).poll_once()
+
+    # Sem "OR": o searchPosts do Bluesky o trata como termo obrigatório.
+    assert all(" OR " not in q for q in queries)
+    assert set(queries) == set(POLITICAL_KEYWORDS)
+    assert total == 2
+    saved = repo.upsert_posts.call_args.args[0]
+    assert {p["uri"] for p in saved} == {"at://a", "at://b"}
+
+
+@pytest.mark.asyncio
+async def test_search_poller_fila_cheia_admite_os_mais_populares_e_poda_o_resto():
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    from app.jobs.collector import IngestGate
+
+    def post(uri, likes):
+        return SimpleNamespace(
+            uri=uri,
+            cid="c",
+            author_did="d",
+            text="t",
+            langs=["pt"],
+            created_at=datetime.now(UTC),
+            like_count=likes,
+            repost_count=0,
+            reply_count=0,
+            quote_count=0,
+        )
+
+    repo = MagicMock()
+    repo.pending_count.return_value = 100  # fila cheia
+    repo.existing_uris.return_value = set()
+    repo.trim_pending.return_value = 3
+    bsky_client = MagicMock()
+
+    async def fake_search(query, **kwargs):
+        return [post("at://fraco", 1), post("at://viral", 50000), post("at://medio", 300)]
+
+    bsky_client.search_posts = fake_search
+    gate = IngestGate(repo, max_pending=2)
+    assert await SearchPoller(repo, bsky_client, gate=gate).poll_once() == 2
+
+    saved = repo.upsert_posts.call_args.args[0]
+    # só os 2 mais populares (teto da fila), do mais para o menos popular, com prioridade gravada
+    assert [p["uri"] for p in saved] == ["at://viral", "at://medio"]
+    assert saved[0]["priority"] > saved[1]["priority"] > 0
+    assert all(p["triage_status"] == "monitor" for p in saved)
+    # a poda expira os menos badalados que já estavam na fila (ex.: posts do Jetstream sem nota)
+    repo.trim_pending.assert_called_once_with(2)
+
+
+def test_gate_invalidate_forca_nova_contagem():
+    from app.jobs.collector import IngestGate
+
+    repo = MagicMock()
+    repo.pending_count.return_value = 100
+    gate = IngestGate(repo, max_pending=100, refresh_seconds=3600)
+    assert gate.room() == 0
+    repo.pending_count.return_value = 40
+    assert gate.room() == 0  # contagem em cache
+    gate.invalidate()
+    assert gate.room() == 60
+
+
+@pytest.mark.asyncio
+async def test_search_poller_ignora_posts_que_ja_existem_no_banco():
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    def post(uri):
+        return SimpleNamespace(
+            uri=uri, cid="c", author_did="d", text="t", langs=["pt"], created_at=datetime.now(UTC)
+        )
+
+    repo = MagicMock()
+    repo.existing_uris.return_value = {"at://velho"}
+    bsky_client = MagicMock()
+
+    async def fake_search(query, **kwargs):
+        return [post("at://velho"), post("at://novo")]
+
+    bsky_client.search_posts = fake_search
+    assert await SearchPoller(repo, bsky_client).poll_once() == 1
+    assert [p["uri"] for p in repo.upsert_posts.call_args.args[0]] == ["at://novo"]

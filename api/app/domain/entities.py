@@ -54,6 +54,7 @@ class Post:
     quote_count: int = 0
     author_handle: str = ""
     is_repost: bool = False  # só em feeds de autor: item é repost de outra conta
+    links: list[str] = field(default_factory=list)  # URLs citadas (card de link, facets, texto)
 
 
 @dataclass
@@ -65,7 +66,7 @@ class BotAssessment:
 
 @dataclass
 class Evidence:
-    source: str  # ex.: "google_factcheck", "wikipedia", "tavily"
+    source: str  # ex.: "google_factcheck", "wikipedia", "searxng"
     url: str
     title: str
     snippet: str

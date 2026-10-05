@@ -27,9 +27,26 @@ O Jetstream fornece eventos de novas publicações. Em paralelo, buscas periódi
 
 ## 2. Triagem: escolher o que investigar
 
-O sistema avalia tema, relevância, velocidade de propagação e sinais de automação da conta. O bot score combina características como frequência, regularidade, repetição de texto e perfil em uma nota entre 0 e 1. Uma nota alta é um indício, não prova de automação; os pesos e limiares precisam ser avaliados.
+A triagem acontece em duas camadas, e só a segunda é cara.
 
-Um classificador clássico opcional fornece outro sinal para priorizar candidatos com provável desinformação. Ele nunca decide sozinho publicar ou rotular. Candidatos com baixa prioridade podem continuar em monitoramento.
+**Priorização barata (`EngagementRefresher`, a cada 5 minutos).** Para os posts das últimas 48 horas, o worker
+consulta o engajamento atual, grava um *snapshot* e calcula a **velocidade de propagação** (interações novas por
+hora entre snapshots). A relevância combina, em escala logarítmica, engajamento, velocidade e seguidores do autor. A
+matriz GQ04 transforma isso em `triage_status` (`monitor`, `queued` ou `discarded`) e `priority`. Posts já
+`processed` ou `ignored` não voltam para a fila.
+
+**Análise cara (pool do worker, 3 simultâneas por padrão).** Os candidatos `monitor` e `queued` são lidos por
+`priority` decrescente. A fila tem teto de 100 posts: cheia, a coleta descarta os novos, e 30 vagas ficam reservadas ao
+`searchPosts` ([ADR 0018](../adr/0018-concorrencia-e-contrapressao-do-worker.md)). Para cada um, o `PipelineService` calcula o **bot score** da conta: pesos em
+`domain/bot_weights.yaml` sobre características demográficas, de rede, temporais e de conteúdo, passados por uma
+sigmoide e guardados em cache por 24 horas. Uma nota alta é um indício, não prova de automação.
+
+!!! note "Pré-filtro clássico fora do fluxo"
+    O classificador TF-IDF (`FakeNewsTFIDFClassifier`) foi treinado e avaliado em `research/`, mas **não está ligado
+    ao worker**, por decisão do [ADR 0015](../adr/0015-pre-filtro-tfidf-nao-integrado.md): em posts reais do Bluesky
+    ele chegou a ROC-AUC 0,76 (F1 0,72, amostra pequena), contra 0,99 em notícias, e a verificação local eliminou o
+    argumento de custo. Hoje a fila usa relevância, velocidade de propagação e bot score. Esses sinais medem alcance,
+    não a chance de o post ser falso.
 
 É como organizar uma fila de investigação: prioridade não é condenação.
 
@@ -37,11 +54,12 @@ Um classificador clássico opcional fornece outro sinal para priorizar candidato
 
 ## 3. Verificação Jev: confrontar a alegação com evidências
 
-1. **Separar frases candidatas:** o worker divide o post e, quando disponível, o contexto do fio. O Jev identifica quais frases são alegações factuais verificáveis; opinião, pergunta, ironia e retórica encerram sem ação.
-2. **Buscar evidências:** cada alegação factual consulta as fontes habilitadas — agências de checagem, Wikipédia, busca web e acervo RSS. A busca web utiliza primariamente a instância self-hosted do SearXNG (com fallback para Tavily e DuckDuckGo) e extração estruturada de conteúdo com Trafilatura, evitando dependência de créditos e ruídos de raspagem HTML. A consulta usa a frase específica, sem URLs, para evitar resultados apenas tematicamente relacionados.
-3. **Filtrar relevância:** o Jev compara alegação e trecho de fonte e só conserva evidência que trate dos mesmos fatos, pessoas, números ou eventos. Ele mede essa decisão por probabilidades de tokens, sem depender de JSON gerado.
-4. **Classificar o veredito:** com as fontes relevantes, o Jev escolhe entre "confirmam a alegação", "desmentem a alegação" e "confirmam o fato, mas desmentem a conclusão ou o exagero". Isso produz, respectivamente, `true`, `false` ou `misleading`.
-5. **Aplicar o controle de risco:** o Conformal Risk Control (CRC) usa um limiar aprendido com exemplos rotulados para **esse modelo Jev**, com tolerância de 5% para a perda de falsos positivos na calibração. Não é uma regra fixa de confiança nem garantia de acerto em todos os casos. Sem calibração ou abaixo do limiar, a decisão é `insufficient_evidence` e não há intervenção.
+1. **Separar frases candidatas:** o worker divide o post e, quando disponível, o contexto do fio. Uma heurística determinística (sem LLM nem Jev) mantém só as frases com ancoramento factual (número, título político, sigla institucional, predicado fático ou nome próprio) e descarta perguntas, expressões idiomáticas e hashtags de campanha; sem frases candidatas, a análise encerra sem ação. Essa heurística ainda não tem validação quantitativa.
+2. **Ler a fonte que o próprio post cita:** o link do card, dos facets ou do texto é lido primeiro. Se o post só reproduz a manchete dessa matéria, a alegação é dada como fiel à fonte e a busca aberta não acontece; se a matéria não confirma, ela entra no conjunto de evidências ([ADR 0019](../adr/0019-fonte-citada-pelo-post-e-entidade.md)).
+3. **Buscar evidências:** cada alegação factual consulta as fontes habilitadas — agências de checagem, Wikipédia, busca web e acervo RSS. A busca web utiliza primariamente a instância self-hosted do SearXNG (com fallback para o DuckDuckGo; o Tavily usado no MVP foi removido, ver [ADR 0016](../adr/0016-remocao-do-tavily.md)) e extração estruturada de conteúdo com Trafilatura, evitando dependência de créditos e ruídos de raspagem HTML. A consulta usa a frase específica, sem URLs, para evitar resultados apenas tematicamente relacionados.
+4. **Filtrar relevância:** o Jev compara alegação e trecho de fonte e só conserva evidência que trate dos mesmos fatos, pessoas, números ou eventos, e descarta a que cita outra zona eleitoral, cidade ou UF (homônimos). Ele mede essa decisão por probabilidades de tokens, sem depender de JSON gerado.
+5. **Classificar o veredito:** com as fontes relevantes, o Jev escolhe entre "confirmam a alegação", "desmentem a alegação" e "confirmam o fato, mas desmentem a conclusão ou o exagero". Isso produz, respectivamente, `true`, `false` ou `misleading`.
+6. **Aplicar o controle de risco:** o Conformal Risk Control (CRC) usa um limiar aprendido com exemplos rotulados para **esse modelo Jev**, com tolerância de 5% para a perda de falsos positivos na calibração. Não é uma regra fixa de confiança nem garantia de acerto em todos os casos. Sem calibração ou abaixo do limiar, a decisão é `insufficient_evidence` e não há intervenção.
 
 É como uma análise pericial que só conclui quando a fonte trata do fato
 específico e a confiança passou por uma calibração empírica.
@@ -54,11 +72,29 @@ backend alternativo (`VERIFICATION_BACKEND=llm`).
 
 ## 4. Ação: intervir somente quando houver fundamento
 
-Após a análise completa, um veredito falso ou enganoso elegível pode gerar um **quote post no perfil do bot**, citando a publicação e uma fonte. Para humanos prováveis, o tom é empático e socrático; para bots prováveis, é clínico e descreve sinais de automação. Não há reply nem menção direta ao autor.
+Depois da verificação, a **matriz GQ01** (no `PipelineService`) escolhe a ação, nesta ordem:
 
-Quote posts notificam o autor. A decisão aceita o risco relacionado à diretriz de opt-in descrito no ADR 0002; a citação não elimina esse risco. Limites por post, autor e dia, orçamento, anti-loop e postgate restringem a publicação. Se o autor bloqueou citações, o sistema não publica o quote post.
+1. **`IGNORE`:** bot score acima de 0,9 e conta com menos de 1.000 seguidores. Evita amplificar contas automatizadas pequenas.
+2. **`MONITOR`:** veredito `insufficient_evidence`.
+3. **`INTERVENE_QUEUED`:** conta com 1.000 seguidores ou mais e veredito `false` ou `misleading`.
+4. **`MONITOR`:** qualquer outro caso, inclusive intervenção desabilitada por *feature flag*.
 
-A rotulagem pelo **Ozone** é complementar, por uma conta dedicada de labeler: `possivel-desinformacao` em conteúdo e `provavel-bot` em conta, conforme a análise. Usuários que assinam esse serviço podem ver os rótulos; uma revisão do veredito pode negá-los, sem apagar o histórico. O score sozinho não autoriza rotulagem.
+O candidato **não é publicado na hora**. Ele entra na `InterventionQueue` e, a cada rodada de 15 minutos, só o de
+**maior confiança** é publicado; os demais são fechados como `MONITOR`. Entre 0h e 7h (Brasília) não há rodada de
+publicação, para que a conta não opere 24 horas seguidas. A fila vive na memória: se o worker reinicia, os pendentes
+são fechados como `MONITOR`.
+
+O candidato escolhido passa pelas travas do `InterventionService`: confiança mínima de 0,8, anti-loop (nunca citar o
+próprio bot nem contas com rótulo `bot`), um quote por post e um por autor a cada 24 horas, teto diário de quotes,
+orçamento de pontos de escrita e `postgate` que desabilite citações. Passando, o LLM revisa as cinco fontes mais
+relevantes e redige o **quote post no perfil do bot**, em até 300 caracteres (em fio, se preciso). Para humanos
+prováveis o tom é empático e socrático; para bots prováveis, clínico. Não há reply nem menção direta ao autor.
+
+Quote posts notificam o autor. A decisão aceita o risco relacionado à diretriz de opt-in descrito no ADR 0002; a
+citação não elimina esse risco. Com `INTERVENTION_DRY_RUN=true` (padrão) nada é publicado.
+
+A rotulagem pelo **Ozone** é complementar, por uma conta dedicada de labeler, e só age com `PIPELINE_LABELER_ENABLED=true`. Há dois rótulos: `possivel-desinformacao` no **post** citado, emitido após o quote publicado e fora do *dry-run*; e `provavel-bot` na **conta**, emitido para toda conta analisada cujo bot score passa de 0,9 (com ao menos 20 posts) e negado quando cai abaixo de 0,8, independentemente de quote ([ADR 0017](../adr/0017-rotulagem-de-contas-ao-vivo.md)). Uma revisão
+com `reverter` nega o rótulo (`action="negate"`) sem apagar o histórico. 
 
 Conteúdo verdadeiro ou não factual não recebe intervenção corretiva. Um resultado inconclusivo causa abstenção, sem ação penalizadora.
 
@@ -70,4 +106,4 @@ A decisão, inclusive monitoramento ou abstenção, deve ser registrada com os d
 
 É o registro que permite ao avaliador conferir como a conclusão foi construída.
 
-**Referências:** [RF13 e RNF06](../requisitos.md), [visão geral da arquitetura](index.md).
+**Referências:** [RF13 e RNF06](../requisitos.md), [visão geral da arquitetura](index.md) e [modelo de dados](dados-e-infra.md).

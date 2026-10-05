@@ -1,6 +1,6 @@
 # 0005 — Cesta Diversificada de Fontes de Evidência com Adapters Desacoplados
 
-- **Status:** Aceita
+- **Status:** Aceita (o Tavily citado aqui foi removido; ver [ADR 0016](0016-remocao-do-tavily.md))
 - **Data:** 16/09/2026
 - **Requisitos / GQs:** RF11, RNF02, GQ03, Issues #20, #21
 

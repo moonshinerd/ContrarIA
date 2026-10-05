@@ -88,7 +88,7 @@ def test_rss_disabled_never_embeds_or_connects():
 def test_registry_and_search_config():
     from app.clients.evidence import EVIDENCE_SOURCES, get_evidence_source
 
-    assert {"tavily", "duckduckgo", "web_search", "rss_checkers"} <= set(EVIDENCE_SOURCES)
+    assert {"searxng", "duckduckgo", "web_search", "rss_checkers"} <= set(EVIDENCE_SOURCES)
     config = Settings(_env_file=None, rss_enabled_sources=["aos_fatos"], rss_recency_weight=0.2)
 
     class SearchRepository:

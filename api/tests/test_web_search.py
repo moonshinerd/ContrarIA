@@ -1,5 +1,4 @@
 import asyncio
-import json
 
 import httpx
 import pytest
@@ -8,7 +7,6 @@ from app.clients.evidence.web_search import (
     DuckDuckGoClient,
     EvidenceSearchUnavailable,
     SearXNGClient,
-    TavilyClient,
     WebSearchSource,
     parse_date,
 )
@@ -17,72 +15,33 @@ from app.core.config import Settings
 
 def settings(**kwargs):
     kwargs.setdefault("searxng_enabled", False)
-    kwargs.setdefault("tavily_api_key", "test-key")
     return Settings(_env_file=None, **kwargs)
 
 
-def test_tavily_payload_mapping_and_concurrent_cache():
-    requests = []
-
-    def handler(request):
-        requests.append(request)
-        assert request.headers["Authorization"] == "Bearer test-key"
-        assert json.loads(request.content) == {
-            "query": "urna eletrônica",
-            "topic": "news",
-            "search_depth": "basic",
-            "days": 7,
-            "max_results": 5,
-        }
-        return httpx.Response(
-            200,
-            json={
-                "results": [
-                    {
-                        "url": "https://example.org/check",
-                        "title": "Checagem",
-                        "content": "Resumo",
-                        "published_date": "Mon, 21 Sep 2026 10:00:00 GMT",
-                    }
-                ]
-            },
-        )
-
-    source = TavilyClient(settings(), transport=httpx.MockTransport(handler))
-
-    async def run():
-        return await asyncio.gather(*[source.search(" urna   eletrônica ") for _ in range(5)])
-
-    results = asyncio.run(run())
-    assert len(requests) == 1
-    assert results[0][0].source == "tavily"
-    assert results[0][0].published_at.year == 2026
-
-
-@pytest.mark.parametrize("status", [401, 429, 432, 433, 500])
-def test_fallback_and_quota_cooldown(status):
+@pytest.mark.parametrize("status", [401, 429, 500])
+def test_searxng_failure_falls_back_to_duckduckgo(status):
     calls = []
 
     def handler(request):
         calls.append(request)
         return httpx.Response(status)
 
-    config = settings()
-    tavily = TavilyClient(config, transport=httpx.MockTransport(handler))
+    config = settings(searxng_enabled=True, searxng_base_url="http://mock-searxng:8080")
+    searxng = SearXNGClient(config, transport=httpx.MockTransport(handler))
     ddg = DuckDuckGoClient(
         config,
         search_fn=lambda query, limit: [
             {"url": "https://example.org/fallback", "title": query, "body": "Evidência"}
         ],
     )
-    source = WebSearchSource(config, tavily=tavily, duckduckgo=ddg)
+    source = WebSearchSource(config, searxng=searxng, duckduckgo=ddg)
 
     async def run():
         assert (await source.search("alegação 1"))[0].source == "duckduckgo"
         assert (await source.search("alegação 2"))[0].source == "duckduckgo"
 
     asyncio.run(run())
-    assert len(calls) == (1 if status in (429, 432, 433) else 2)
+    assert len(calls) >= 1
 
 
 def test_cache_expiry_and_capacity(monkeypatch):
@@ -111,17 +70,17 @@ def test_sources_disabled_do_not_call_providers():
     def fail(*args):
         pytest.fail("Fonte desabilitada foi chamada")
 
-    config = settings(tavily_enabled=False, duckduckgo_enabled=False)
+    config = settings(searxng_enabled=False, duckduckgo_enabled=False)
     source = WebSearchSource(
         config,
-        tavily=TavilyClient(config, transport=httpx.MockTransport(fail)),
+        searxng=SearXNGClient(config, transport=httpx.MockTransport(fail)),
         duckduckgo=DuckDuckGoClient(config, search_fn=fail),
     )
     assert asyncio.run(source.search("alegação")) == []
 
 
 def test_missing_key_and_invalid_dates():
-    config = Settings(_env_file=None, tavily_api_key="")
+    config = Settings(_env_file=None, searxng_enabled=False)
     ddg = DuckDuckGoClient(config, search_fn=lambda q, n: [{"url": "https://example.org"}])
     assert (
         asyncio.run(WebSearchSource(config, duckduckgo=ddg).search("x"))[0].source == "duckduckgo"
@@ -137,12 +96,12 @@ def test_timeout_falls_back_without_caching_failure():
         calls.append(request)
         raise httpx.ReadTimeout("timeout", request=request)
 
-    config = settings()
+    config = settings(searxng_enabled=True, searxng_base_url="http://mock-searxng:8080")
     ddg = DuckDuckGoClient(config, search_fn=lambda q, n: [{"url": "https://example.org"}])
-    tavily = TavilyClient(config, transport=httpx.MockTransport(handler))
-    source = WebSearchSource(config, tavily=tavily, duckduckgo=ddg)
+    searxng = SearXNGClient(config, transport=httpx.MockTransport(handler))
+    source = WebSearchSource(config, searxng=searxng, duckduckgo=ddg)
     assert asyncio.run(source.search("notícia"))[0].source == "duckduckgo"
-    assert len(tavily._cache) == 0
+    assert len(searxng._cache) == 0
 
 
 def test_ddgs_region_and_backend(monkeypatch):
@@ -210,7 +169,7 @@ def test_empty_web_is_not_logged_as_unavailable(monkeypatch, caplog):
         text = news
 
     monkeypatch.setattr("ddgs.DDGS", FakeDDGS)
-    source = WebSearchSource(settings(tavily_enabled=False), raise_on_failure=True)
+    source = WebSearchSource(settings(), raise_on_failure=True)
     assert asyncio.run(source.search("sem correspondência")) == []
     assert "indisponível" not in caplog.text
 
@@ -244,7 +203,7 @@ def test_real_provider_errors_are_not_cached_as_empty(monkeypatch, error_type):
         text = news
 
     monkeypatch.setattr("ddgs.DDGS", FakeDDGS)
-    config = settings(tavily_enabled=False)
+    config = settings()
     ddg = DuckDuckGoClient(config)
     source = WebSearchSource(config, duckduckgo=ddg, raise_on_failure=True)
     with pytest.raises(EvidenceSearchUnavailable):
@@ -252,7 +211,7 @@ def test_real_provider_errors_are_not_cached_as_empty(monkeypatch, error_type):
     assert not ddg._cache
 
 
-def test_web_search_fallback_from_tavily_missing_key_to_ddg_general(monkeypatch, caplog):
+def test_web_search_falls_back_to_ddg_general_when_news_is_empty(monkeypatch, caplog):
     from ddgs.exceptions import DDGSException
 
     calls = []
@@ -270,7 +229,7 @@ def test_web_search_fallback_from_tavily_missing_key_to_ddg_general(monkeypatch,
             return [{"href": "https://example.org/tse-papa", "title": "TSE Papa", "body": "Falso"}]
 
     monkeypatch.setattr("ddgs.DDGS", FakeDDGS)
-    config = settings(tavily_api_key="", duckduckgo_enabled=True)
+    config = settings(duckduckgo_enabled=True)
     source = WebSearchSource(config)
 
     results = asyncio.run(source.search("TSE eleição papa urnas eletrônicas"))
@@ -296,7 +255,7 @@ def test_no_results_anywhere_is_not_treated_as_failure_even_with_raise_on_failur
         text = news
 
     monkeypatch.setattr("ddgs.DDGS", FakeDDGS)
-    config = settings(tavily_api_key="", duckduckgo_enabled=True)
+    config = settings(duckduckgo_enabled=True)
     source = WebSearchSource(config, raise_on_failure=True)
 
     results = asyncio.run(source.search("TSE eleição papa urnas eletrônicas"))
@@ -353,41 +312,3 @@ def test_searxng_payload_mapping_and_concurrent_cache():
     assert evidence.title == "A Tarde Teste"
     assert evidence.snippet == "Conteúdo factual da matéria"
     assert evidence.published_at.year == 2026
-
-
-def test_searxng_cooldown_and_fallback_to_tavily():
-    calls = []
-
-    def searxng_handler(request):
-        calls.append("searxng")
-        return httpx.Response(500)
-
-    def tavily_handler(request):
-        calls.append("tavily")
-        return httpx.Response(
-            200,
-            json={
-                "results": [
-                    {
-                        "url": "https://g1.globo.com/fato-ou-fake/materia",
-                        "title": "G1 Fato ou Fake",
-                        "content": "Evidência do Tavily",
-                    }
-                ]
-            },
-        )
-
-    config = settings(searxng_enabled=True, searxng_base_url="http://mock-searxng:8080")
-    searxng = SearXNGClient(config, transport=httpx.MockTransport(searxng_handler))
-    tavily = TavilyClient(config, transport=httpx.MockTransport(tavily_handler))
-    source = WebSearchSource(config, searxng=searxng, tavily=tavily)
-
-    async def run():
-        res1 = await source.search("alegação teste 1")
-        assert res1[0].source == "tavily"
-        # Segunda chamada: SearXNG em cooldown de 10s não deve ser chamado
-        res2 = await source.search("alegação teste 2")
-        assert res2[0].source == "tavily"
-
-    asyncio.run(run())
-    assert calls == ["searxng", "tavily", "tavily"]

@@ -70,19 +70,16 @@ class Settings(BaseSettings):
     # Cota real da Fact Check Tools API: 300 requisições/minuto (sem limite diário).
     # Ficamos com margem para não estourar quando api e worker consultam juntos.
     google_factcheck_rate_per_minute: int = 240
-    tavily_api_key: str = ""
 
     searxng_enabled: bool = True
     searxng_base_url: str = "http://searxng:8080"
     searxng_categories: str = "news,general"
     searxng_language: str = "pt-BR"
-    tavily_enabled: bool = True
     duckduckgo_enabled: bool = True
     rss_checkers_enabled: bool = True
     web_search_days: int = Field(default=7, ge=1)
     web_cache_ttl_seconds: int = Field(default=3600, ge=1)
     web_cache_max_entries: int = Field(default=1000, ge=1)
-    tavily_cooldown_seconds: int = Field(default=30, ge=1)
     evidence_timeout_seconds: float = Field(default=20, gt=0)
     rss_poll_seconds: int = Field(default=3600, ge=60)
     rss_recency_weight: float = Field(default=0.1, ge=0, le=1)
@@ -122,7 +119,19 @@ class Settings(BaseSettings):
     triage_threshold_relevance: float = 1.0
     triage_threshold_bot: float = 0.8
     triage_threshold_falsehood: float = 0.8
-    worker_pipeline_batch_size: int = 5
+    worker_pipeline_batch_size: int = 5  # legado: só o TriagePipeline antigo usa
+    # Análises simultâneas no worker. Cada análise passa a maior parte do tempo esperando
+    # rede (fontes de evidência, matérias) e o Jev atende uma inferência por vez, então
+    # poucas dezenas já saturam. Reduza em máquinas com pouca CPU/RAM.
+    worker_pipeline_concurrency: int = Field(default=3, ge=1, le=64)
+    # Teto de posts aguardando análise. Cheia a fila, a coleta descarta os posts novos
+    # (sempre frescos) até haver vaga. 0 desliga o teto.
+    worker_queue_max_pending: int = Field(default=100, ge=0)
+    # Vagas da fila reservadas ao searchPosts (posts de maior alcance); o Jetstream só
+    # preenche `worker_queue_max_pending - worker_queue_search_reserve`.
+    worker_queue_search_reserve: int = Field(default=30, ge=0)
+    # Após N falhas seguidas na análise de um mesmo post, ele sai da fila ('ignored').
+    worker_pipeline_max_attempts: int = Field(default=3, ge=1)
     pipeline_bot_scoring_enabled: bool = True
     pipeline_verification_enabled: bool = True
     pipeline_intervention_enabled: bool = True
@@ -131,6 +140,12 @@ class Settings(BaseSettings):
     pipeline_labeler_enabled: bool = False
     pipeline_bot_ignore_threshold: float = Field(default=0.9, ge=0, le=1)
     pipeline_min_followers_for_intervention: int = Field(default=1000, ge=0)
+    # Rótulo `provavel-bot` em contas: emitido quando o bot score passa do limiar e
+    # negado quando cai abaixo de (limiar - histerese), para não oscilar. Só age com
+    # `pipeline_labeler_enabled`.
+    account_label_threshold: float = Field(default=0.9, ge=0, le=1)
+    account_label_hysteresis: float = Field(default=0.1, ge=0, le=1)
+    account_label_min_posts: int = Field(default=20, ge=0)
     ozone_labeler_handle: str = ""
     ozone_labeler_app_password: str = ""
     ozone_labeler_did: str = ""

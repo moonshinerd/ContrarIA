@@ -5,6 +5,10 @@ produção. A conta Bluesky do Labeler é distinta da conta que publica quotes.
 
 ## Estado já concluído
 
+> **Atualização (05/10/2026):** os containers do Ozone rodam na VM e `https://contraria.schmidt.monster/xrpc/_health`
+> responde 200. O **anúncio do serviço no DID** foi concluído (serviço `#atproto_labeler` e chave `#atproto_label`).
+> O teste de emissão e reversão de rótulo também foi feito (rótulo emitido e negado num post do bot). Veja [Operação na VM](../docs/arquitetura/operacao-vm.md).
+
 - Conta de serviço criada: `contraria-labeler.bsky.social`.
 - O DID dessa conta deve estar em `OZONE_LABELER_DID` no `.env` do servidor.
 - O record `app.bsky.labeler.service` já declara `possivel-desinformacao`,
@@ -14,9 +18,10 @@ produção. A conta Bluesky do Labeler é distinta da conta que publica quotes.
 
 ## Pré-requisitos da VPS
 
-1. VPS Linux com Docker Compose, portas TCP 80 e 443 abertas.
-2. Registro DNS `ozone.<domínio>` apontando para o IP público da VPS.
-3. `API_DOMAIN` e `OZONE_DOMAIN` definidos no `.env` exclusivo do servidor.
+1. VM Linux com Docker Compose. Não precisa de portas abertas: a entrada vem do túnel Cloudflare
+   (`contraria.schmidt.monster` → `localhost:3000`; ver [ADR 0020](../docs/adr/0020-acesso-vm-tunel-cloudflare.md)).
+2. Túnel `contraria-vm` ativo e serviço `ozone-forward` rodando na VM.
+3. `OZONE_DOMAIN` (`contraria.schmidt.monster`) definido no `.env` exclusivo do servidor.
 4. Copiar o `.env` local apenas por canal seguro e restringir permissões:
    `chmod 600 api/.env`.
 

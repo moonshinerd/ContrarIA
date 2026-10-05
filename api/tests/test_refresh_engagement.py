@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
@@ -215,3 +216,43 @@ def test_refresh_does_not_requeue_already_decided_post(mock_engine, mock_bsky, f
         post_db = session.get(Post, "at://p3")
         assert post_db.triage_status == final_status
         assert post_db.priority is not None
+
+
+@pytest.mark.asyncio
+async def test_refresh_poda_a_fila_quando_ha_teto(mock_engine, mock_bsky, monkeypatch):
+    """Depois do refresh a fila volta a ter só os de maior prioridade (teto configurado)."""
+    from unittest.mock import patch
+
+    refresher = EngagementRefresher(mock_engine, mock_bsky, tick_seconds=0, queue_max_pending=100)
+    monkeypatch.setattr(refresher, "_get_candidate_uris", MagicMock(return_value=["at://p1"]))
+    monkeypatch.setattr(refresher, "_save_snapshots_and_update_priority", MagicMock())
+
+    async def parar(_):
+        raise asyncio.CancelledError
+
+    with patch("app.jobs.refresh_engagement.PostRepository") as repo_cls:
+        repo_cls.return_value.trim_pending.return_value = 7
+        monkeypatch.setattr("app.jobs.refresh_engagement.asyncio.sleep", parar)
+        with pytest.raises(asyncio.CancelledError):
+            await refresher.run()
+
+    repo_cls.return_value.trim_pending.assert_called_once_with(100)
+
+
+@pytest.mark.asyncio
+async def test_refresh_sem_teto_nao_poda(mock_engine, mock_bsky, monkeypatch):
+    from unittest.mock import patch
+
+    refresher = EngagementRefresher(mock_engine, mock_bsky, tick_seconds=0)
+    monkeypatch.setattr(refresher, "_get_candidate_uris", MagicMock(return_value=["at://p1"]))
+    monkeypatch.setattr(refresher, "_save_snapshots_and_update_priority", MagicMock())
+
+    async def parar(_):
+        raise asyncio.CancelledError
+
+    with patch("app.jobs.refresh_engagement.PostRepository") as repo_cls:
+        monkeypatch.setattr("app.jobs.refresh_engagement.asyncio.sleep", parar)
+        with pytest.raises(asyncio.CancelledError):
+            await refresher.run()
+
+    repo_cls.return_value.trim_pending.assert_not_called()

@@ -1,26 +1,57 @@
-name: Deploy to VPS
+name: Deploy
 
+# Só em push na main, nunca em pull_request: o ambiente `production` também
+# aceita apenas a main. A VM fica atrás de um túnel Cloudflare (sem porta de
+# entrada); o runner chega nela por `cloudflared access ssh`.
 on:
   push:
     branches:
       - main
+    # Mudança só de documentação não precisa reconstruir nada.
+    paths-ignore:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "overrides/**"
+      - "**.md"
+  # Reexecução manual (o ambiente `production` só aceita a main).
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: production
     steps:
-      - name: Execute remote SSH commands to deploy
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            cd /opt/contraria || cd ~/contraria
-            git pull origin main
-            
-            # Start containers
-            docker compose -f deploy/docker-compose.prod.yml up -d --build
-            
-            # Run migrations (we can run it inside the api container)
-            docker compose -f deploy/docker-compose.prod.yml exec -T api uv run alembic upgrade head
+      - name: Instalar cloudflared
+        run: |
+          curl -fsSL -o /tmp/cloudflared.deb \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i /tmp/cloudflared.deb
+
+      - name: Configurar SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST_KEY: ${{ vars.DEPLOY_HOST_KEY }}
+        run: |
+          install -d -m 700 ~/.ssh
+          umask 077
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
+
+      # A chave só executa /opt/contraria-deploy.sh na VM (command= no
+      # authorized_keys do usuário `deploy`): git reset na main,
+      # `docker compose up -d --build` e `alembic upgrade head`.
+      - name: Deploy na VM
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o ProxyCommand="cloudflared access ssh --hostname %h" \
+            "deploy@${DEPLOY_HOST}" deploy

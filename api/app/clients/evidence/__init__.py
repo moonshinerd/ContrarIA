@@ -9,7 +9,6 @@ from app.clients.evidence.web_search import (
     DuckDuckGoClient,
     EvidenceSearchUnavailable,
     SearXNGClient,
-    TavilyClient,
     WebSearchSource,
 )
 from app.clients.evidence.wikipedia import WikipediaClient
@@ -20,7 +19,6 @@ EVIDENCE_SOURCES: dict[str, type[EvidenceSource]] = {
     WikipediaClient.name: WikipediaClient,
     GoogleFactCheckClient.name: GoogleFactCheckClient,
     SearXNGClient.name: SearXNGClient,
-    TavilyClient.name: TavilyClient,
     DuckDuckGoClient.name: DuckDuckGoClient,
     WebSearchSource.name: WebSearchSource,
     RSSCheckersSource.name: RSSCheckersSource,
@@ -51,7 +49,6 @@ __all__ = [
     "WikipediaClient",
     "GoogleFactCheckClient",
     "SearXNGClient",
-    "TavilyClient",
     "DuckDuckGoClient",
     "WebSearchSource",
     "RSSCheckersSource",

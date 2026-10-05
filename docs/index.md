@@ -22,7 +22,7 @@
 
     ---
 
-    Consumo ultrarrápido via WebSocket do Jetstream (Bluesky) com pré-filtro clássico e cálculo de bot score heurístico.
+    Consumo ultrarrápido via WebSocket do Jetstream (Bluesky) com priorização por relevância e cálculo de bot score heurístico.
 
     [:octicons-arrow-right-24: Ver Pipeline](arquitetura/pipeline.md)
 
