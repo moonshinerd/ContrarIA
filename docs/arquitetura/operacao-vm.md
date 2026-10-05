@@ -122,7 +122,7 @@ respostas e quotes, e a fila é podada a cada ciclo para ficar com os `WORKER_QU
 | `https://contraria.schmidt.monster/xrpc/_health` | Responde 200 |
 | Record `app.bsky.labeler.service` com os 3 rótulos | Publicado |
 | Anúncio do serviço no DID (`#atproto_labeler` e chave `#atproto_label`) | Concluído em 05/10/2026 |
-| **Teste de emissão e reversão de rótulo** | **Pendente** |
+| Teste de emissão e reversão de rótulo | Concluído em 05/10/2026 |
 
 O anúncio foi feito pelo assistente do próprio Ozone (entrar em `https://contraria.schmidt.monster` com a conta do
 labeler e informar o código de confirmação do PLC enviado por e-mail). O documento do DID passou a declarar o serviço
@@ -134,7 +134,16 @@ curl -s https://plc.directory/<DID_DO_LABELER> | python3 -m json.tool   # #atpro
 curl -s "https://api.bsky.app/xrpc/app.bsky.labeler.getServices?dids=<DID_DO_LABELER>"
 ```
 
-Mantenha `PIPELINE_LABELER_ENABLED=false` até testar um post autorizado.
+**Teste de emissão e reversão (05/10/2026):** com o `OzoneClient` do projeto, na VM, num post do próprio bot, o rótulo
+`evidencia-insuficiente` foi emitido (apareceu ativo no `queryLabels` do Ozone) e revertido (apareceu como `neg`). A
+reversão não apaga o histórico: o Ozone registra o evento de negação.
+
+!!! note "403 ao consultar o Ozone com o User-Agent padrão do Python"
+    A Cloudflare responde 403 a `urllib` com o User-Agent padrão em `contraria.schmidt.monster`; use um User-Agent
+    identificável ou o `curl`. O `OzoneClient` do projeto não é afetado (fala com o PDS e usa o proxy do labeler).
+
+`PIPELINE_LABELER_ENABLED` segue `false` na VM: a emissão automática de rótulos continua desligada até a equipe decidir
+ligá-la (a verificação publica `possivel-desinformacao` e `provavel-bot` quando a flag está ligada).
 
 ## Disco e cache do Docker
 
@@ -189,8 +198,7 @@ compartilhadas fora de um canal seguro.
 
 ## Pendências {#pendencias}
 
-- [ ] **Testar a emissão e a reversão de um rótulo** em um post de teste autorizado (veja o runbook do Ozone).
 - [ ] Regra de IP no WAF da Cloudflare para `ssh-contraria` (faixas do GitHub Actions); reduz ruído, não é identidade.
 - [ ] Liberar a porta 7844 de saída na rede da VM e mover o `cloudflared` para ela, eliminando a dependência do talos.
-- [ ] Anotar uma amostra de posts reais para medir sinais de falsidade ([ADR 0015](../adr/0015-pre-filtro-tfidf-nao-integrado.md)).
+- [ ] Anotar uma amostra de posts reais para medir sinais de falsidade ([ADR 0015](../adr/0015-pre-filtro-tfidf-nao-integrado.md)). Uma amostra de 200 posts foi exportada da fila da VM para `research/datasets/data/amostra_anotacao.csv` (ignorada pelo git).
 - [ ] Primeiro deploy automático pelo Actions (só dispara após o merge deste PR na `main`).

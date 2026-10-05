@@ -7,7 +7,7 @@ produção. A conta Bluesky do Labeler é distinta da conta que publica quotes.
 
 > **Atualização (05/10/2026):** os containers do Ozone rodam na VM e `https://contraria.schmidt.monster/xrpc/_health`
 > responde 200. O **anúncio do serviço no DID** foi concluído (serviço `#atproto_labeler` e chave `#atproto_label`).
-> Falta o teste de emissão e reversão de rótulo. Veja [Operação na VM](../docs/arquitetura/operacao-vm.md).
+> O teste de emissão e reversão de rótulo também foi feito (rótulo emitido e negado num post do bot). Veja [Operação na VM](../docs/arquitetura/operacao-vm.md).
 
 - Conta de serviço criada: `contraria-labeler.bsky.social`.
 - O DID dessa conta deve estar em `OZONE_LABELER_DID` no `.env` do servidor.
