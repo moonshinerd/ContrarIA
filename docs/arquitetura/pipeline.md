@@ -27,9 +27,23 @@ O Jetstream fornece eventos de novas publicações. Em paralelo, buscas periódi
 
 ## 2. Triagem: escolher o que investigar
 
-O sistema avalia tema, relevância, velocidade de propagação e sinais de automação da conta. O bot score combina características como frequência, regularidade, repetição de texto e perfil em uma nota entre 0 e 1. Uma nota alta é um indício, não prova de automação; os pesos e limiares precisam ser avaliados.
+A triagem acontece em duas camadas, e só a segunda é cara.
 
-Um classificador clássico opcional fornece outro sinal para priorizar candidatos com provável desinformação. Ele nunca decide sozinho publicar ou rotular. Candidatos com baixa prioridade podem continuar em monitoramento.
+**Priorização barata (`EngagementRefresher`, a cada 5 minutos).** Para os posts das últimas 48 horas, o worker
+consulta o engajamento atual, grava um *snapshot* e calcula a **velocidade de propagação** (interações novas por
+hora entre snapshots). A relevância combina, em escala logarítmica, engajamento, velocidade e seguidores do autor. A
+matriz GQ04 transforma isso em `triage_status` (`monitor`, `queued` ou `discarded`) e `priority`. Posts já
+`processed` ou `ignored` não voltam para a fila.
+
+**Análise cara (loop do worker, lote de 5 a cada 30 segundos).** Os candidatos `monitor` e `queued` são lidos por
+`priority` decrescente. Para cada um, o `PipelineService` calcula o **bot score** da conta: pesos em
+`domain/bot_weights.yaml` sobre características demográficas, de rede, temporais e de conteúdo, passados por uma
+sigmoide e guardados em cache por 24 horas. Uma nota alta é um indício, não prova de automação.
+
+!!! note "Pré-filtro clássico ainda fora do fluxo"
+    O classificador TF-IDF treinado em datasets PT-BR (`FakeNewsTFIDFClassifier`) existe e foi avaliado em
+    `research/`, mas **não está ligado ao worker**. Hoje a priorização não usa esse sinal. Quando for integrado, deve
+    continuar sendo apenas um sinal de prioridade, como define o ADR 0008.
 
 É como organizar uma fila de investigação: prioridade não é condenação.
 
@@ -54,11 +68,30 @@ backend alternativo (`VERIFICATION_BACKEND=llm`).
 
 ## 4. Ação: intervir somente quando houver fundamento
 
-Após a análise completa, um veredito falso ou enganoso elegível pode gerar um **quote post no perfil do bot**, citando a publicação e uma fonte. Para humanos prováveis, o tom é empático e socrático; para bots prováveis, é clínico e descreve sinais de automação. Não há reply nem menção direta ao autor.
+Depois da verificação, a **matriz GQ01** (no `PipelineService`) escolhe a ação, nesta ordem:
 
-Quote posts notificam o autor. A decisão aceita o risco relacionado à diretriz de opt-in descrito no ADR 0002; a citação não elimina esse risco. Limites por post, autor e dia, orçamento, anti-loop e postgate restringem a publicação. Se o autor bloqueou citações, o sistema não publica o quote post.
+1. **`IGNORE`:** bot score acima de 0,9 e conta com menos de 1.000 seguidores. Evita amplificar contas automatizadas pequenas.
+2. **`MONITOR`:** veredito `insufficient_evidence`.
+3. **`INTERVENE_QUEUED`:** conta com 1.000 seguidores ou mais e veredito `false` ou `misleading`.
+4. **`MONITOR`:** qualquer outro caso, inclusive intervenção desabilitada por *feature flag*.
 
-A rotulagem pelo **Ozone** é complementar, por uma conta dedicada de labeler: `possivel-desinformacao` em conteúdo e `provavel-bot` em conta, conforme a análise. Usuários que assinam esse serviço podem ver os rótulos; uma revisão do veredito pode negá-los, sem apagar o histórico. O score sozinho não autoriza rotulagem.
+O candidato **não é publicado na hora**. Ele entra na `InterventionQueue` e, a cada rodada de 15 minutos, só o de
+**maior confiança** é publicado; os demais são fechados como `MONITOR`. Entre 0h e 7h (Brasília) não há rodada de
+publicação, para que a conta não opere 24 horas seguidas. A fila vive na memória: se o worker reinicia, os pendentes
+são fechados como `MONITOR`.
+
+O candidato escolhido passa pelas travas do `InterventionService`: confiança mínima de 0,8, anti-loop (nunca citar o
+próprio bot nem contas com rótulo `bot`), um quote por post e um por autor a cada 24 horas, teto diário de quotes,
+orçamento de pontos de escrita e `postgate` que desabilite citações. Passando, o LLM revisa as cinco fontes mais
+relevantes e redige o **quote post no perfil do bot**, em até 300 caracteres (em fio, se preciso). Para humanos
+prováveis o tom é empático e socrático; para bots prováveis, clínico. Não há reply nem menção direta ao autor.
+
+Quote posts notificam o autor. A decisão aceita o risco relacionado à diretriz de opt-in descrito no ADR 0002; a
+citação não elimina esse risco. Com `INTERVENTION_DRY_RUN=true` (padrão) nada é publicado.
+
+A rotulagem pelo **Ozone** é complementar, por uma conta dedicada de labeler: `possivel-desinformacao` em conteúdo
+(o rótulo `provavel-bot` ainda não é emitido pelo código). Ela só é emitida com `PIPELINE_LABELER_ENABLED=true` e fora do *dry-run*. Uma revisão
+com `reverter` nega o rótulo (`action="negate"`) sem apagar o histórico. O score sozinho não autoriza rotulagem.
 
 Conteúdo verdadeiro ou não factual não recebe intervenção corretiva. Um resultado inconclusivo causa abstenção, sem ação penalizadora.
 
@@ -70,4 +103,4 @@ A decisão, inclusive monitoramento ou abstenção, deve ser registrada com os d
 
 É o registro que permite ao avaliador conferir como a conclusão foi construída.
 
-**Referências:** [RF13 e RNF06](../requisitos.md), [visão geral da arquitetura](index.md).
+**Referências:** [RF13 e RNF06](../requisitos.md), [visão geral da arquitetura](index.md) e [modelo de dados](dados-e-infra.md).
