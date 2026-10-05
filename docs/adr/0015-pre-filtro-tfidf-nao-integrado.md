@@ -45,6 +45,38 @@ se a frase é verificável.
   opção mais promissora, **ainda não implementada nem medida**.
 - **Ajuste fino em posts curtos (por exemplo, BERTimbau):** depende de uma amostra anotada do Bluesky maior do que a atual.
 
+## Medição da similaridade com checagens (05/10/2026)
+
+Teste do sinal "o post se parece com uma checagem conhecida" como prioridade na triagem, em posts reais coletados na VM
+de produção. 200 posts do Jetstream e do `searchPosts` contra as **196 checagens** em `fact_articles` (g1 Fato ou Fake
+100, Aos Fatos 34, Boatos 25, Estadão Verifica 16, Lupa 10, UOL Confere 8, Comprova 3), com embeddings MiniLM
+normalizados (cosseno).
+
+| Cosseno máximo por post | p50 | p90 | p95 | p99 | máx |
+|---|---|---|---|---|---|
+| | 0,57 | 0,67 | 0,70 | 0,76 | 0,77 |
+
+Posts com similaridade ≥ 0,3: 99%; ≥ 0,5: 75%; ≥ 0,6: 33%; ≥ 0,7: 6%.
+
+- **O sinal não discrimina.** Nos 12 melhores pares o post e a checagem são do **mesmo assunto, não da mesma alegação**
+  (por exemplo, "Eleições 2026, deputado federal eleito" contra "Resultado das eleições 2026 para deputado federal em
+  Cabo Frio", 0,77). Posts genéricos sobre eleição se aproximam de qualquer checagem sobre eleição.
+- Com esse acervo, o limiar padrão de `RSS_MIN_SIMILARITY` (0,3) deixa passar quase todos os posts, então ele não
+  filtra nada como sinal de priorização. Os feeds RSS só expõem os itens mais recentes; 196 checagens não cobrem
+  as alegações em circulação.
+- **Decisão: não implementar o boost de falsidade por similaridade.** Sem melhora demonstrável, ele só gastaria CPU do
+  worker e deslocaria a fila para posts sobre os temas das checagens recentes.
+- **Os sinais de estilo** (CAIXA ALTA, exclamações, palavras de urgência) também não foram adotados: só existem
+  corpora de notícias para validá-los, e a única amostra anotada de posts do Bluesky do repositório tem **20 exemplos**
+  fixos em `train_and_evaluate.py`, o que não permite medir nada. Sem dados rotulados de posts reais, nenhum sinal de
+  falsidade pode ser validado.
+- **Popularidade e falsidade:** a fila continua priorizada por alcance (curtidas, reposts, respostas, quotes). Isso
+  mede o impacto potencial de um quote, não a chance de o post ser falso, e não há dado nosso que mostre que posts
+  populares sejam menos (ou mais) falsos.
+- **Próximo passo que destrava tudo isso:** anotar uma amostra de posts reais (centenas, com falso, enganoso e
+  verdadeiro) retirada da fila. Com ela dá para medir o AUC de qualquer sinal barato, inclusive o TF-IDF de texto
+  curto, antes de integrá-lo.
+
 ## Consequências
 - A fila é priorizada só por relevância, velocidade de propagação e bot score. Esses sinais medem alcance, não a
   chance de o post ser falso.
