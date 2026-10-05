@@ -76,6 +76,7 @@ nav:
       - Visão Geral: arquitetura/index.md
       - O Pipeline do Agente: arquitetura/pipeline.md
       - Dados, Infraestrutura e Deploy: arquitetura/dados-e-infra.md
+      - Operação na VM: arquitetura/operacao-vm.md
   - Decisões (ADRs):
       - Índice: adr/index.md
       - "0001 – Bluesky": adr/0001-bluesky.md
