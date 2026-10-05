@@ -121,16 +121,17 @@ respostas e quotes, e a fila é podada a cada ciclo para ficar com os `WORKER_QU
 | Containers (`ozone-db`, `ozone`, `ozone-daemon`) | Rodando |
 | `https://contraria.schmidt.monster/xrpc/_health` | Responde 200 |
 | Record `app.bsky.labeler.service` com os 3 rótulos | Publicado |
-| **Anúncio do serviço no DID** (`#atproto_labeler` e chave `#atproto_label`) | **Pendente** |
-| Teste de emissão e reversão de rótulo | Pendente (depende do anúncio) |
+| Anúncio do serviço no DID (`#atproto_labeler` e chave `#atproto_label`) | Concluído em 05/10/2026 |
+| **Teste de emissão e reversão de rótulo** | **Pendente** |
 
-O documento do DID do labeler hoje só declara o `#atproto_pds`. Enquanto o serviço não for anunciado, o Bluesky não
-reconhece esse Ozone como labeler. O passo exige entrar com a conta do labeler e confirmar uma operação do PLC por
-e-mail, então é feito por uma pessoa, seguindo o [runbook do Ozone](https://github.com/moonshinerd/ContrarIA/blob/main/deploy/OZONE_RUNBOOK.md):
-abrir `https://contraria.schmidt.monster`, entrar como a conta do labeler e concluir o assistente. Depois, conferir:
+O anúncio foi feito pelo assistente do próprio Ozone (entrar em `https://contraria.schmidt.monster` com a conta do
+labeler e informar o código de confirmação do PLC enviado por e-mail). O documento do DID passou a declarar o serviço
+`#atproto_labeler` (`https://contraria.schmidt.monster`) e a chave `#atproto_label`, que é a `did:key` derivada da
+`OZONE_SIGNING_KEY_HEX`. Para conferir:
 
 ```bash
-curl -s https://plc.directory/<DID_DO_LABELER> | python3 -m json.tool   # deve listar #atproto_labeler
+curl -s https://plc.directory/<DID_DO_LABELER> | python3 -m json.tool   # #atproto_labeler e #atproto_label
+curl -s "https://api.bsky.app/xrpc/app.bsky.labeler.getServices?dids=<DID_DO_LABELER>"
 ```
 
 Mantenha `PIPELINE_LABELER_ENABLED=false` até testar um post autorizado.
@@ -188,7 +189,7 @@ compartilhadas fora de um canal seguro.
 
 ## Pendências {#pendencias}
 
-- [ ] **Anunciar o Ozone no DID** (a chave esperada em `#atproto_label` é a `did:key` da `OZONE_SIGNING_KEY_HEX`) e testar emissão e reversão de rótulo (veja acima).
+- [ ] **Testar a emissão e a reversão de um rótulo** em um post de teste autorizado (veja o runbook do Ozone).
 - [ ] Regra de IP no WAF da Cloudflare para `ssh-contraria` (faixas do GitHub Actions); reduz ruído, não é identidade.
 - [ ] Liberar a porta 7844 de saída na rede da VM e mover o `cloudflared` para ela, eliminando a dependência do talos.
 - [ ] Anotar uma amostra de posts reais para medir sinais de falsidade ([ADR 0015](../adr/0015-pre-filtro-tfidf-nao-integrado.md)).
