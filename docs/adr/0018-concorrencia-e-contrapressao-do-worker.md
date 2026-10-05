@@ -53,6 +53,40 @@ cerca de 1 s por post.
    (status final; os posts continuam no banco).
 5. Tudo isso é configurável para cada máquina; veja o guia de ajuste em [Dados, Infraestrutura e Deploy](../arquitetura/dados-e-infra.md).
 
+## Medição na VM de produção
+
+Ambiente: VM Debian 12 com **4 vCPU, 9,7 GB de RAM e 40 GB de disco**, sem GPU, rodando a pilha completa (db, jev,
+searxng, Ozone). Mesmo script (`benchmark_concurrency`), 20 posts por nível amostrados de uma coleta do Jetstream
+(116 posts de 73 autores, ~160 caracteres em média), Jev chamado por HTTP como em produção.
+
+| Simultâneas | Posts/min VM | p50 VM | p95 VM | | Posts/min Mac | p50 Mac | p95 Mac |
+|---|---|---|---|---|---|---|---|
+| 1 | **4,7** | **14,2 s** | **29,1 s** | | 20,3 | 2,9 s | 7,0 s |
+| 2 | 4,4 | 21,7 s | 54,0 s | | n/d | n/d | n/d |
+
+- **A VM é ~5× mais lenta que o Mac** (vazão de 4,7 contra 20,3 posts/min com 1 simultânea) e **não atinge a meta de
+  10 s** por post (p95 de 29 s). Sem erros em nenhum nível medido.
+- **O gargalo é a CPU do Jev.** Durante a análise o container `jev` usa ~360% dos 400% disponíveis; a RAM sobra
+  (`jev` ~0,7 GB, máquina inteira ~2,3 GB de 9,7 GB). O modelo é único e a inferência passa por um lock
+  (`_infer_lock` em `models/classifiers/jev.py`), então **mais simultâneas não aumentam a vazão**: só sobrepõem a busca
+  de evidência e alongam a latência de cada post.
+- **Decisão para a VM: `WORKER_PIPELINE_CONCURRENCY=1`.** O padrão do código continua 3 (calibrado no Mac).
+- O `worker` com o modelo de embeddings do pré-filtro chegou a ~90% do limite de 1 GB; o compose de produção passou
+  a 2 GB.
+- **Fila na VM:** `WORKER_QUEUE_MAX_PENDING=100` e `WORKER_QUEUE_SEARCH_RESERVE=70`. A fila **não troca posts piores
+  por melhores**: com ela cheia, posts novos são descartados. Ela se renova à medida que os posts são analisados
+  (~47 vagas por ciclo de 10 min nessa vazão). Com a reserva alta, o Jetstream ocupa no máximo 30 vagas (posts recém
+  publicados, ainda sem engajamento) e as outras 70 ficam para o `searchPosts` ordenado por `top`, que traz os posts
+  de maior alcance. No primeiro ciclo ao vivo o poller inseriu 70 posts novos de 435 encontrados.
+- **Limites desta medição:** amostra de 20 posts por nível; os níveis 3, 4 e 6 não foram medidos (interrompi o
+  benchmark depois de ver que a vazão não cresce com a concorrência); uma única máquina. Todos os 20 posts do nível 1
+  saíram como `insufficient_evidence`, o esperado para posts coletados sem filtro de tema, mas a latência de posts com
+  mais evidência (mais pares NLI) pode ser maior. Uma medição do custo do NLI por par foi descartada: rodou com o
+  servidor ainda processando requisições do benchmark interrompido.
+- **Caminhos para reduzir a latência, se for preciso** (todos alteram a calibração CRC e exigem recalibrar):
+  limitar a quantidade de pares NLI por post, reduzir `max_length` do tokenizador ou quantizar o modelo. A outra saída
+  é uma máquina com mais núcleos.
+
 ## Alternativas consideradas
 - **Pausar a leitura e retomar do cursor:** não perde nada, mas a análise passaria a pegar posts de horas atrás.
 - **Concorrência alta (6 a 10):** a medição mostrou queda de vazão e latência de cauda muito pior.

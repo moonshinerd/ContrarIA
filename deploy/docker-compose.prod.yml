@@ -94,7 +94,8 @@ services:
       - contraria-model-cache:/root/.cache/huggingface
       - contraria-app-data:/srv/data
     command: python -m app.worker
-    mem_limit: 1g
+    # 1g ficava a ~90% de uso (o worker carrega o modelo de embeddings do pré-filtro).
+    mem_limit: 2g
 
   # Serviço oficial de labeler AT Protocol. Usa banco próprio, conforme o guia
   # de hospedagem do Ozone, para isolar seus dados de moderação da aplicação.
