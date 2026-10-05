@@ -70,19 +70,16 @@ class Settings(BaseSettings):
     # Cota real da Fact Check Tools API: 300 requisições/minuto (sem limite diário).
     # Ficamos com margem para não estourar quando api e worker consultam juntos.
     google_factcheck_rate_per_minute: int = 240
-    tavily_api_key: str = ""
 
     searxng_enabled: bool = True
     searxng_base_url: str = "http://searxng:8080"
     searxng_categories: str = "news,general"
     searxng_language: str = "pt-BR"
-    tavily_enabled: bool = True
     duckduckgo_enabled: bool = True
     rss_checkers_enabled: bool = True
     web_search_days: int = Field(default=7, ge=1)
     web_cache_ttl_seconds: int = Field(default=3600, ge=1)
     web_cache_max_entries: int = Field(default=1000, ge=1)
-    tavily_cooldown_seconds: int = Field(default=30, ge=1)
     evidence_timeout_seconds: float = Field(default=20, gt=0)
     rss_poll_seconds: int = Field(default=3600, ge=60)
     rss_recency_weight: float = Field(default=0.1, ge=0, le=1)

@@ -1,6 +1,6 @@
 """Porta comum para fontes de evidência (RF11).
 
-Cada fonte (Google Fact Check, Wikipedia, Tavily, DuckDuckGo, RSS/TSE) é uma
+Cada fonte (Google Fact Check, Wikipedia, SearXNG, DuckDuckGo, RSS/TSE) é uma
 implementação desta classe -- permite ligar/desligar fontes no benchmark.
 """
 

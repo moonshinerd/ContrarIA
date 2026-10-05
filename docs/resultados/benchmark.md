@@ -139,7 +139,7 @@ O benchmark avaliou o impacto de cada conector de evidência no resultado final 
 | **Todas as Fontes (Completo)** | Sim | 0,912 | 0,885 | 0,000 | 0,114 | 0,886 | US$ 0,000320 | 1,54 s |
 | **Todas as Fontes (Sem Origem - Vazamento)** | **Não** | **0,847** | **0,812** | **0,000** | **0,221** | **0,779** | US$ 0,000320 | 1,58 s |
 | **Apenas Google Fact Check** | Sim | 0,895 | 0,862 | 0,000 | 0,140 | 0,860 | US$ 0,000160 | 0,72 s |
-| **Apenas Busca Web (SearXNG/Tavily)** | Não | 0,793 | 0,751 | 0,000 | 0,285 | 0,715 | US$ 0,000210 | 1,15 s |
+| **Apenas Busca Web (SearXNG/Tavily, medido antes da remoção do Tavily; ver [ADR 0016](../adr/0016-remocao-do-tavily.md))** | Não | 0,793 | 0,751 | 0,000 | 0,285 | 0,715 | US$ 0,000210 | 1,15 s |
 | **Apenas Wikipedia** | Não | 0,642 | 0,590 | 0,000 | 0,460 | 0,540 | US$ 0,000080 | 0,45 s |
 | **Apenas RSS Checkers (Locais)** | Sim | 0,820 | 0,789 | 0,000 | 0,210 | 0,790 | US$ 0,000100 | 0,38 s |
 | **Leave-One-Out (Sem Google Fact Check)** | Não | 0,815 | 0,778 | 0,000 | 0,260 | 0,740 | US$ 0,000280 | 1,42 s |

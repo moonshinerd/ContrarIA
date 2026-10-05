@@ -1,6 +1,6 @@
 # 0014 — Busca Web Self-Hosted com SearXNG e Extração via Trafilatura
 
-- **Status:** Aceita
+- **Status:** Aceita (a cascata foi simplificada pelo [ADR 0016](0016-remocao-do-tavily.md), que removeu o Tavily)
 - **Data:** 30/09/2026
 - **Requisitos / GQs:** RF11, RNF02, RNF05
 - **Origem:** Branch `feature/crc-calibracao-automatica`

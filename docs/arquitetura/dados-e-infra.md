@@ -135,7 +135,7 @@ Os grupos principais:
 | Bluesky | `BLUESKY_HANDLE`, `BLUESKY_APP_PASSWORD`, `BLUESKY_SESSION_PATH`, contexto do fio (`THREAD_CONTEXT_MAX_POSTS=4`) |
 | Verificação | `VERIFICATION_BACKEND` (código: `llm`; operação: `jev`), `JEV_MODEL_REPO`, `JEV_SERVER_URL`, `CRC_ALPHA=0.05`, `JEV_ALLOW_UNCALIBRATED=false` |
 | LLM (redação e backend `llm`) | `LLM_MODEL_NAME`, `LLM_API_KEY` / `OPENROUTER_API_KEY`, `DAILY_LLM_BUDGET_USD=1.0` |
-| Evidências | `GOOGLE_FACTCHECK_API_KEY`, `SEARXNG_*`, `TAVILY_API_KEY`, `RSS_CHECKERS_ENABLED`, `RSS_ENABLED_SOURCES`, `RSS_POLL_SECONDS=3600` |
+| Evidências | `GOOGLE_FACTCHECK_API_KEY`, `SEARXNG_*`, `RSS_CHECKERS_ENABLED`, `RSS_ENABLED_SOURCES`, `RSS_POLL_SECONDS=3600` |
 | Triagem | `TRIAGE_THRESHOLD_RELEVANCE`, `TRIAGE_THRESHOLD_BOT`, `TRIAGE_THRESHOLD_FALSEHOOD`, `WORKER_PIPELINE_BATCH_SIZE=5`, `WORKER_TICK_SECONDS=30` |
 | Intervenção | `INTERVENTION_DRY_RUN=true`, `INTERVENTION_ROUND_MINUTES=15`, silêncio 0h–7h (Brasília), `DAILY_MAX_INTERVENTIONS`, `DAILY_WRITE_POINTS_BUDGET`, `PIPELINE_MIN_FOLLOWERS_FOR_INTERVENTION=1000` |
 | Rótulo | `PIPELINE_LABELER_ENABLED=false`, `OZONE_LABELER_*` |
@@ -219,6 +219,6 @@ O `docs.yml` publica este site com `mkdocs build --strict`, então links quebrad
 | Classificação local | PyTorch + Transformers (mDeBERTa-v3 NLI), `scikit-learn` (pré-filtro TF-IDF) |
 | Embeddings | `sentence-transformers` (`paraphrase-multilingual-MiniLM-L12-v2`, 384 d) |
 | LLM | LiteLLM (OpenRouter e outros provedores) |
-| Evidências | `httpx`, `feedparser`, `ddgs`, SearXNG, Tavily, `trafilatura`, `beautifulsoup4`, `lxml` |
+| Evidências | `httpx`, `feedparser`, `ddgs`, SearXNG, `trafilatura`, `beautifulsoup4`, `lxml` |
 | Infra | Docker Compose, Caddy, Cloudflare, Ozone, GitHub Actions |
 | Documentação | MkDocs Material, Mermaid |

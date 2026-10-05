@@ -164,60 +164,6 @@ class SearXNGClient(CachedSource):
         return evidences
 
 
-class TavilyClient(CachedSource):
-    name = "tavily"
-
-    def __init__(self, settings: Settings, *, transport=None):
-        super().__init__(settings)
-        self.transport = transport
-        self._unavailable_until = 0.0
-
-    @property
-    def enabled(self) -> bool:
-        if monotonic() < self._unavailable_until:
-            return False
-        return self.settings.tavily_enabled and bool(self.settings.tavily_api_key)
-
-    async def _search(self, query: str, limit: int) -> list[Evidence]:
-        if monotonic() < self._unavailable_until:
-            raise RuntimeError("Tavily em espera após limite de uso")
-        async with httpx.AsyncClient(
-            timeout=self.settings.evidence_timeout_seconds, transport=self.transport
-        ) as client:
-            response = await client.post(
-                "https://api.tavily.com/search",
-                headers={"Authorization": f"Bearer {self.settings.tavily_api_key}"},
-                json={
-                    "query": query,
-                    "topic": "news",
-                    "search_depth": "basic",
-                    "days": self.settings.web_search_days,
-                    "max_results": limit,
-                },
-            )
-        if response.status_code in (429, 432, 433):
-            # Quota/plano esgotado: desabilita Tavily pelo resto da sessão
-            # para não bloquear o pipeline com esperas. O fallback (SearXNG/DDG)
-            # assume imediatamente sem delay.
-            self._unavailable_until = float("inf")
-            logger.warning(
-                "Tavily com quota esgotada (status %d). Desabilitando pelo resto da sessão.",
-                response.status_code,
-            )
-        response.raise_for_status()
-        return [
-            Evidence(
-                source=self.name,
-                url=row["url"],
-                title=row.get("title", ""),
-                snippet=row.get("content", ""),
-                published_at=parse_date(row.get("published_date")),
-            )
-            for row in response.json().get("results", [])
-            if row.get("url") and is_valid_evidence_url(row["url"])
-        ][:limit]
-
-
 class DuckDuckGoClient(CachedSource):
     name = "duckduckgo"
 
@@ -273,7 +219,7 @@ class EvidenceSearchUnavailable(RuntimeError):
 
 
 class WebSearchSource(EvidenceSource):
-    """Usar esta fonte no pipeline para aplicar a ordem SearXNG → Tavily → DuckDuckGo."""
+    """Usar esta fonte no pipeline para aplicar a ordem SearXNG → DuckDuckGo."""
 
     name = "web_search"
 
@@ -282,26 +228,22 @@ class WebSearchSource(EvidenceSource):
         settings: Settings,
         *,
         searxng=None,
-        tavily=None,
         duckduckgo=None,
         raise_on_failure: bool = False,
     ):
         self.raise_on_failure = raise_on_failure
         if searxng is not None:
             self.searxng = searxng
-        elif tavily is not None or duckduckgo is not None:
+        elif duckduckgo is not None:
             self.searxng = None
         else:
             self.searxng = SearXNGClient(settings)
 
-        self.tavily = tavily or TavilyClient(settings)
         self.duckduckgo = duckduckgo or DuckDuckGoClient(settings)
 
     async def search(self, query: str, *, limit: int = 5) -> list[Evidence]:
         failures = []
-        sources = [
-            s for s in (self.searxng, self.tavily, self.duckduckgo) if s is not None and s.enabled
-        ]
+        sources = [s for s in (self.searxng, self.duckduckgo) if s is not None and s.enabled]
         for source in sources:
             try:
                 result = await source.search(query, limit=limit)

@@ -324,7 +324,7 @@ def test_has_direct_anchor_overlap_rejects_literal_metaphor_and_weather():
 
     claim = "A casa começou a cair."
     ev_pelotas = Evidence(
-        source="tavily",
+        source="searxng",
         url="https://www.instagram.com/reel/Dd3mlMZARkR",
         title="Caroline Mendes, de Pelotas (RS ...",
         snippet=(
@@ -384,7 +384,7 @@ def test_has_direct_anchor_overlap_rejects_social_media_and_same_origin():
 
     claim = "STF formou maioria para garantir acesso à informação nas eleições"
     ev_insta = Evidence(
-        source="tavily",
+        source="searxng",
         url="https://www.instagram.com/p/DAilxyz/",
         title="STF formou maioria para garantir acesso",
         snippet="decisão do STF garante acesso aos sites eleitorais",

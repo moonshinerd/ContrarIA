@@ -17,7 +17,6 @@ flowchart LR
         APP[AppView pública<br/>getPosts / getProfile / getAuthorFeed]
         FC[Google Fact Check<br/>Tools API]
         WP[Wikipédia]
-        TV[Tavily]
         DDG[DuckDuckGo]
         RSSX[Feeds RSS das<br/>agências de checagem]
         OR[LLM na nuvem<br/>via LiteLLM / OpenRouter]
@@ -40,7 +39,7 @@ flowchart LR
     W --> J
     W --> SX
     W --> DB
-    W --> FC & WP & TV & DDG
+    W --> FC & WP & DDG
     RSSX --> W
     W --> OR
     W -- rótulos --> OZ
@@ -145,7 +144,7 @@ flowchart TD
     K -- sim --> Q[Consulta por frase<br/>às fontes habilitadas]
     Q --> E1[Google Fact Check]
     Q --> E2[Wikipédia]
-    Q --> E3[Busca web:<br/>SearXNG, Tavily, DuckDuckGo]
+    Q --> E3[Busca web:<br/>SearXNG, DuckDuckGo]
     Q --> E4[Acervo RSS<br/>pgvector]
     E1 & E2 & E3 & E4 --> F[Filtro de relevância NLI<br/>até 8 evidências, margem mínima]
     F --> M[Matérias completas<br/>trafilatura, até encher o contexto]
@@ -169,12 +168,12 @@ Cada fonte implementa a porta `EvidenceSource` e se registra por nome em `EVIDEN
 |---|---|---|
 | `google_factcheck` | `GoogleFactCheckClient` | 240 req/min por padrão (cota real: 300/min), `RateLimiter` de janela deslizante, pausa em 429; `rating` vem cru |
 | `wikipedia` | `WikipediaClient` | `User-Agent` identificável; summaries em paralelo (máx. 5) |
-| `web_search` | `WebSearchSource` | Encadeia SearXNG → Tavily → DuckDuckGo; filtra redes sociais e UGC; cache TTL |
-| `searxng` / `tavily` / `duckduckgo` | `CachedSource` | Cada motor também pode ser usado isoladamente; o Tavily é desligado pelo resto da sessão ao esgotar a quota |
+| `web_search` | `WebSearchSource` | Encadeia SearXNG → DuckDuckGo; filtra redes sociais e UGC; cache TTL |
+| `searxng` / `duckduckgo` | `CachedSource` | Cada motor também pode ser usado isoladamente |
 | `rss_checkers` | `RSSCheckersSource` | Busca vetorial em `fact_articles` (MiniLM multilíngue, 384 dimensões), com peso de recência |
 
 Falhas de rede, cota ou chave viram log e lista vazia, nunca exceção. Resultados com falha não entram no cache.
-Ver [ADR 0005](../adr/0005-multiplas-fontes-evidencia.md) e [ADR 0014](../adr/0014-busca-web-searxng-trafilatura.md).
+O Tavily, usado no MVP, foi removido em outubro de 2026 ([ADR 0016](../adr/0016-remocao-do-tavily.md)). Ver também [ADR 0005](../adr/0005-multiplas-fontes-evidencia.md) e [ADR 0014](../adr/0014-busca-web-searxng-trafilatura.md).
 
 ## Intervenção e travas
 

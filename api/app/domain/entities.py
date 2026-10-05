@@ -65,7 +65,7 @@ class BotAssessment:
 
 @dataclass
 class Evidence:
-    source: str  # ex.: "google_factcheck", "wikipedia", "tavily"
+    source: str  # ex.: "google_factcheck", "wikipedia", "searxng"
     url: str
     title: str
     snippet: str

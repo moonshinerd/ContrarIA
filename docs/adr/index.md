@@ -23,6 +23,7 @@ Registro formal das decisões técnicas de engenharia e arquitetura do projeto *
 | [**0013**](0013-backend-local-jev.md) | Backend de Verificação Local Jev com CRC por Modelo | `Aceita` | 28/09/2026 | RF03, RNF01, RNF05, PR #57 |
 | [**0014**](0014-busca-web-searxng-trafilatura.md) | Busca Web Self-Hosted com SearXNG e Extração via Trafilatura | `Aceita` | 30/09/2026 | RF11, RNF02, RNF05 |
 | [**0015**](0015-pre-filtro-tfidf-nao-integrado.md) | Pré-filtro TF-IDF não integrado ao pipeline | `Aceita` | 05/10/2026 | RNF01, RNF05, GQ04 |
+| [**0016**](0016-remocao-do-tavily.md) | Remoção do Tavily da busca web | `Aceita` | 05/10/2026 | RF11, RNF02, RNF05 |
 
 ---
 
