@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 from datetime import UTC, datetime, timedelta
 
 import websockets
@@ -18,6 +19,46 @@ with open(TOPICS_FILE, encoding="utf-8") as f:
     POLITICAL_KEYWORDS = set(_topic_data.get("keywords", []))
 
 
+class IngestGate:
+    """Contrapressão da coleta: só deixa entrar posts enquanto a fila tem vaga.
+
+    Cheia a fila (`max_pending`), os posts novos são descartados em vez de guardados,
+    para a análise nunca processar posts velhos. A contagem vem do banco no máximo a cada
+    `refresh_seconds`; entre as leituras, o que já entrou é somado localmente.
+    """
+
+    def __init__(
+        self,
+        repo: PostRepository,
+        max_pending: int,
+        refresh_seconds: float = 2.0,
+        search_reserve: int = 0,
+    ):
+        self.repo = repo
+        self.max_pending = max_pending
+        # Vagas que o Jetstream não pode ocupar: ficam para o searchPosts, cujos posts são
+        # os de maior alcance (ordenados por `top`). Sem a reserva, o firehose enche a fila
+        # antes de cada ciclo do poller.
+        self.search_reserve = min(search_reserve, max_pending)
+        self.refresh_seconds = refresh_seconds
+        self._pending = 0
+        self._checked_at = float("-inf")
+
+    def room(self, *, stream: bool = False) -> int:
+        """Vagas livres. Com `stream=True` (Jetstream), desconta a reserva do searchPosts."""
+        if self.max_pending <= 0:
+            return 1 << 30
+        now = time.monotonic()
+        if now - self._checked_at >= self.refresh_seconds:
+            self._pending = self.repo.pending_count()
+            self._checked_at = now
+        limit = self.max_pending - (self.search_reserve if stream else 0)
+        return max(0, limit - self._pending)
+
+    def consume(self, n: int = 1) -> None:
+        self._pending += n
+
+
 def _is_relevant(text: str) -> bool:
     text_lower = text.lower()
     return any(kw in text_lower for kw in POLITICAL_KEYWORDS)
@@ -28,8 +69,10 @@ class JetstreamConsumer:
         self,
         repo: PostRepository,
         stream_url: str = "wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post",
+        gate: "IngestGate | None" = None,
     ):
         self.repo = repo
+        self.gate = gate
         self.stream_url = stream_url
 
     def parse_message(self, msg: str) -> dict | None:
@@ -100,7 +143,11 @@ class JetstreamConsumer:
                         time_us = json.loads(msg).get("time_us")
                         if post_data:
                             post_data.pop("time_us", None)
-                            self.repo.upsert_posts([post_data])
+                            # Fila cheia: descarta (o cursor segue andando; só entra post fresco).
+                            if self.gate is None or self.gate.room(stream=True) > 0:
+                                self.repo.upsert_posts([post_data])
+                                if self.gate is not None:
+                                    self.gate.consume()
                         if time_us:
                             self.repo.set_cursor("jetstream", time_us)
 
@@ -119,7 +166,9 @@ class SearchPoller:
         bsky_client: BlueskyClient,
         poll_interval_seconds: int = 600,
         per_keyword_limit: int = 25,
+        gate: "IngestGate | None" = None,
     ):
+        self.gate = gate
         self.repo = repo
         self.bsky_client = bsky_client
         self.poll_interval = poll_interval_seconds
@@ -158,10 +207,17 @@ class SearchPoller:
                         "source": "search",
                     },
                 )
-        if found:
-            self.repo.upsert_posts(list(found.values()))
-        logger.info("Foram inseridos %d posts candidatos do searchPosts.", len(found))
-        return len(found)
+        to_insert = list(found.values())
+        if self.gate is not None:
+            to_insert = to_insert[: self.gate.room()]
+        if to_insert:
+            self.repo.upsert_posts(to_insert)
+            if self.gate is not None:
+                self.gate.consume(len(to_insert))
+        logger.info(
+            "Foram inseridos %d de %d posts candidatos do searchPosts.", len(to_insert), len(found)
+        )
+        return len(to_insert)
 
     async def run(self):
         while True:

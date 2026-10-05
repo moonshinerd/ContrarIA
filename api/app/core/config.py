@@ -119,7 +119,19 @@ class Settings(BaseSettings):
     triage_threshold_relevance: float = 1.0
     triage_threshold_bot: float = 0.8
     triage_threshold_falsehood: float = 0.8
-    worker_pipeline_batch_size: int = 5
+    worker_pipeline_batch_size: int = 5  # legado: só o TriagePipeline antigo usa
+    # Análises simultâneas no worker. Cada análise passa a maior parte do tempo esperando
+    # rede (fontes de evidência, matérias) e o Jev atende uma inferência por vez, então
+    # poucas dezenas já saturam. Reduza em máquinas com pouca CPU/RAM.
+    worker_pipeline_concurrency: int = Field(default=3, ge=1, le=64)
+    # Teto de posts aguardando análise. Cheia a fila, a coleta descarta os posts novos
+    # (sempre frescos) até haver vaga. 0 desliga o teto.
+    worker_queue_max_pending: int = Field(default=100, ge=0)
+    # Vagas da fila reservadas ao searchPosts (posts de maior alcance); o Jetstream só
+    # preenche `worker_queue_max_pending - worker_queue_search_reserve`.
+    worker_queue_search_reserve: int = Field(default=30, ge=0)
+    # Após N falhas seguidas na análise de um mesmo post, ele sai da fila ('ignored').
+    worker_pipeline_max_attempts: int = Field(default=3, ge=1)
     pipeline_bot_scoring_enabled: bool = True
     pipeline_verification_enabled: bool = True
     pipeline_intervention_enabled: bool = True

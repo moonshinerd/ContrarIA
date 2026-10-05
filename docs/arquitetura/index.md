@@ -72,7 +72,9 @@ flowchart TD
     ER[EngagementRefresher<br/>a cada 5 min, últimas 48h] --> SNAP[(post_engagement_snapshots)]
     ER -- relevância + velocidade<br/>matriz GQ04 --> POSTS
 
-    POSTS -- triage_status = monitor / queued<br/>ordenado por priority --> LOOP{{Loop do worker<br/>lote de 5 a cada 30 s}}
+    POSTS -- triage_status = monitor / queued<br/>ordenado por priority --> LOOP{{Pool do worker<br/>3 análises simultâneas}}
+    GATE[IngestGate<br/>teto de 100 na fila] -. descarta quando cheia .-> J1
+    GATE -. descarta quando cheia .-> J2
     RSSJ[FeedIngestor<br/>RSS a cada 1 h + embeddings] --> FA[(fact_articles<br/>pgvector)]
 
     LOOP --> PIPE[PipelineService.analyze]
@@ -95,15 +97,17 @@ Pontos que o desenho deixa explícitos:
 
 - **A coleta não analisa.** Ela só grava posts. Quem escolhe o que será analisado é a triagem
   (relevância, velocidade, matriz GQ04), executada pelo `EngagementRefresher`.
-- **A verificação cara roda em lote pequeno** (`WORKER_PIPELINE_BATCH_SIZE`, padrão 5) para proteger
-  orçamento e CPU.
+- **A verificação cara roda em um pool de análises simultâneas** (`WORKER_PIPELINE_CONCURRENCY`, padrão 3), limitado pela
+  CPU do `jev`. A fila tem teto (`WORKER_QUEUE_MAX_PENDING`, padrão 100): cheia, a coleta descarta os posts novos, e parte
+  das vagas é reservada ao `searchPosts` ([ADR 0018](../adr/0018-concorrencia-e-contrapressao-do-worker.md)).
 - **Intervir é sempre assíncrono e raro.** O pipeline só enfileira o candidato; a fila publica no
   máximo um por rodada e nenhum no horário de silêncio.
 - **Toda análise termina em `decisions`**, inclusive abstenção e monitoramento.
 
 ## Tarefas concorrentes do worker
 
-`app/worker.py` cria três tarefas `asyncio` em segundo plano e roda o loop principal na tarefa corrente.
+`app/worker.py` cria três tarefas `asyncio` em segundo plano e roda o loop principal na tarefa corrente. Esse loop alimenta
+o `AnalysisPool`, que mantém até `WORKER_PIPELINE_CONCURRENCY` análises em andamento e preenche cada vaga assim que ela libera.
 
 ```mermaid
 flowchart LR
@@ -115,7 +119,7 @@ flowchart LR
     end
     L --> R1[Rodada de intervenção<br/>se vencida]
     L --> R2[FeedIngestor.run<br/>se RSS_POLL_SECONDS passou]
-    L --> R3[analyze para cada<br/>candidato do lote]
+    L --> R3[AnalysisPool: até N análises<br/>simultâneas]
 ```
 
 A rodada de intervenção é verificada **antes e depois de cada análise** (`run_due_intervention_round`),

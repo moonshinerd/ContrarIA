@@ -35,8 +35,9 @@ hora entre snapshots). A relevância combina, em escala logarítmica, engajament
 matriz GQ04 transforma isso em `triage_status` (`monitor`, `queued` ou `discarded`) e `priority`. Posts já
 `processed` ou `ignored` não voltam para a fila.
 
-**Análise cara (loop do worker, lote de 5 a cada 30 segundos).** Os candidatos `monitor` e `queued` são lidos por
-`priority` decrescente. Para cada um, o `PipelineService` calcula o **bot score** da conta: pesos em
+**Análise cara (pool do worker, 3 simultâneas por padrão).** Os candidatos `monitor` e `queued` são lidos por
+`priority` decrescente. A fila tem teto de 100 posts: cheia, a coleta descarta os novos, e 30 vagas ficam reservadas ao
+`searchPosts` ([ADR 0018](../adr/0018-concorrencia-e-contrapressao-do-worker.md)). Para cada um, o `PipelineService` calcula o **bot score** da conta: pesos em
 `domain/bot_weights.yaml` sobre características demográficas, de rede, temporais e de conteúdo, passados por uma
 sigmoide e guardados em cache por 24 horas. Uma nota alta é um indício, não prova de automação.
 

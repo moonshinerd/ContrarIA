@@ -95,6 +95,7 @@ nav:
       - "0015 – Pré-filtro TF-IDF": adr/0015-pre-filtro-tfidf-nao-integrado.md
       - "0016 – Remoção do Tavily": adr/0016-remocao-do-tavily.md
       - "0017 – Rotulagem de Contas": adr/0017-rotulagem-de-contas-ao-vivo.md
+      - "0018 – Concorrência do Worker": adr/0018-concorrencia-e-contrapressao-do-worker.md
   - Resultados e Benchmarks: resultados/benchmark.md
   - Glossário: glossario.md
   - Atas:

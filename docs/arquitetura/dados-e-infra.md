@@ -22,7 +22,7 @@ erDiagram
         timestamptz created_at
         string source "jetstream ou search"
         timestamptz first_seen_at
-        string triage_status "monitor, queued, discarded, processed, ignored"
+        string triage_status "monitor, queued, discarded, processed, ignored, expired"
         float priority
     }
     post_engagement_snapshots {
@@ -102,7 +102,7 @@ erDiagram
 
 | Tabela | Escrita por | Função |
 |---|---|---|
-| `posts` | `JetstreamConsumer`, `SearchPoller`, `EngagementRefresher`, worker | Posts coletados e estado de triagem. `processed` e `ignored` são finais e não são sobrescritos pelo refresher |
+| `posts` | `JetstreamConsumer`, `SearchPoller`, `EngagementRefresher`, worker | Posts coletados e estado de triagem. `processed`, `ignored` e `expired` são finais e não são sobrescritos pelo refresher |
 | `post_engagement_snapshots` | `EngagementRefresher` | Série temporal usada para calcular velocidade de propagação |
 | `ingest_cursor` | `JetstreamConsumer` | Cursor para retomar o firehose após reinício (recua 5 s por segurança) |
 | `account_assessments` | `BotScoringService`, `AccountLabelService` | Cache do bot score por conta, válido por 24 h, e se a conta já recebeu o rótulo `provavel-bot` |
@@ -137,12 +137,32 @@ Os grupos principais:
 | Verificação | `VERIFICATION_BACKEND` (código: `llm`; operação: `jev`), `JEV_MODEL_REPO`, `JEV_SERVER_URL`, `CRC_ALPHA=0.05`, `JEV_ALLOW_UNCALIBRATED=false` |
 | LLM (redação e backend `llm`) | `LLM_MODEL_NAME`, `LLM_API_KEY` / `OPENROUTER_API_KEY`, `DAILY_LLM_BUDGET_USD=1.0` |
 | Evidências | `GOOGLE_FACTCHECK_API_KEY`, `SEARXNG_*`, `RSS_CHECKERS_ENABLED`, `RSS_ENABLED_SOURCES`, `RSS_POLL_SECONDS=3600` |
-| Triagem | `TRIAGE_THRESHOLD_RELEVANCE`, `TRIAGE_THRESHOLD_BOT`, `TRIAGE_THRESHOLD_FALSEHOOD`, `WORKER_PIPELINE_BATCH_SIZE=5`, `WORKER_TICK_SECONDS=30` |
+| Triagem | `TRIAGE_THRESHOLD_RELEVANCE`, `TRIAGE_THRESHOLD_BOT`, `TRIAGE_THRESHOLD_FALSEHOOD`, `WORKER_TICK_SECONDS=30` |
+| Vazão do worker | `WORKER_PIPELINE_CONCURRENCY=3`, `WORKER_QUEUE_MAX_PENDING=100`, `WORKER_QUEUE_SEARCH_RESERVE=30`, `WORKER_PIPELINE_MAX_ATTEMPTS=3` |
 | Intervenção | `INTERVENTION_DRY_RUN=true`, `INTERVENTION_ROUND_MINUTES=15`, silêncio 0h–7h (Brasília), `DAILY_MAX_INTERVENTIONS`, `DAILY_WRITE_POINTS_BUDGET`, `PIPELINE_MIN_FOLLOWERS_FOR_INTERVENTION=1000` |
 | Rótulo | `PIPELINE_LABELER_ENABLED=false`, `OZONE_LABELER_*`, `ACCOUNT_LABEL_THRESHOLD=0.9`, `ACCOUNT_LABEL_HYSTERESIS=0.1`, `ACCOUNT_LABEL_MIN_POSTS=20` |
 | Feature flags | `PIPELINE_BOT_SCORING_ENABLED`, `PIPELINE_VERIFICATION_ENABLED`, `PIPELINE_INTERVENTION_ENABLED` |
 
 Segredos (`api/.env`, App Passwords, chaves de API) **nunca** vão para o repositório.
+
+### Ajuste de vazão para a sua máquina
+
+O ritmo do worker depende da CPU disponível para o `jev`. Os padrões (3 simultâneas, fila de 100) foram medidos numa
+máquina com 10 CPUs e 16 GB ([ADR 0018](../adr/0018-concorrencia-e-contrapressao-do-worker.md)). Em outra máquina:
+
+1. Rode a medição, que só chama a verificação e não grava nem publica nada:
+
+    ```bash
+    docker compose run --rm --no-deps api python -m app.scripts.benchmark_concurrency \
+        --levels 1,2,3,4 --posts 12 --top
+    ```
+
+2. Escolha em `WORKER_PIPELINE_CONCURRENCY` o nível com mais `posts_per_min` **antes** de a `latency_p95_s` disparar. Acima
+   desse ponto a vazão cai, porque as análises só disputam os mesmos núcleos.
+3. Regra de partida: 1 a 2 simultâneas com até 4 CPUs; 3 com 8 a 10. Se a máquina ficar lenta, reduza também
+   `JEV_N_THREADS` (limita as threads do PyTorch no `jev`).
+4. `WORKER_QUEUE_MAX_PENDING` define o quanto a análise se afasta do tempo real: fila menor significa posts mais frescos,
+   mas escolha menos seletiva por prioridade. `0` desliga o teto (a fila cresce sem limite).
 
 ## Ambientes
 

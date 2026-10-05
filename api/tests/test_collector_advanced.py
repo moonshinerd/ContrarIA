@@ -198,3 +198,28 @@ async def test_search_poller_busca_uma_palavra_por_vez_e_deduplica():
     assert total == 2
     saved = repo.upsert_posts.call_args.args[0]
     assert {p["uri"] for p in saved} == {"at://a", "at://b"}
+
+
+@pytest.mark.asyncio
+async def test_search_poller_respeita_a_vaga_da_fila():
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    from app.jobs.collector import IngestGate
+
+    def post(uri):
+        return SimpleNamespace(
+            uri=uri, cid="c", author_did="d", text="t", langs=["pt"], created_at=datetime.now(UTC)
+        )
+
+    repo = MagicMock()
+    repo.pending_count.return_value = 98
+    bsky_client = MagicMock()
+
+    async def fake_search(query, **kwargs):
+        return [post(f"at://{i}") for i in range(5)]
+
+    bsky_client.search_posts = fake_search
+    gate = IngestGate(repo, max_pending=100)
+    assert await SearchPoller(repo, bsky_client, gate=gate).poll_once() == 2
+    assert len(repo.upsert_posts.call_args.args[0]) == 2

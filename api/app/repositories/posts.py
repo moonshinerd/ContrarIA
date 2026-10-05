@@ -1,9 +1,16 @@
-from sqlalchemy import select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.db.orm.posts import IngestCursor, Post
 from app.domain.entities import Post as DomainPost
+
+PENDING_STATUSES = ("monitor", "queued")
+
+
+def _is_pending():
+    # Posts recém-coletados ainda não têm triagem (NULL) e já contam como fila.
+    return or_(Post.triage_status.in_(PENDING_STATUSES), Post.triage_status.is_(None))
 
 
 class PostRepository:
@@ -40,12 +47,39 @@ class PostRepository:
         with Session(self.engine) as session:
             return session.scalar(select(func.count()).select_from(Post))
 
-    def get_triage_candidates(self, limit: int) -> list[tuple[DomainPost, float]]:
+    def pending_count(self) -> int:
+        """Posts aguardando análise (inclui os ainda sem triagem)."""
+        with Session(self.engine) as session:
+            return session.scalar(select(func.count()).select_from(Post).where(_is_pending())) or 0
+
+    def trim_pending(self, keep: int) -> int:
+        """Mantém só os `keep` pendentes de maior prioridade; os demais viram 'expired'.
+
+        O post continua no banco, só sai da fila ('expired' é status final: o refresher não o
+        reativa). Devolve quantos foram expirados.
+        """
+        top = (
+            select(Post.uri)
+            .where(_is_pending())
+            .order_by(Post.priority.desc().nullslast(), Post.first_seen_at.desc())
+            .limit(keep)
+        )
+        with Session(self.engine) as session, session.begin():
+            result = session.execute(
+                update(Post)
+                .where(_is_pending(), Post.uri.not_in(top))
+                .values(triage_status="expired")
+            )
+        return result.rowcount
+
+    def get_triage_candidates(
+        self, limit: int, *, exclude_uris: set[str] | frozenset[str] = frozenset()
+    ) -> list[tuple[DomainPost, float]]:
         """Retorna candidatos recentes em ordem de prioridade para o pipeline caro."""
         with Session(self.engine) as session:
             rows = session.scalars(
                 select(Post)
-                .where(Post.triage_status.in_(["monitor", "queued"]))
+                .where(Post.triage_status.in_(PENDING_STATUSES), Post.uri.not_in(exclude_uris))
                 .order_by(Post.priority.desc().nullslast(), Post.first_seen_at.desc())
                 .limit(limit)
             )

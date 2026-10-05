@@ -13,7 +13,7 @@ from app.domain.prioritization import calculate_relevance, evaluate_gq04_matrix
 
 logger = logging.getLogger("contraria.jobs.refresh_engagement")
 
-_FINAL_TRIAGE_STATUSES = ("processed", "ignored")
+_FINAL_TRIAGE_STATUSES = ("processed", "ignored", "expired")
 
 
 class EngagementRefresher:
