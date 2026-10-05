@@ -47,6 +47,8 @@ cerca de 1 s por post.
 3. **Reserva para o `searchPosts`** `WORKER_QUEUE_SEARCH_RESERVE` (padrão **30**): o Jetstream só preenche até
    `teto − reserva`. Sem ela, o firehose enchia a fila antes do ciclo do poller, que inseriu 1 de 431 posts na primeira
    medição ao vivo.
+   O `searchPosts` devolve a cada ciclo quase os mesmos posts populares das últimas 24 h; por isso só os URIs ainda
+   desconhecidos contam como novos e ocupam vaga (o `upsert` já ignorava duplicados, mas o log e a reserva os contavam).
 4. **Poda inicial:** ao subir, o worker mantém os `teto` pendentes de maior prioridade e marca o resto como `expired`
    (status final; os posts continuam no banco).
 5. Tudo isso é configurável para cada máquina; veja o guia de ajuste em [Dados, Infraestrutura e Deploy](../arquitetura/dados-e-infra.md).

@@ -125,6 +125,7 @@ def test_trim_mantem_os_de_maior_prioridade_e_expira_o_resto():
     assert kept == {"a", "b"}
     # exclude_uris tira os que já estão em análise
     assert {p.uri for p, _ in repo.get_triage_candidates(10, exclude_uris={"b"})} == {"a"}
+    assert repo.existing_uris(["a", "e", "zzz"]) == {"a", "e"}
 
 
 def test_gate_bloqueia_com_a_fila_cheia_e_libera_quando_ha_vaga():

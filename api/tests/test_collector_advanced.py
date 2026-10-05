@@ -180,6 +180,7 @@ async def test_search_poller_busca_uma_palavra_por_vez_e_deduplica():
         )
 
     repo = MagicMock()
+    repo.existing_uris.return_value = set()
     bsky_client = MagicMock()
     queries: list[str] = []
 
@@ -214,6 +215,7 @@ async def test_search_poller_respeita_a_vaga_da_fila():
 
     repo = MagicMock()
     repo.pending_count.return_value = 98
+    repo.existing_uris.return_value = set()
     bsky_client = MagicMock()
 
     async def fake_search(query, **kwargs):
@@ -223,3 +225,25 @@ async def test_search_poller_respeita_a_vaga_da_fila():
     gate = IngestGate(repo, max_pending=100)
     assert await SearchPoller(repo, bsky_client, gate=gate).poll_once() == 2
     assert len(repo.upsert_posts.call_args.args[0]) == 2
+
+
+@pytest.mark.asyncio
+async def test_search_poller_ignora_posts_que_ja_existem_no_banco():
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    def post(uri):
+        return SimpleNamespace(
+            uri=uri, cid="c", author_did="d", text="t", langs=["pt"], created_at=datetime.now(UTC)
+        )
+
+    repo = MagicMock()
+    repo.existing_uris.return_value = {"at://velho"}
+    bsky_client = MagicMock()
+
+    async def fake_search(query, **kwargs):
+        return [post("at://velho"), post("at://novo")]
+
+    bsky_client.search_posts = fake_search
+    assert await SearchPoller(repo, bsky_client).poll_once() == 1
+    assert [p["uri"] for p in repo.upsert_posts.call_args.args[0]] == ["at://novo"]

@@ -52,6 +52,13 @@ class PostRepository:
         with Session(self.engine) as session:
             return session.scalar(select(func.count()).select_from(Post).where(_is_pending())) or 0
 
+    def existing_uris(self, uris: list[str]) -> set[str]:
+        """URIs que já estão no banco (qualquer status), para não contá-las como posts novos."""
+        if not uris:
+            return set()
+        with Session(self.engine) as session:
+            return set(session.scalars(select(Post.uri).where(Post.uri.in_(uris))))
+
     def trim_pending(self, keep: int) -> int:
         """Mantém só os `keep` pendentes de maior prioridade; os demais viram 'expired'.
 

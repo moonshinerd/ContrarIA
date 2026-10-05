@@ -207,7 +207,10 @@ class SearchPoller:
                         "source": "search",
                     },
                 )
-        to_insert = list(found.values())
+        # O searchPosts devolve a cada ciclo muitos posts populares que já temos: só os novos
+        # contam (e só eles ocupam vaga da fila).
+        known = self.repo.existing_uris(list(found))
+        to_insert = [post for uri, post in found.items() if uri not in known]
         if self.gate is not None:
             to_insert = to_insert[: self.gate.room()]
         if to_insert:
@@ -215,7 +218,10 @@ class SearchPoller:
             if self.gate is not None:
                 self.gate.consume(len(to_insert))
         logger.info(
-            "Foram inseridos %d de %d posts candidatos do searchPosts.", len(to_insert), len(found)
+            "searchPosts: %d novos inseridos de %d encontrados (%d já conhecidos).",
+            len(to_insert),
+            len(found),
+            len(known),
         )
         return len(to_insert)
 

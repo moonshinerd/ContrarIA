@@ -164,6 +164,11 @@ máquina com 10 CPUs e 16 GB ([ADR 0018](../adr/0018-concorrencia-e-contrapressa
 4. `WORKER_QUEUE_MAX_PENDING` define o quanto a análise se afasta do tempo real: fila menor significa posts mais frescos,
    mas escolha menos seletiva por prioridade. `0` desliga o teto (a fila cresce sem limite).
 
+!!! warning "Em notebook ou desktop, impeça o repouso do sistema"
+    Quando o computador entra em repouso, o Docker congela e o worker para de coletar e analisar (no teste, 16 minutos sem
+    nenhuma análise, sem erro nos logs). No macOS, mantenha `caffeinate -i -s` rodando enquanto o agente estiver ativo, ou
+    ajuste o repouso em *Ajustes do Sistema*. Em servidor (VPS) isso não se aplica.
+
 ## Ambientes
 
 === "Desenvolvimento"
