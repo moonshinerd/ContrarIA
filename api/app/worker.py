@@ -106,7 +106,9 @@ async def main() -> None:
 
     from app.jobs.refresh_engagement import EngagementRefresher
 
-    refresher = EngagementRefresher(engine, bsky_client)
+    refresher = EngagementRefresher(
+        engine, bsky_client, queue_max_pending=settings.worker_queue_max_pending
+    )
     refresher_task = asyncio.create_task(refresher.run())
 
     pool = AnalysisPool(

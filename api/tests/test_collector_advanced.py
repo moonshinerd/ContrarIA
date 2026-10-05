@@ -202,29 +202,59 @@ async def test_search_poller_busca_uma_palavra_por_vez_e_deduplica():
 
 
 @pytest.mark.asyncio
-async def test_search_poller_respeita_a_vaga_da_fila():
+async def test_search_poller_fila_cheia_admite_os_mais_populares_e_poda_o_resto():
     from datetime import UTC, datetime
     from types import SimpleNamespace
 
     from app.jobs.collector import IngestGate
 
-    def post(uri):
+    def post(uri, likes):
         return SimpleNamespace(
-            uri=uri, cid="c", author_did="d", text="t", langs=["pt"], created_at=datetime.now(UTC)
+            uri=uri,
+            cid="c",
+            author_did="d",
+            text="t",
+            langs=["pt"],
+            created_at=datetime.now(UTC),
+            like_count=likes,
+            repost_count=0,
+            reply_count=0,
+            quote_count=0,
         )
 
     repo = MagicMock()
-    repo.pending_count.return_value = 98
+    repo.pending_count.return_value = 100  # fila cheia
     repo.existing_uris.return_value = set()
+    repo.trim_pending.return_value = 3
     bsky_client = MagicMock()
 
     async def fake_search(query, **kwargs):
-        return [post(f"at://{i}") for i in range(5)]
+        return [post("at://fraco", 1), post("at://viral", 50000), post("at://medio", 300)]
 
     bsky_client.search_posts = fake_search
-    gate = IngestGate(repo, max_pending=100)
+    gate = IngestGate(repo, max_pending=2)
     assert await SearchPoller(repo, bsky_client, gate=gate).poll_once() == 2
-    assert len(repo.upsert_posts.call_args.args[0]) == 2
+
+    saved = repo.upsert_posts.call_args.args[0]
+    # só os 2 mais populares (teto da fila), do mais para o menos popular, com prioridade gravada
+    assert [p["uri"] for p in saved] == ["at://viral", "at://medio"]
+    assert saved[0]["priority"] > saved[1]["priority"] > 0
+    assert all(p["triage_status"] == "monitor" for p in saved)
+    # a poda expira os menos badalados que já estavam na fila (ex.: posts do Jetstream sem nota)
+    repo.trim_pending.assert_called_once_with(2)
+
+
+def test_gate_invalidate_forca_nova_contagem():
+    from app.jobs.collector import IngestGate
+
+    repo = MagicMock()
+    repo.pending_count.return_value = 100
+    gate = IngestGate(repo, max_pending=100, refresh_seconds=3600)
+    assert gate.room() == 0
+    repo.pending_count.return_value = 40
+    assert gate.room() == 0  # contagem em cache
+    gate.invalidate()
+    assert gate.room() == 60
 
 
 @pytest.mark.asyncio

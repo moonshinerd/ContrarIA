@@ -73,11 +73,20 @@ searxng, Ozone). Mesmo script (`benchmark_concurrency`), 20 posts por nível amo
 - **Decisão para a VM: `WORKER_PIPELINE_CONCURRENCY=1`.** O padrão do código continua 3 (calibrado no Mac).
 - O `worker` com o modelo de embeddings do pré-filtro chegou a ~90% do limite de 1 GB; o compose de produção passou
   a 2 GB.
-- **Fila na VM:** `WORKER_QUEUE_MAX_PENDING=100` e `WORKER_QUEUE_SEARCH_RESERVE=70`. A fila **não troca posts piores
-  por melhores**: com ela cheia, posts novos são descartados. Ela se renova à medida que os posts são analisados
-  (~47 vagas por ciclo de 10 min nessa vazão). Com a reserva alta, o Jetstream ocupa no máximo 30 vagas (posts recém
-  publicados, ainda sem engajamento) e as outras 70 ficam para o `searchPosts` ordenado por `top`, que traz os posts
-  de maior alcance. No primeiro ciclo ao vivo o poller inseriu 70 posts novos de 435 encontrados.
+- **Fila na VM:** `WORKER_QUEUE_MAX_PENDING=100` e `WORKER_QUEUE_SEARCH_RESERVE=70`. Com a fila cheia, o Jetstream
+  continua descartando (ocupa no máximo 30 vagas: posts recém-publicados, ainda sem engajamento). As outras 70 ficam
+  para o `searchPosts` ordenado por `top`, que traz os posts de maior alcance. No primeiro ciclo ao vivo o poller
+  inseriu 70 posts novos de 435 encontrados.
+- **A fila passa a priorizar os mais populares** (este PR). Antes, com ela cheia, posts novos eram descartados e nada
+  expulsava os piores; ela só se renovava quando um post era analisado. Agora:
+  1. posts do `searchPosts` entram com `priority = calculate_relevance(curtidas, reposts, respostas, quotes)` e
+     `triage_status = monitor`, em vez de ficarem sem nota até o refresh de engajamento;
+  2. a cada ciclo do poller entram só os `WORKER_QUEUE_MAX_PENDING` mais populares dos novos e a fila é podada
+     (`trim_pending`): saem os de menor prioridade, primeiro os do Jetstream ainda sem nota (viram `expired`);
+  3. depois de cada refresh de engajamento (5 min) a fila é podada de novo, para convergir aos top-N conforme as
+     contagens e a velocidade mudam.
+  Limites: a prioridade por popularidade ainda não usa seguidores nem suspeita de falsidade; um post que viraliza
+  depois de expirar não volta (`expired` é status final).
 - **Limites desta medição:** amostra de 20 posts por nível; os níveis 3, 4 e 6 não foram medidos (interrompi o
   benchmark depois de ver que a vazão não cresce com a concorrência); uma única máquina. Todos os 20 posts do nível 1
   saíram como `insufficient_evidence`, o esperado para posts coletados sem filtro de tema, mas a latência de posts com

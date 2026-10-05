@@ -9,6 +9,7 @@ import websockets
 import yaml
 
 from app.clients.bluesky_client import BlueskyClient
+from app.domain.prioritization import calculate_relevance
 from app.repositories.posts import PostRepository
 
 logger = logging.getLogger("contraria.collector")
@@ -57,6 +58,10 @@ class IngestGate:
 
     def consume(self, n: int = 1) -> None:
         self._pending += n
+
+    def invalidate(self) -> None:
+        """Descarta a contagem em cache (após inserir em massa ou podar a fila)."""
+        self._checked_at = float("-inf")
 
 
 def _is_relevant(text: str) -> bool:
@@ -205,18 +210,41 @@ class SearchPoller:
                         "langs": p.langs,
                         "created_at": p.created_at,
                         "source": "search",
+                        "triage_status": "monitor",
+                        "priority": calculate_relevance(
+                            likes=getattr(p, "like_count", 0),
+                            reposts=getattr(p, "repost_count", 0),
+                            replies=getattr(p, "reply_count", 0),
+                            quotes=getattr(p, "quote_count", 0),
+                            velocity=0.0,
+                            followers=0,
+                        ),
                     },
                 )
         # O searchPosts devolve a cada ciclo muitos posts populares que já temos: só os novos
         # contam (e só eles ocupam vaga da fila).
         known = self.repo.existing_uris(list(found))
         to_insert = [post for uri, post in found.items() if uri not in known]
-        if self.gate is not None:
-            to_insert = to_insert[: self.gate.room()]
+        # Prioridade por popularidade já na entrada: sem ela o post ficava sem nota até o refresh
+        # de engajamento e não dava para compará-lo com os que já estão na fila.
+        to_insert.sort(key=lambda post: post["priority"], reverse=True)
+        max_pending = self.gate.max_pending if self.gate is not None else 0
+        if max_pending > 0:
+            to_insert = to_insert[:max_pending]
         if to_insert:
             self.repo.upsert_posts(to_insert)
-            if self.gate is not None:
-                self.gate.consume(len(to_insert))
+        if max_pending > 0:
+            # Fila cheia: os mais populares entram e os menos badalados saem (viram 'expired').
+            evicted = self.repo.trim_pending(max_pending)
+            if evicted:
+                logger.info(
+                    "Fila acima do teto de %d: %d expirados por menor prioridade",
+                    max_pending,
+                    evicted,
+                )
+            self.gate.invalidate()
+        elif self.gate is not None and to_insert:
+            self.gate.consume(len(to_insert))
         logger.info(
             "searchPosts: %d novos inseridos de %d encontrados (%d já conhecidos).",
             len(to_insert),

@@ -10,6 +10,7 @@ from app.clients.bluesky_client import BlueskyClient
 from app.core.config import get_settings
 from app.db.orm.posts import Post, PostEngagementSnapshot
 from app.domain.prioritization import calculate_relevance, evaluate_gq04_matrix
+from app.repositories.posts import PostRepository
 
 logger = logging.getLogger("contraria.jobs.refresh_engagement")
 
@@ -17,10 +18,18 @@ _FINAL_TRIAGE_STATUSES = ("processed", "ignored", "expired")
 
 
 class EngagementRefresher:
-    def __init__(self, engine, bsky_client: BlueskyClient, tick_seconds: int = 300):
+    def __init__(
+        self,
+        engine,
+        bsky_client: BlueskyClient,
+        tick_seconds: int = 300,
+        queue_max_pending: int = 0,
+    ):
         self.engine = engine
         self.bsky_client = bsky_client
         self.tick_seconds = tick_seconds
+        # >0: após cada refresh a fila é podada para os `queue_max_pending` de maior prioridade
+        self.queue_max_pending = queue_max_pending
 
     def _get_candidate_uris(self) -> list[str]:
         # Posts das últimas 48 horas
@@ -154,6 +163,14 @@ class EngagementRefresher:
                     hydrated = await self.bsky_client.get_posts(uris)
                     self._save_snapshots_and_update_priority(hydrated)
                     logger.info("Engajamento atualizado para %d posts.", len(hydrated))
+                    if self.queue_max_pending > 0:
+                        evicted = PostRepository(self.engine).trim_pending(self.queue_max_pending)
+                        if evicted:
+                            logger.info(
+                                "Fila acima do teto de %d: %d expirados por menor prioridade",
+                                self.queue_max_pending,
+                                evicted,
+                            )
             except Exception as e:
                 logger.error("Erro no RefreshEngagement: %s", e)
 
