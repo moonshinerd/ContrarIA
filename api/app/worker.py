@@ -23,6 +23,7 @@ from app.repositories.fact_articles import FactArticleRepository
 from app.repositories.interventions import InterventionRepository
 from app.repositories.posts import PostRepository
 from app.services import build_verification_service
+from app.services.account_labeling import AccountLabelService
 from app.services.bot_scoring import BotScoringService
 from app.services.crc_seed import ensure_calibration_seeded
 from app.services.intervention import InterventionService
@@ -82,6 +83,7 @@ async def main() -> None:
         verification=build_verification_service(llm, settings=settings, engine=engine),
         intervention=intervention,
         intervention_queue=queue,
+        account_labels=AccountLabelService(settings, Session(engine), ozone),
     )
 
     # Inicia as tasks em background

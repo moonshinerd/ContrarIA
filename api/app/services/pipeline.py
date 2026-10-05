@@ -13,6 +13,7 @@ from app.clients.ozone_client import OzoneClient
 from app.core.config import Settings
 from app.db.orm.decisions import DecisionLog
 from app.domain.entities import Post, VerdictLabel
+from app.services.account_labeling import AccountLabelService
 from app.services.bot_scoring import BotScoringService
 from app.services.intervention import InterventionService
 from app.services.intervention_queue import InterventionCandidate, InterventionQueue
@@ -39,6 +40,7 @@ class PipelineService:
         verification: VerificationService | JevVerificationService,
         intervention: InterventionService,
         intervention_queue: InterventionQueue | None = None,
+        account_labels: AccountLabelService | None = None,
     ) -> None:
         self.settings = settings
         self.db = db_session
@@ -49,6 +51,7 @@ class PipelineService:
         self.intervention = intervention
         # Com fila (worker), o candidato espera a rodada em vez de ser publicado já.
         self.intervention_queue = intervention_queue
+        self.account_labels = account_labels
 
     async def analyze(self, post: Post) -> DecisionLog:  # noqa: C901
         """Processa um post sob demanda (POST /analyze ou pelo worker)."""
@@ -62,6 +65,11 @@ class PipelineService:
         else:
             assessment = None
         bot_score = assessment.score if assessment else None
+        if assessment is not None and self.account_labels is not None:
+            try:
+                await self.account_labels.sync(author, assessment.score)
+            except Exception:
+                logger.exception("Falha ao sincronizar rótulo da conta %s", post.author_did)
 
         # 2/3. Engajamento / Prioridade (simplificado)
         # Engajamento alto = ≥1000 seguidores

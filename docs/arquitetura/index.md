@@ -186,7 +186,7 @@ O `InterventionService` só publica se **todas** as travas passarem:
 5. O post não desabilita citações (`postgate`).
 6. O texto passa por revisão das fontes e é limitado a 300 graphemes, em fio quando necessário.
 
-Além disso, `INTERVENTION_DRY_RUN` (padrão `true`) impede publicação real e `PIPELINE_LABELER_ENABLED`
+Contas analisadas com bot score acima de 0,9 recebem o rótulo `provavel-bot` do Ozone, mesmo sem quote ([ADR 0017](../adr/0017-rotulagem-de-contas-ao-vivo.md)). Além disso, `INTERVENTION_DRY_RUN` (padrão `true`) impede publicação real e `PIPELINE_LABELER_ENABLED`
 (padrão `false`) mantém o rótulo Ozone como ação opt-in. Ver [ADR 0002](../adr/0002-quote-post.md)
 e [ADR 0003](../adr/0003-labeler-ozone.md).
 

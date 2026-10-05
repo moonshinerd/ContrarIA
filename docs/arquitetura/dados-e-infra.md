@@ -41,6 +41,7 @@ erDiagram
         string did PK
         float score
         jsonb features
+        boolean bot_label_applied
         timestamptz assessed_at
     }
     decisions {
@@ -104,7 +105,7 @@ erDiagram
 | `posts` | `JetstreamConsumer`, `SearchPoller`, `EngagementRefresher`, worker | Posts coletados e estado de triagem. `processed` e `ignored` são finais e não são sobrescritos pelo refresher |
 | `post_engagement_snapshots` | `EngagementRefresher` | Série temporal usada para calcular velocidade de propagação |
 | `ingest_cursor` | `JetstreamConsumer` | Cursor para retomar o firehose após reinício (recua 5 s por segurança) |
-| `account_assessments` | `BotScoringService` | Cache do bot score por conta, válido por 24 h |
+| `account_assessments` | `BotScoringService`, `AccountLabelService` | Cache do bot score por conta, válido por 24 h, e se a conta já recebeu o rótulo `provavel-bot` |
 | `decisions` | `PipelineService` e `InterventionQueue` | Log de decisões (RF13, RNF06): post, bot score, fontes, saídas do verificador, veredito, limiar CRC e ação. O `action` só muda na rodada de intervenção |
 | `decision_reviews` | `POST /v1/decisions/{id}/review` | Revisão posterior sem alterar o registro original |
 | `intervention_logs` | `InterventionService` | Base das travas anti-loop e dos limites diários |
@@ -138,7 +139,7 @@ Os grupos principais:
 | Evidências | `GOOGLE_FACTCHECK_API_KEY`, `SEARXNG_*`, `RSS_CHECKERS_ENABLED`, `RSS_ENABLED_SOURCES`, `RSS_POLL_SECONDS=3600` |
 | Triagem | `TRIAGE_THRESHOLD_RELEVANCE`, `TRIAGE_THRESHOLD_BOT`, `TRIAGE_THRESHOLD_FALSEHOOD`, `WORKER_PIPELINE_BATCH_SIZE=5`, `WORKER_TICK_SECONDS=30` |
 | Intervenção | `INTERVENTION_DRY_RUN=true`, `INTERVENTION_ROUND_MINUTES=15`, silêncio 0h–7h (Brasília), `DAILY_MAX_INTERVENTIONS`, `DAILY_WRITE_POINTS_BUDGET`, `PIPELINE_MIN_FOLLOWERS_FOR_INTERVENTION=1000` |
-| Rótulo | `PIPELINE_LABELER_ENABLED=false`, `OZONE_LABELER_*` |
+| Rótulo | `PIPELINE_LABELER_ENABLED=false`, `OZONE_LABELER_*`, `ACCOUNT_LABEL_THRESHOLD=0.9`, `ACCOUNT_LABEL_HYSTERESIS=0.1`, `ACCOUNT_LABEL_MIN_POSTS=20` |
 | Feature flags | `PIPELINE_BOT_SCORING_ENABLED`, `PIPELINE_VERIFICATION_ENABLED`, `PIPELINE_INTERVENTION_ENABLED` |
 
 Segredos (`api/.env`, App Passwords, chaves de API) **nunca** vão para o repositório.

@@ -24,6 +24,7 @@ Registro formal das decisões técnicas de engenharia e arquitetura do projeto *
 | [**0014**](0014-busca-web-searxng-trafilatura.md) | Busca Web Self-Hosted com SearXNG e Extração via Trafilatura | `Aceita` | 30/09/2026 | RF11, RNF02, RNF05 |
 | [**0015**](0015-pre-filtro-tfidf-nao-integrado.md) | Pré-filtro TF-IDF não integrado ao pipeline | `Aceita` | 05/10/2026 | RNF01, RNF05, GQ04 |
 | [**0016**](0016-remocao-do-tavily.md) | Remoção do Tavily da busca web | `Aceita` | 05/10/2026 | RF11, RNF02, RNF05 |
+| [**0017**](0017-rotulagem-de-contas-ao-vivo.md) | Rotulagem de contas com `provavel-bot` ao vivo | `Aceita` | 05/10/2026 | RF02, RF07, RNF01, GQ07 |
 
 ---
 

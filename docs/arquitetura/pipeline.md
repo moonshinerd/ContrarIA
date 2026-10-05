@@ -91,9 +91,8 @@ prováveis o tom é empático e socrático; para bots prováveis, clínico. Não
 Quote posts notificam o autor. A decisão aceita o risco relacionado à diretriz de opt-in descrito no ADR 0002; a
 citação não elimina esse risco. Com `INTERVENTION_DRY_RUN=true` (padrão) nada é publicado.
 
-A rotulagem pelo **Ozone** é complementar, por uma conta dedicada de labeler: `possivel-desinformacao` em conteúdo
-(o rótulo `provavel-bot` ainda não é emitido pelo código). Ela só é emitida com `PIPELINE_LABELER_ENABLED=true` e fora do *dry-run*. Uma revisão
-com `reverter` nega o rótulo (`action="negate"`) sem apagar o histórico. O score sozinho não autoriza rotulagem.
+A rotulagem pelo **Ozone** é complementar, por uma conta dedicada de labeler, e só age com `PIPELINE_LABELER_ENABLED=true`. Há dois rótulos: `possivel-desinformacao` no **post** citado, emitido após o quote publicado e fora do *dry-run*; e `provavel-bot` na **conta**, emitido para toda conta analisada cujo bot score passa de 0,9 (com ao menos 20 posts) e negado quando cai abaixo de 0,8, independentemente de quote ([ADR 0017](../adr/0017-rotulagem-de-contas-ao-vivo.md)). Uma revisão
+com `reverter` nega o rótulo (`action="negate"`) sem apagar o histórico. 
 
 Conteúdo verdadeiro ou não factual não recebe intervenção corretiva. Um resultado inconclusivo causa abstenção, sem ação penalizadora.
 

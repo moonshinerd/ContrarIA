@@ -128,6 +128,12 @@ class Settings(BaseSettings):
     pipeline_labeler_enabled: bool = False
     pipeline_bot_ignore_threshold: float = Field(default=0.9, ge=0, le=1)
     pipeline_min_followers_for_intervention: int = Field(default=1000, ge=0)
+    # Rótulo `provavel-bot` em contas: emitido quando o bot score passa do limiar e
+    # negado quando cai abaixo de (limiar - histerese), para não oscilar. Só age com
+    # `pipeline_labeler_enabled`.
+    account_label_threshold: float = Field(default=0.9, ge=0, le=1)
+    account_label_hysteresis: float = Field(default=0.1, ge=0, le=1)
+    account_label_min_posts: int = Field(default=20, ge=0)
     ozone_labeler_handle: str = ""
     ozone_labeler_app_password: str = ""
     ozone_labeler_did: str = ""

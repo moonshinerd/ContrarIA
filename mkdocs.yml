@@ -94,6 +94,7 @@ nav:
       - "0014 – Busca Web Self-Hosted": adr/0014-busca-web-searxng-trafilatura.md
       - "0015 – Pré-filtro TF-IDF": adr/0015-pre-filtro-tfidf-nao-integrado.md
       - "0016 – Remoção do Tavily": adr/0016-remocao-do-tavily.md
+      - "0017 – Rotulagem de Contas": adr/0017-rotulagem-de-contas-ao-vivo.md
   - Resultados e Benchmarks: resultados/benchmark.md
   - Glossário: glossario.md
   - Atas:
