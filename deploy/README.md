@@ -42,8 +42,8 @@ O `OZONE_DOMAIN` deve apontar para a VPS antes da subida. Depois, entre em
 `https://$OZONE_DOMAIN`, conclua o anúncio do serviço no DID e publique o record
 `app.bsky.labeler.service` com `cd api && uv run python -m scripts.setup_labeler`.
 
-Mantenha `PIPELINE_LABELER_ENABLED=false` até testar um post autorizado; a
-emissão de rótulos é deliberadamente opt-in.
+A emissão de rótulos é opt-in (`PIPELINE_LABELER_ENABLED`). Na VM de produção ela está **ligada** desde 05/10/2026,
+com `INTERVENTION_DRY_RUN=false` (veja [Operação na VM](../docs/arquitetura/operacao-vm.md#producao-ligada-05102026)).
 
 O procedimento completo, incluindo geração de segredos, anúncio no DID e teste
 de emissão/reversão, está em [OZONE_RUNBOOK.md](OZONE_RUNBOOK.md).

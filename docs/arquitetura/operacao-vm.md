@@ -105,8 +105,8 @@ Com a pilha completa a VM usa ~3,5 GB de RAM e ~13 GB de disco. O gargalo é a C
 | `WORKER_PIPELINE_CONCURRENCY` | `1` | O modelo é único e a inferência é serial; mais simultâneas só alongam a latência |
 | `WORKER_QUEUE_MAX_PENDING` | `100` | Teto da fila de análise |
 | `WORKER_QUEUE_SEARCH_RESERVE` | `70` | O Jetstream ocupa no máximo 30 vagas; o resto fica para os posts do `searchPosts` ordenados por alcance |
-| `INTERVENTION_DRY_RUN` | `true` | Nada é publicado |
-| `PIPELINE_LABELER_ENABLED` | `false` | Nenhum rótulo é emitido |
+| `INTERVENTION_DRY_RUN` | `false` | Os quote posts são **publicados de verdade** (ligado em 05/10/2026) |
+| `PIPELINE_LABELER_ENABLED` | `true` | O Ozone emite rótulos de verdade (ligado em 05/10/2026) |
 
 Medição: com 1 simultânea a VM faz ~4,7 posts/min com p50 de 14 s e p95 de 29 s, contra 20 posts/min e p50 de 3 s no
 Mac. Os números e os limites da medição estão no [ADR 0018](../adr/0018-concorrencia-e-contrapressao-do-worker.md).
@@ -142,8 +142,25 @@ reversão não apaga o histórico: o Ozone registra o evento de negação.
     A Cloudflare responde 403 a `urllib` com o User-Agent padrão em `contraria.schmidt.monster`; use um User-Agent
     identificável ou o `curl`. O `OzoneClient` do projeto não é afetado (fala com o PDS e usa o proxy do labeler).
 
-`PIPELINE_LABELER_ENABLED` segue `false` na VM: a emissão automática de rótulos continua desligada até a equipe decidir
-ligá-la (a verificação publica `possivel-desinformacao` e `provavel-bot` quando a flag está ligada).
+### Produção ligada (05/10/2026)
+
+Desde 05/10/2026 a aplicação roda **de verdade** na VM, sem modo seco (`INTERVENTION_DRY_RUN=false` e
+`PIPELINE_LABELER_ENABLED=true`):
+
+- **Quote posts** saem do perfil principal (`contraria-bot.bsky.social`, o `BLUESKY_HANDLE`).
+- **Rótulos** saem do labeler (`contraria-labeler.bsky.social`, DID do labeler): `possivel-desinformacao` no post, depois
+  de um quote publicado, e `provavel-bot` na conta com `bot_score` ≥ 0,9 e pelo menos 20 posts. Um rótulo sempre vem do
+  DID do labeler, nunca do perfil principal.
+- **Travas que continuam valendo:** no máximo `DAILY_MAX_INTERVENTIONS=20` quotes por dia, orçamento de LLM de
+  `DAILY_LLM_BUDGET_USD=1.0` por dia, rodadas a cada 15 min, silêncio das 0h às 7h, só autores com 1.000 seguidores ou
+  mais (`PIPELINE_MIN_FOLLOWERS_FOR_INTERVENTION`) e o limite de pontos de escrita da API do Bluesky.
+- A validação de qualidade ainda está em andamento: a amostra de 200 posts anotados (issues #62, #64 e #65) serve para
+  medir o sistema, e a produção não espera por ela. Acompanhe os primeiros quotes e rótulos.
+
+**Para pausar a publicação sem derrubar a coleta:** na VM, edite `/opt/contraria/api/.env` (`INTERVENTION_DRY_RUN=true`
+para parar os quotes e os rótulos de post; `PIPELINE_LABELER_ENABLED=false` para parar também o `provavel-bot`) e rode
+`su deploy -c "docker compose -f deploy/docker-compose.prod.yml --env-file api/.env up -d worker"`. Para desfazer um
+rótulo, use `review_action=reverter` no Ozone (veja o runbook).
 
 ## Disco e cache do Docker
 
