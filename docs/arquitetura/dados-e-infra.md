@@ -138,6 +138,8 @@ Os grupos principais:
 | LLM (redação e backend `llm`) | `LLM_MODEL_NAME`, `LLM_API_KEY` / `OPENROUTER_API_KEY`, `DAILY_LLM_BUDGET_USD=1.0` |
 | Evidências | `GOOGLE_FACTCHECK_API_KEY`, `SEARXNG_*`, `RSS_CHECKERS_ENABLED`, `RSS_ENABLED_SOURCES`, `RSS_POLL_SECONDS=3600` |
 | Triagem | `TRIAGE_THRESHOLD_RELEVANCE`, `TRIAGE_THRESHOLD_BOT`, `TRIAGE_THRESHOLD_FALSEHOOD`, `WORKER_TICK_SECONDS=30` |
+| Resiliência das fontes | `EVIDENCE_PROVIDER_TIMEOUT_SECONDS=8`, `EVIDENCE_FAILURE_COOLDOWN_SECONDS=30`, `EVIDENCE_FAILURE_COOLDOWN_MAX_SECONDS=600` |
+| Fonte citada | `CITED_SOURCE_ENTAILMENT_MIN=0.7`, `CITED_SOURCE_MIN_AUTHORITY=2.0` |
 | Vazão do worker | `WORKER_PIPELINE_CONCURRENCY=3`, `WORKER_QUEUE_MAX_PENDING=100`, `WORKER_QUEUE_SEARCH_RESERVE=30`, `WORKER_PIPELINE_MAX_ATTEMPTS=3` |
 | Intervenção | `INTERVENTION_DRY_RUN=true`, `INTERVENTION_ROUND_MINUTES=15`, silêncio 0h–7h (Brasília), `DAILY_MAX_INTERVENTIONS`, `DAILY_WRITE_POINTS_BUDGET`, `PIPELINE_MIN_FOLLOWERS_FOR_INTERVENTION=1000` |
 | Rótulo | `PIPELINE_LABELER_ENABLED=false`, `OZONE_LABELER_*`, `ACCOUNT_LABEL_THRESHOLD=0.9`, `ACCOUNT_LABEL_HYSTERESIS=0.1`, `ACCOUNT_LABEL_MIN_POSTS=20` |
@@ -244,6 +246,7 @@ O `docs.yml` publica este site com `mkdocs build --strict`, então links quebrad
 | Gerenciamento de dependências | `uv` (lockfile), `ruff` (lint e formatação), `pytest` e `pytest-asyncio` |
 | Banco | Postgres 16, `pgvector`, SQLAlchemy 2, Alembic, `psycopg` 3 |
 | Bluesky | SDK `atproto`, `websockets` (Jetstream), `curl-cffi` |
+| Dados geográficos | Gazetteer dos municípios do IBGE (`app/domain/data/municipios_br.json`, gerado por `app.scripts.build_gazetteer`) |
 | Classificação local | PyTorch + Transformers (mDeBERTa-v3 NLI), `scikit-learn` (pré-filtro TF-IDF) |
 | Embeddings | `sentence-transformers` (`paraphrase-multilingual-MiniLM-L12-v2`, 384 d) |
 | LLM | LiteLLM (OpenRouter e outros provedores) |

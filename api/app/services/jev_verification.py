@@ -28,7 +28,7 @@ import asyncio
 import json
 import logging
 import re
-import unicodedata
+from dataclasses import dataclass
 from datetime import date
 from urllib.parse import urlparse
 
@@ -40,7 +40,9 @@ from app.clients.evidence.base import EvidenceSource
 from app.clients.evidence.google_factcheck import GoogleFactCheckClient
 from app.clients.evidence.web_search import is_valid_evidence_url
 from app.core.config import Settings, get_settings
+from app.domain import geo
 from app.domain.entities import Evidence, Post, Verdict, VerdictLabel
+from app.domain.sentences import split_sentences
 from app.models.classifiers.jev import (
     PROMPT_OVERHEAD_TOKENS,
     JevClassifierPort,
@@ -78,8 +80,9 @@ _MAX_EVIDENCE_FOR_VERDICT = 5
 _ARTICLE_MAX_CHARS = 8000
 # Links citados pelo próprio post lidos como evidência (ver `_cited_evidence`).
 _MAX_CITED_LINKS = 2
-# Cobertura mínima do título da matéria citada para dizer que o post só a reproduz.
-_TITLE_ECHO_MIN = 0.8
+# Trechos da matéria citada comparados com a alegação pelo NLI (título + janelas de 2 frases).
+_MAX_NLI_CHUNKS = 12
+_CHUNK_MAX_CHARS = 600
 _SNIPPET_MAX_CHARS = 400
 _WORD_PATTERN = re.compile(r"\w{4,}")
 # Uma coincidência isolada (sobretudo cidade, país ou tema amplo) não mostra
@@ -811,61 +814,38 @@ def _clean_query(text: str) -> str:
     return cleaned
 
 
-# Fim de frase em ponto/!/?, exceto depois de sigla de uma letra ("E. M. Dom Pedro I") ou
-# abreviação comum ("Dr.", "Prof."): cortar aí separa o nome da cidade e da alegação.
-_SENTENCE_SPLIT = re.compile(
-    r"(?<=[.!?])(?<!\b[A-ZÀ-Ý]\.)(?<!\bDr\.)(?<!\bDra\.)(?<!\bSr\.)(?<!\bSra\.)"
-    r"(?<!\bProf\.)(?<!\bAv\.)(?<!\bnº\.)\s+"
-)
+def _entity_conflict(claim: str, evidence: Evidence, discourse: str = "") -> str | None:
+    """Detecta evidência sobre outra entidade homônima (outra localidade ou zona eleitoral).
 
-_UFS = frozenset(
-    "AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split()
-)
-_ZONE_PATTERN = re.compile(r"\b(\d{1,3})\s*[ªaº°]?\s*zona", re.IGNORECASE)
-_PLACE_PATTERN = re.compile(
-    r"([A-ZÀ-Ý][\wÀ-ÿ]+(?:\s+(?:d[aeo]s?\s+)?[A-ZÀ-Ý][\wÀ-ÿ]+)*)\s*[(/]\s*([A-Z]{2})\b"
-)
-
-
-def _normalize_place(name: str) -> str:
-    decomposed = unicodedata.normalize("NFKD", name.casefold())
-    return "".join(ch for ch in decomposed if not unicodedata.combining(ch)).strip()
-
-
-def _places(text: str) -> set[tuple[str, str]]:
-    """Pares (cidade, UF) citados como "Cidade (UF)" ou "Cidade/UF"; sigla de partido não conta."""
-    found = _PLACE_PATTERN.findall(text)
-    return {(_normalize_place(city), uf) for city, uf in found if uf in _UFS}
-
-
-def _entity_conflict(claim: str, evidence: Evidence) -> str | None:
-    """Detecta evidência sobre outra entidade homônima (outra cidade, UF ou zona eleitoral).
-
-    Só barra quando os dois lados citam o dado e eles não têm nada em comum; se a evidência
-    não menciona localidade nem zona, nada é concluído. Evita, por exemplo, usar uma
-    "E. M. Dom Pedro I" de Maribondo (AL, 48ª zona) para contradizer a de Itacoatiara (AM, 3ª zona).
+    O contexto é o post inteiro (`discourse`), não só o fragmento verificado: se o divisor perder
+    a cidade ao cortar a frase, ela continua valendo. Só conclui conflito quando os dois lados
+    citam o dado e não há nada em comum (ver `geo.places_conflict`); evidência sem localidade
+    nem zona é neutra.
     """
+    context = f"{claim} {discourse}"
     text = f"{evidence.title} {evidence.snippet}"
-    claim_zones = set(_ZONE_PATTERN.findall(claim))
-    evidence_zones = set(_ZONE_PATTERN.findall(text))
+    claim_zones, evidence_zones = geo.zones(context), geo.zones(text)
     if claim_zones and evidence_zones and claim_zones.isdisjoint(evidence_zones):
         return f"zona eleitoral diferente ({sorted(evidence_zones)} x {sorted(claim_zones)})"
-    claim_places = _places(claim)
-    evidence_places = _places(text)
-    if claim_places and evidence_places and claim_places.isdisjoint(evidence_places):
-        return f"localidade diferente ({sorted(evidence_places)} x {sorted(claim_places)})"
+    context_places, evidence_places = geo.places(context), geo.places(text)
+    if geo.places_conflict(context_places, evidence_places):
+        return f"localidade diferente ({sorted(evidence_places)} x {sorted(context_places)})"
     return None
 
 
-def _title_coverage(claim: str, title: str) -> float:
-    """Fração das palavras da alegação que aparecem no título da matéria (sem acento)."""
+def _nli_chunks(title: str, text: str) -> list[str]:
+    """Premissas para o NLI: o título e janelas de duas frases da matéria.
 
-    def words(text: str) -> set[str]:
-        plain = _normalize_place(text.replace("ª", "a"))
-        return set(_WORD_PATTERN.findall(plain))
-
-    claim_words = words(claim)
-    return len(claim_words & words(title)) / len(claim_words) if claim_words else 0.0
+    O NLI foi treinado em pares de frases; documento inteiro contra uma frase dilui o sinal.
+    Seguimos
+    SummaC/AlignScore: segmentar o documento, pontuar cada trecho contra a alegação e ficar com o
+    máximo.
+    """
+    sentences = [s for s in split_sentences(text) if len(s) > 20]
+    windows = [" ".join(sentences[i : i + 2]) for i in range(0, len(sentences), 2)]
+    chunks = [title] if title else []
+    chunks += [w[:_CHUNK_MAX_CHARS] for w in windows[:_MAX_NLI_CHUNKS]]
+    return chunks
 
 
 def _title_from_url(url: str) -> str:
@@ -892,7 +872,7 @@ def _candidate_sentences(post_text: str) -> list[str]:
             continue
         # Remove prefixos de thread comuns que quebram o parser
         line = re.sub(r"^continua[çc][ãa]o\s+do\s+autor:\s*", "", line, flags=re.IGNORECASE)
-        fragments.extend(part.strip() for part in _SENTENCE_SPLIT.split(line))
+        fragments.extend(part.strip() for part in split_sentences(line))
 
     seen: set[str] = set()
     candidates: list[str] = []
@@ -910,6 +890,14 @@ def _candidate_sentences(post_text: str) -> list[str]:
         if len(candidates) >= _MAX_CANDIDATE_CLAIMS:
             break
     return candidates
+
+
+@dataclass
+class CitedSource:
+    """Matéria linkada pelo post: a evidência (para o conjunto) e o texto completo (para o NLI)."""
+
+    evidence: Evidence
+    text: str
 
 
 class JevVerificationService:
@@ -1021,7 +1009,7 @@ class JevVerificationService:
 
         cited = await self._cited_evidence(post)
         if cited:
-            agent_outputs["jev.cited_links"] = json.dumps([e.url for e in cited])
+            agent_outputs["jev.cited_links"] = json.dumps([c.evidence.url for c in cited])
 
         best: Verdict | None = None
         for index, claim in enumerate(factual_claims, start=1):
@@ -1033,6 +1021,7 @@ class JevVerificationService:
                 context_entity=primary_entity,
                 author_handle=post.author_handle,
                 cited=cited,
+                discourse=context_text,
             )
             if candidate_verdict.label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING):
                 return candidate_verdict  # já passou pela calibração -- pode agir
@@ -1056,58 +1045,33 @@ class JevVerificationService:
         post_date: date,
         context_entity: str | None = None,
         author_handle: str | None = None,
-        cited: list[Evidence] | None = None,
+        cited: "list[CitedSource] | None" = None,
+        discourse: str = "",
     ) -> Verdict:
         if cited:
-            # A matéria que o próprio post cita é a primeira evidência. Se ela confirma a
-            # alegação, não há o que corrigir: buscar na web só traria homônimos e outras
-            # localidades (foi assim que um post correto do G1 virou "enganoso").
-            relevant_cited, _ = await self._filter_relevant(
-                claim,
-                cited,
-                post_date=post_date,
-                context_entity=context_entity,
-                author_handle=author_handle,
-            )
-            reproduced = next(
-                (e for e in relevant_cited if _title_coverage(claim, e.title) >= _TITLE_ECHO_MIN),
-                None,
-            )
-            if reproduced is not None:
-                # O post repete a manchete da matéria que ele mesmo linka: o conteúdo bate
-                # com a fonte, então não há o que corrigir.
-                agent_outputs[f"{prefix}.cited_title_echo"] = reproduced.url
+            supported = await self._cited_support(claim, cited, discourse, agent_outputs, prefix)
+            if supported is not None:
+                source, entailment = supported
                 return Verdict(
                     claim=claim,
-                    label=VerdictLabel.TRUE,
-                    confidence=_title_coverage(claim, reproduced.title),
-                    rationale="O post reproduz o título da matéria que ele próprio cita.",
-                    evidences=[reproduced],
+                    label=VerdictLabel.SOURCE_CONSISTENT,
+                    confidence=entailment,
+                    rationale="O post é consistente com a matéria que ele próprio cita (a "
+                    "veracidade da matéria não foi avaliada).",
+                    evidences=[source.evidence],
                     agent_outputs=agent_outputs,
                 )
-            if relevant_cited:
-                cited_label, cited_confidence, cited_probs = await self._classify_verdict(
-                    claim, relevant_cited, post_date=post_date
-                )
-                agent_outputs[f"{prefix}.cited_verdict"] = json.dumps(
-                    cited_probs, ensure_ascii=False
-                )
-                if cited_label == VerdictLabel.TRUE:
-                    return Verdict(
-                        claim=claim,
-                        label=VerdictLabel.TRUE,
-                        confidence=cited_confidence,
-                        rationale="A fonte citada pelo próprio post confirma a alegação.",
-                        evidences=relevant_cited,
-                        agent_outputs=agent_outputs,
-                    )
         evidences, source_errors, query = await self._search(
             claim, post_date=post_date, context_entity=context_entity
         )
         if cited:
-            # Fonte citada que não confirma entra no conjunto: pode mostrar o post fora de contexto.
-            known = {_url_key(e.url) for e in cited}
-            evidences = [*cited, *(e for e in evidences if _url_key(e.url) not in known)]
+            # Fonte citada que não bastou para encerrar entra no conjunto: pode mostrar o post fora
+            # de contexto, ou ser a única fonte sobre um fato muito recente.
+            known = {_url_key(c.evidence.url) for c in cited}
+            evidences = [
+                *(c.evidence for c in cited),
+                *(e for e in evidences if _url_key(e.url) not in known),
+            ]
         agent_outputs[f"{prefix}.search_query"] = query
         agent_outputs[f"{prefix}.evidence_count"] = str(len(evidences))
         if source_errors:
@@ -1127,6 +1091,7 @@ class JevVerificationService:
             post_date=post_date,
             context_entity=context_entity,
             author_handle=author_handle,
+            discourse=discourse,
         )
         agent_outputs[f"{prefix}.relevance"] = json.dumps(relevance_log, ensure_ascii=False)
         if not relevant:
@@ -1168,26 +1133,56 @@ class JevVerificationService:
             agent_outputs=agent_outputs,
         )
 
-    async def _cited_evidence(self, post: Post) -> list[Evidence]:
-        """Lê as matérias linkadas pelo post (card de link, facets ou texto) como evidência."""
-        evidences: list[Evidence] = []
+    async def _cited_evidence(self, post: Post) -> "list[CitedSource]":
+        """Lê as matérias linkadas pelo post (card de link, facets ou texto)."""
+        sources: list[CitedSource] = []
         for url in post.links:
-            if len(evidences) >= _MAX_CITED_LINKS:
+            if len(sources) >= _MAX_CITED_LINKS:
                 break
             if not is_valid_evidence_url(url):  # rede social e UGC não são fonte
                 continue
             text = await _fetch_article_text(url)
             if not text:
                 continue
-            evidences.append(
-                Evidence(
-                    source="post_link",
-                    url=url,
-                    title=_title_from_url(url) or text[:100],
-                    snippet=text[:_SNIPPET_MAX_CHARS],
-                )
+            title = _title_from_url(url) or text[:100]
+            evidence = Evidence(
+                source="post_link", url=url, title=title, snippet=text[:_SNIPPET_MAX_CHARS]
             )
-        return evidences
+            sources.append(CitedSource(evidence=evidence, text=text))
+        return sources
+
+    async def _cited_support(
+        self,
+        claim: str,
+        cited: "list[CitedSource]",
+        discourse: str,
+        agent_outputs: dict[str, str],
+        prefix: str,
+    ) -> "tuple[CitedSource, float] | None":
+        """A matéria citada sustenta a alegação? (NLI por trechos, máximo de entailment.)
+
+        Só encerra a verificação quando a matéria é de fonte reconhecida (jornalística, checagem ou
+        oficial): um post que repete um blog duvidoso continua sendo verificado, com a matéria
+        entrando como mais uma evidência. O limiar vem de `app/scripts/eval_cited_support.py`.
+        """
+        best: tuple[CitedSource, float] | None = None
+        for source in cited:
+            if _entity_conflict(claim, source.evidence, discourse):
+                continue
+            chunks = _nli_chunks(source.evidence.title, source.text)
+            if not chunks:
+                continue
+            results = await self.classifier.predict_nli_batch([(c, claim) for c in chunks])
+            entailment = max(r["entailment"] for r in results)
+            agent_outputs[f"{prefix}.cited_entailment"] = f"{source.evidence.url}: {entailment:.3f}"
+            if best is None or entailment > best[1]:
+                best = (source, entailment)
+        if best is None or best[1] < self.settings.cited_source_entailment_min:
+            return None
+        if _source_authority_score(best[0].evidence) < self.settings.cited_source_min_authority:
+            agent_outputs[f"{prefix}.cited_support_ignored"] = "fonte sem autoridade reconhecida"
+            return None
+        return best
 
     async def _filter_relevant(
         self,
@@ -1197,6 +1192,7 @@ class JevVerificationService:
         post_date: date | None = None,
         context_entity: str | None = None,
         author_handle: str | None = None,
+        discourse: str = "",
     ) -> tuple[list[Evidence], list[dict]]:
         # Pré-filtro determinístico: sem duas âncoras específicas em comum, a
         # fonte não fala do fato. Isso impede que o modelo trate, por exemplo,
@@ -1206,7 +1202,7 @@ class JevVerificationService:
         anchored: list[Evidence] = []
         for evidence in evidences:
             overlap = _word_overlap(claim, evidence)
-            conflict = _entity_conflict(claim, evidence)
+            conflict = _entity_conflict(claim, evidence, discourse)
             if conflict:
                 log.append(
                     {

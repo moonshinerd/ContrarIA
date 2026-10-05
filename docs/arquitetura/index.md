@@ -145,14 +145,14 @@ flowchart TD
     P[Post + contexto do fio] --> S[Frases candidatas<br/>até 6, sem URLs]
     S --> K{Frase com ancoramento<br/>factual? heurística}
     K -- não --> X[Sem ação]
-    K -- sim --> CT[Fonte citada pelo post<br/>link do card, facets, texto]
-    CT -- post repete a manchete --> VT[true: fiel à fonte]
+    K -- sim --> CT[Fonte citada pelo post<br/>card, facets, texto]
+    CT -- NLI por trechos sustenta<br/>e fonte reconhecida --> VT[source_consistent<br/>sem ação]
     CT -- senão --> Q[Consulta por frase<br/>às fontes habilitadas]
     Q --> E1[Google Fact Check]
     Q --> E2[Wikipédia]
     Q --> E3[Busca web:<br/>SearXNG, DuckDuckGo]
     Q --> E4[Acervo RSS<br/>pgvector]
-    E1 & E2 & E3 & E4 --> F[Filtro de relevância NLI<br/>rejeita zona e cidade/UF diferentes<br/>até 8 evidências, margem mínima]
+    E1 & E2 & E3 & E4 --> F[Filtro de relevância NLI<br/>rejeita outra localidade ou zona<br/>(gazetteer IBGE + contexto do post)<br/>até 8 evidências, margem mínima]
     F --> M[Matérias completas<br/>trafilatura, até encher o contexto]
     M --> C[Classificação do veredito<br/>confirmam / desmentem / enganosa]
     C --> G[Gate CRC<br/>chave jev:repo]
@@ -178,7 +178,7 @@ Cada fonte implementa a porta `EvidenceSource` e se registra por nome em `EVIDEN
 | `searxng` / `duckduckgo` | `CachedSource` | Cada motor também pode ser usado isoladamente |
 | `rss_checkers` | `RSSCheckersSource` | Busca vetorial em `fact_articles` (MiniLM multilíngue, 384 dimensões), com peso de recência |
 
-Falhas de rede, cota ou chave viram log e lista vazia, nunca exceção. Resultados com falha não entram no cache.
+Falhas de rede, cota ou chave viram log e lista vazia, nunca exceção. SearXNG e DuckDuckGo têm um disjuntor: depois de uma falha a fonte sai de cena por um tempo crescente (30 s até 10 min) e as outras seguem sem esperar ([ADR 0021](../adr/0021-resiliencia-das-fontes-de-evidencia.md)). Resultados com falha não entram no cache.
 O Tavily, usado no MVP, foi removido em outubro de 2026 ([ADR 0016](../adr/0016-remocao-do-tavily.md)). Ver também [ADR 0005](../adr/0005-multiplas-fontes-evidencia.md) e [ADR 0014](../adr/0014-busca-web-searxng-trafilatura.md).
 
 ## Intervenção e travas
@@ -235,7 +235,7 @@ ContrarIA/
 - **Pré-filtro clássico (TF-IDF) fora do pipeline, por decisão.** `FakeNewsTFIDFClassifier` existe e foi avaliado em
   `research/`, mas o [ADR 0015](../adr/0015-pre-filtro-tfidf-nao-integrado.md) o deixou de fora: ROC-AUC 0,76 em posts
   do Bluesky contra 0,99 em notícias. A priorização usa relevância, velocidade e bot score.
-- **O atalho "post reproduz a manchete da fonte que cita" e a guarda de entidade são heurísticas** (cobertura de título ≥ 80%; zona e cidade/UF), sem validação em conjunto anotado. Ver [ADR 0019](../adr/0019-fonte-citada-pelo-post-e-entidade.md).
+- **Fonte citada e guarda de entidade:** o NLI por trechos tem limiar medido numa única família de posts (manchetes do G1), e a guarda só reconhece município e zona eleitoral. Ver [ADR 0019](../adr/0019-fonte-citada-pelo-post-e-entidade.md).
 - **O filtro de alegações verificáveis é uma heurística (regex) sem validação quantitativa.** Ele fica em
   `jev_verification.py` e não usa LLM nem Jev. A similaridade com `fact_articles` como sinal de triagem é uma
   alternativa ainda não implementada.

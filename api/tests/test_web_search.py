@@ -312,3 +312,78 @@ def test_searxng_payload_mapping_and_concurrent_cache():
     assert evidence.title == "A Tarde Teste"
     assert evidence.snippet == "Conteúdo factual da matéria"
     assert evidence.published_at.year == 2026
+
+
+def test_fonte_com_falha_entra_em_espera_e_responde_vazio_na_hora(monkeypatch):
+    clock = [0.0]
+    monkeypatch.setattr("app.clients.evidence.web_search.monotonic", lambda: clock[0])
+    calls = []
+
+    def boom(query, limit):
+        calls.append(query)
+        raise RuntimeError("fora do ar")
+
+    config = settings(duckduckgo_enabled=True, evidence_failure_cooldown_seconds=30)
+    source = DuckDuckGoClient(config, search_fn=boom)
+
+    async def run():
+        with pytest.raises(RuntimeError):
+            await source.search("a")
+        assert await source.search("b") == []  # em espera: nem chama o provedor
+        assert calls == ["a"]
+        clock[0] = 31  # passou a espera de 30 s
+        with pytest.raises(RuntimeError):
+            await source.search("c")
+        assert source._unavailable_until == 31 + 60  # a espera dobrou
+
+    asyncio.run(run())
+
+
+def test_fonte_lenta_nao_segura_as_outras_consultas():
+    """Sem lock global: uma consulta travada não deixa as demais na fila."""
+    finished = []
+
+    async def run():
+        release = asyncio.Event()
+
+        class Slow(DuckDuckGoClient):
+            async def _search(self, query, limit):
+                if query == "lenta":
+                    await release.wait()
+                finished.append(query)
+                return []
+
+        source = Slow(settings(duckduckgo_enabled=True))
+        slow = asyncio.create_task(source.search("lenta"))
+        await asyncio.sleep(0)
+        await asyncio.wait_for(source.search("rapida"), timeout=1)
+        assert finished == ["rapida"]
+        release.set()
+        await slow
+
+    asyncio.run(run())
+
+
+def test_provedor_que_estoura_o_prazo_cede_a_vez_e_entra_em_espera():
+    config = settings(
+        searxng_enabled=True,
+        searxng_base_url="http://mock",
+        evidence_provider_timeout_seconds=0.05,
+    )
+
+    class Hung(SearXNGClient):
+        async def _search(self, query, limit):
+            await asyncio.sleep(5)
+
+    ddg = DuckDuckGoClient(
+        config, search_fn=lambda q, n: [{"url": "https://example.org/ok", "title": "t"}]
+    )
+    hung = Hung(config)
+    source = WebSearchSource(config, searxng=hung, duckduckgo=ddg)
+
+    async def run():
+        results = await asyncio.wait_for(source.search("alegação"), timeout=2)
+        assert results[0].source == "duckduckgo"
+        assert hung._unavailable_until > 0  # o disjuntor abriu
+
+    asyncio.run(run())
