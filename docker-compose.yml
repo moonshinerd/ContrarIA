@@ -1,6 +1,6 @@
 # Ambiente de desenvolvimento: db (Postgres + pgvector), api (FastAPI com
 # hot-reload) e worker (pipeline em loop), os dois últimos na mesma imagem.
-# Produção (Caddy + HTTPS + Ozone) fica em deploy/ -- ver issue de deploy.
+# Produção (Ozone, túnel Cloudflare) fica em deploy/ -- ver issue de deploy.
 services:
   db:
     image: pgvector/pgvector:pg16

@@ -225,7 +225,7 @@ ContrarIA/
 │   └── tests/
 ├── research/                 # datasets, treino do pré-filtro, benchmark de veredito, calibração CRC
 ├── searxng/settings.yml      # configuração do metabuscador
-├── deploy/                   # compose de produção, Caddyfile, runbook do Ozone
+├── deploy/                   # compose de produção, runbook do Ozone
 ├── docs/                     # este site (MkDocs Material)
 └── web/                      # painel React (pós-MVP, ainda sem código)
 ```

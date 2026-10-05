@@ -30,7 +30,7 @@ api/        FastAPI + worker (mesma imagem), Python 3.12, uv
   app/prompts/    prompts versionados (<nome>_v<N>.txt)
   migrations/     Alembic (cada issue cria a sua migration)
 research/   datasets, treino, benchmarks (fora da imagem da API)
-deploy/     produção: Caddy + compose prod + Ozone
+deploy/     produção: compose prod + Ozone (acesso por túnel Cloudflare)
 docs/       MkDocs (Material): planejamento, arquitetura, ADRs, atas
 web/        painel React (pós-MVP)
 ```

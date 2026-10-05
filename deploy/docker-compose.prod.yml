@@ -30,6 +30,23 @@ services:
       retries: 5
     mem_limit: 256m
 
+  # Uma única cópia do modelo Jev em memória; api e worker o chamam por HTTP.
+  jev:
+    build: ../api
+    restart: unless-stopped
+    env_file: ../api/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-contraria}:${POSTGRES_PASSWORD:-contraria}@db:5432/${POSTGRES_DB:-contraria}
+    volumes:
+      - contraria-model-cache:/root/.cache/huggingface
+    command: uvicorn app.jev_server:app --host 0.0.0.0 --port 8100
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8100/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    mem_limit: 4g
+
   api:
     build: ../api
     restart: unless-stopped
@@ -37,9 +54,12 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-contraria}:${POSTGRES_PASSWORD:-contraria}@db:5432/${POSTGRES_DB:-contraria}
       BLUESKY_SESSION_PATH: /srv/data/bluesky.session
+      JEV_SERVER_URL: http://jev:8100
       SEARXNG_BASE_URL: http://searxng:8080
     depends_on:
       db:
+        condition: service_healthy
+      jev:
         condition: service_healthy
       searxng:
         condition: service_healthy
@@ -61,9 +81,12 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-contraria}:${POSTGRES_PASSWORD:-contraria}@db:5432/${POSTGRES_DB:-contraria}
       BLUESKY_SESSION_PATH: /srv/data/bluesky.session
+      JEV_SERVER_URL: http://jev:8100
       SEARXNG_BASE_URL: http://searxng:8080
     depends_on:
       db:
+        condition: service_healthy
+      jev:
         condition: service_healthy
       searxng:
         condition: service_healthy
@@ -106,6 +129,9 @@ services:
       OZONE_APPVIEW_URL: https://api.bsky.app
       OZONE_APPVIEW_DID: did:web:api.bsky.app
       LOG_ENABLED: "1"
+    # Só em loopback: o acesso externo vem do túnel Cloudflare (ver deploy/README.md).
+    ports:
+      - "127.0.0.1:3000:3000"
     depends_on:
       ozone-db:
         condition: service_healthy
@@ -132,27 +158,9 @@ services:
         condition: service_started
     mem_limit: 512m
 
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      API_DOMAIN: ${API_DOMAIN:?Defina o domínio público da API}
-      OZONE_DOMAIN: ${OZONE_DOMAIN:?Defina o domínio público do Ozone}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - api
-    mem_limit: 256m
 
 volumes:
   contraria-db-data:
   contraria-model-cache:
   contraria-app-data:
   ozone-db-data:
-  caddy_data:
-  caddy_config:

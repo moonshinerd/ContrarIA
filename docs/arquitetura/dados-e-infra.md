@@ -185,14 +185,16 @@ máquina com 10 CPUs e 16 GB ([ADR 0018](../adr/0018-concorrencia-e-contrapressa
 
 === "Produção"
 
-    `deploy/docker-compose.prod.yml` adiciona o labeler e a borda HTTPS:
+    `deploy/docker-compose.prod.yml` adiciona o labeler. A VM não recebe conexões de entrada: o acesso externo
+    vem de um túnel Cloudflare publicado por SSH reverso ([ADR 0020](../adr/0020-acesso-vm-tunel-cloudflare.md)):
 
     ```mermaid
     flowchart LR
-        N((Internet)) --> CF[Cloudflare DNS]
-        CF --> CD[Caddy<br/>HTTPS automático]
-        CD --> API[api]
-        CD --> OZ[ozone]
+        N((Internet)) --> CF[Cloudflare<br/>contraria.schmidt.monster]
+        CF --> TN[túnel contraria-vm<br/>no talos]
+        TN -. SSH reverso<br/>saída pela 443 .- VM[VM: ozone-forward]
+        VM --> OZ[ozone :3000]
+        API[api]
         OZ --> OZD[ozone-daemon]
         OZ --> OZDB[(ozone-db<br/>Postgres 14)]
         API --> DB[(db<br/>pgvector)]
@@ -204,7 +206,7 @@ máquina com 10 CPUs e 16 GB ([ADR 0018](../adr/0018-concorrencia-e-contrapressa
 
     Recomendação de VPS: 4 vCPU, 8 GB de RAM e 40 GB de SSD para a pilha essencial; 8 vCPU, 16 GB
     e 60–80 GB com o Ozone. O procedimento do labeler está no `OZONE_RUNBOOK.md` e a decisão em
-    [ADR 0011](../adr/0011-deploy-vps-caddy-cloudflare.md).
+    [ADR 0011](../adr/0011-deploy-vps-caddy-cloudflare.md) e [ADR 0020](../adr/0020-acesso-vm-tunel-cloudflare.md).
 
 ### Volumes
 
@@ -246,5 +248,5 @@ O `docs.yml` publica este site com `mkdocs build --strict`, então links quebrad
 | Embeddings | `sentence-transformers` (`paraphrase-multilingual-MiniLM-L12-v2`, 384 d) |
 | LLM | LiteLLM (OpenRouter e outros provedores) |
 | Evidências | `httpx`, `feedparser`, `ddgs`, SearXNG, `trafilatura`, `beautifulsoup4`, `lxml` |
-| Infra | Docker Compose, Caddy, Cloudflare, Ozone, GitHub Actions |
+| Infra | Docker Compose, Cloudflare Tunnel, Ozone, GitHub Actions |
 | Documentação | MkDocs Material, Mermaid |

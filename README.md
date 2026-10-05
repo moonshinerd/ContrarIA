@@ -44,7 +44,7 @@ Ao final do ciclo de 6 semanas, este repositório abrigará:
 ContrarIA/
 ├── api/        # FastAPI + worker do pipeline (coleta → triagem → bot score → verificação → intervenção)
 ├── research/   # datasets, treino do pré-filtro de fake news e benchmarks
-├── deploy/     # produção: Caddy (HTTPS) + Ozone (labeler)
+├── deploy/     # produção: compose prod + Ozone (labeler), por túnel Cloudflare
 ├── web/        # painel React (pós-MVP)
 └── docs/       # site MkDocs: planejamento, arquitetura, ADRs, atas
 ```

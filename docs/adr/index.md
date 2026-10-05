@@ -18,7 +18,7 @@ Registro formal das decisões técnicas de engenharia e arquitetura do projeto *
 | [**0008**](0008-pre-filtro-classico.md) | Pré-filtro Clássico Supervisionado em Datasets PT-BR | `Substituída por 0015` | 16/09/2026 | RNF01, RNF05, Issue #26 |
 | [**0009**](0009-coleta-hibrida-jetstream-searchposts.md) | Coleta Híbrida de Publicações via Jetstream e API searchPosts | `Aceita` | 16/09/2026 | RF01, RF08, RNF07, Issue #11 |
 | [**0010**](0010-frontend-fora-do-mvp.md) | Postergação de Interface Web (Frontend React) para Pós-MVP | `Aceita` | 16/09/2026 | RF13, Épico #8 |
-| [**0011**](0011-deploy-vps-caddy-cloudflare.md) | Infraestrutura de Deploy em VPS com Docker Compose, Caddy e Cloudflare | `Aceita` | 16/09/2026 | RNF03, RNF05, RNF07, Issue #15 |
+| [**0011**](0011-deploy-vps-caddy-cloudflare.md) | Infraestrutura de Deploy em VPS com Docker Compose, Caddy e Cloudflare | `Alterada por 0020` | 16/09/2026 | RNF03, RNF05, RNF07, Issue #15 |
 | [**0012**](0012-organizacao-sem-sprints.md) | Organização de Trabalho sem Sprints: Duplas Paralelas e Dependências Explícitas | `Aceita` | 16/09/2026 | docs/planejamento.md, Épico #7 |
 | [**0013**](0013-backend-local-jev.md) | Backend de Verificação Local Jev com CRC por Modelo | `Aceita` | 28/09/2026 | RF03, RNF01, RNF05, PR #57 |
 | [**0014**](0014-busca-web-searxng-trafilatura.md) | Busca Web Self-Hosted com SearXNG e Extração via Trafilatura | `Aceita` | 30/09/2026 | RF11, RNF02, RNF05 |
@@ -27,6 +27,7 @@ Registro formal das decisões técnicas de engenharia e arquitetura do projeto *
 | [**0017**](0017-rotulagem-de-contas-ao-vivo.md) | Rotulagem de contas com `provavel-bot` ao vivo | `Aceita` | 05/10/2026 | RF02, RF07, RNF01, GQ07 |
 | [**0018**](0018-concorrencia-e-contrapressao-do-worker.md) | Análises simultâneas e teto de fila no worker | `Aceita` | 05/10/2026 | RNF05, RF08, RF10, GQ04 |
 | [**0019**](0019-fonte-citada-pelo-post-e-entidade.md) | Fonte citada pelo post e checagem de entidade | `Aceita` | 05/10/2026 | RNF01, RF03, GQ03 |
+| [**0020**](0020-acesso-vm-tunel-cloudflare.md) | Acesso à VM e deploy por túnel Cloudflare, sem porta de entrada | `Aceita` | 05/10/2026 | RNF03, RNF05, RNF07 |
 
 ---
 

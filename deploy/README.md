@@ -1,9 +1,23 @@
 # deploy/
 
-Produção: `docker-compose.prod.yml` + `Caddyfile` (HTTPS automático, DNS na
-Cloudflare) + Ozone (labeler). A aplicação também exige o serviço `jev`, que
+Produção: `docker-compose.prod.yml` + Ozone (labeler). A VM não recebe conexões de
+entrada: o acesso externo (Ozone e deploy) passa por um túnel Cloudflare, publicado
+por SSH reverso (ver [ADR 0020](../docs/adr/0020-acesso-vm-tunel-cloudflare.md)). A aplicação também exige o serviço `jev`, que
 executa localmente o modelo mDeBERTa-v3 NLI via PyTorch/Transformers; API e worker devem apontar
 `JEV_SERVER_URL` para ele e nunca carregar cópias próprias do modelo.
+
+## Acesso e deploy (Cloudflare)
+
+- **Ozone:** `https://contraria.schmidt.monster` → túnel `contraria-vm` → `localhost:3000`.
+- **SSH da VM:** `ssh-contraria.schmidt.monster`, com `ProxyCommand cloudflared access ssh --hostname %h`.
+  O serviço `ozone-forward` (systemd na VM) mantém o SSH reverso que publica as portas 3000 e 2223 no
+  host que roda o túnel. Sem esse host ligado, Ozone e deploy ficam fora do ar.
+- **Deploy:** push na `main` dispara `.github/workflows/deploy.yml` (ambiente `production`). A chave
+  `DEPLOY_SSH_KEY` só executa `/opt/contraria-deploy.sh` na VM (usuário `deploy`, `command=` no
+  `authorized_keys`): `git reset` na `main`, `docker compose up -d --build` e `alembic upgrade head`.
+- **Variáveis do ambiente `production`:** secret `DEPLOY_SSH_KEY`; variáveis `DEPLOY_HOST` e
+  `DEPLOY_HOST_KEY` (chave pública do servidor, fixa a identidade).
+- **Na VM:** `api/.env` em `/opt/contraria/api/.env` (permissão 600, fora do git).
 
 ## Backend Jev
 
