@@ -160,3 +160,41 @@ async def test_jetstream_consumer_run(monkeypatch):
 
     repo.upsert_posts.assert_called_once()
     repo.set_cursor.assert_called_once_with("jetstream", 100)
+
+
+@pytest.mark.asyncio
+async def test_search_poller_busca_uma_palavra_por_vez_e_deduplica():
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    from app.jobs.collector import POLITICAL_KEYWORDS
+
+    def post(uri):
+        return SimpleNamespace(
+            uri=uri,
+            cid="c",
+            author_did="did:1",
+            text="t",
+            langs=["pt"],
+            created_at=datetime.now(UTC),
+        )
+
+    repo = MagicMock()
+    bsky_client = MagicMock()
+    queries: list[str] = []
+
+    async def fake_search(query, **kwargs):
+        queries.append(query)
+        if query == "governo":
+            raise RuntimeError("falha isolada")
+        return [post("at://a"), post("at://b")]
+
+    bsky_client.search_posts = fake_search
+    total = await SearchPoller(repo, bsky_client).poll_once()
+
+    # Sem "OR": o searchPosts do Bluesky o trata como termo obrigatório.
+    assert all(" OR " not in q for q in queries)
+    assert set(queries) == set(POLITICAL_KEYWORDS)
+    assert total == 2
+    saved = repo.upsert_posts.call_args.args[0]
+    assert {p["uri"] for p in saved} == {"at://a", "at://b"}

@@ -114,45 +114,60 @@ class JetstreamConsumer:
 
 class SearchPoller:
     def __init__(
-        self, repo: PostRepository, bsky_client: BlueskyClient, poll_interval_seconds: int = 600
+        self,
+        repo: PostRepository,
+        bsky_client: BlueskyClient,
+        poll_interval_seconds: int = 600,
+        per_keyword_limit: int = 25,
     ):
         self.repo = repo
         self.bsky_client = bsky_client
         self.poll_interval = poll_interval_seconds
+        self.per_keyword_limit = per_keyword_limit
+
+    async def poll_once(self) -> int:
+        """Busca cada palavra-chave separadamente e grava os posts novos.
+
+        O `searchPosts` não tem operador `OR`: ele vira mais um termo obrigatório,
+        então uma query única com todas as palavras devolve zero resultados.
+        """
+        since = datetime.now(UTC) - timedelta(days=1)
+        found: dict[str, dict] = {}
+        for keyword in sorted(POLITICAL_KEYWORDS):
+            try:
+                posts = await self.bsky_client.search_posts(
+                    query=keyword,
+                    lang="pt",
+                    sort="top",
+                    since=since,
+                    limit=self.per_keyword_limit,
+                )
+            except Exception as e:
+                logger.error("Erro no searchPosts para %r: %s", keyword, e)
+                continue
+            for p in posts:
+                found.setdefault(
+                    p.uri,
+                    {
+                        "uri": p.uri,
+                        "cid": p.cid,
+                        "author_did": p.author_did,
+                        "text": p.text,
+                        "langs": p.langs,
+                        "created_at": p.created_at,
+                        "source": "search",
+                    },
+                )
+        if found:
+            self.repo.upsert_posts(list(found.values()))
+        logger.info("Foram inseridos %d posts candidatos do searchPosts.", len(found))
+        return len(found)
 
     async def run(self):
         while True:
             try:
                 logger.info("Iniciando busca de posts por searchPosts...")
-                # Buscar posts das últimas 24 horas
-                since = datetime.now(UTC) - timedelta(days=1)
-                query = " OR ".join(POLITICAL_KEYWORDS)
-
-                posts = await self.bsky_client.search_posts(
-                    query=query, lang="pt", sort="top", since=since, limit=50
-                )
-
-                posts_data = []
-                for p in posts:
-                    posts_data.append(
-                        {
-                            "uri": p.uri,
-                            "cid": p.cid,
-                            "author_did": p.author_did,
-                            "text": p.text,
-                            "langs": p.langs,
-                            "created_at": p.created_at,
-                            "source": "search",
-                        }
-                    )
-
-                if posts_data:
-                    self.repo.upsert_posts(posts_data)
-                    logger.info(
-                        "Foram inseridos %d posts candidatos do searchPosts.", len(posts_data)
-                    )
-
+                await self.poll_once()
             except Exception as e:
                 logger.error("Erro no SearchPoller: %s", e)
-
             await asyncio.sleep(self.poll_interval)
