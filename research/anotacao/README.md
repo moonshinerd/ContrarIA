@@ -16,7 +16,7 @@ tem nenhum rótulo do Ozone: o labeler está desligado na produção.
 
 ## Como anotar
 
-1. Abra o `link` de cada post no Bluesky e leia o post inteiro, o contexto (se for resposta ou quote) e o perfil.
+1. Abra o `link_post` de cada post e o `link_perfil` da conta no Bluesky e leia o post inteiro, o contexto (se for resposta ou quote) e o perfil.
 2. Pesquise a alegação em fontes de checagem (Lupa, Aos Fatos, g1 Fato ou Fake, Estadão Verifica, Comprova, UOL
    Confere, TSE) e em fontes primárias.
 3. **Anote sem olhar o que o ContrarIA decidiu.** Não use o sistema como referência.
