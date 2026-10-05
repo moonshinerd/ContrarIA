@@ -140,7 +140,7 @@ O backend de verificação é escolhido por `VERIFICATION_BACKEND` em `build_ver
 ```mermaid
 flowchart TD
     P[Post + contexto do fio] --> S[Frases candidatas<br/>até 6, sem URLs]
-    S --> K{Alegação factual<br/>verificável?}
+    S --> K{Frase com ancoramento<br/>factual? heurística}
     K -- não --> X[Sem ação]
     K -- sim --> Q[Consulta por frase<br/>às fontes habilitadas]
     Q --> E1[Google Fact Check]
@@ -227,9 +227,12 @@ ContrarIA/
 
 ## Pontos de atenção conhecidos
 
-- **Pré-filtro clássico (TF-IDF) não está ligado ao pipeline.** `FakeNewsTFIDFClassifier` existe em
-  `app/models/classifiers/` e foi avaliado em `research/`, mas nem o worker nem o `PipelineService`
-  o chamam. A priorização usa relevância, velocidade e bot score. Ver [ADR 0008](../adr/0008-pre-filtro-classico.md).
+- **Pré-filtro clássico (TF-IDF) fora do pipeline, por decisão.** `FakeNewsTFIDFClassifier` existe e foi avaliado em
+  `research/`, mas o [ADR 0015](../adr/0015-pre-filtro-tfidf-nao-integrado.md) o deixou de fora: ROC-AUC 0,76 em posts
+  do Bluesky contra 0,99 em notícias. A priorização usa relevância, velocidade e bot score.
+- **O filtro de alegações verificáveis é uma heurística (regex) sem validação quantitativa.** Ele fica em
+  `jev_verification.py` e não usa LLM nem Jev. A similaridade com `fact_articles` como sinal de triagem é uma
+  alternativa ainda não implementada.
 - **`TriagePipeline` (`jobs/triage_pipeline.py`) é legado.** O worker usa `PipelineService` com a matriz
   GQ01; a matriz GQ04 ainda decide a fila de candidatos, mas dentro do `EngagementRefresher`.
 - **A fila de intervenção é volátil.** Um reinício do worker descarta os candidatos pendentes (registrados como `MONITOR`).

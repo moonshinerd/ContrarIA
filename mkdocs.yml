@@ -92,6 +92,7 @@ nav:
       - "0012 – Organização sem Sprints": adr/0012-organizacao-sem-sprints.md
       - "0013 – Backend Local Jev": adr/0013-backend-local-jev.md
       - "0014 – Busca Web Self-Hosted": adr/0014-busca-web-searxng-trafilatura.md
+      - "0015 – Pré-filtro TF-IDF": adr/0015-pre-filtro-tfidf-nao-integrado.md
   - Resultados e Benchmarks: resultados/benchmark.md
   - Glossário: glossario.md
   - Atas:

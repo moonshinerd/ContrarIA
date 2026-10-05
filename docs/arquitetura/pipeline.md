@@ -40,10 +40,12 @@ matriz GQ04 transforma isso em `triage_status` (`monitor`, `queued` ou `discarde
 `domain/bot_weights.yaml` sobre características demográficas, de rede, temporais e de conteúdo, passados por uma
 sigmoide e guardados em cache por 24 horas. Uma nota alta é um indício, não prova de automação.
 
-!!! note "Pré-filtro clássico ainda fora do fluxo"
-    O classificador TF-IDF treinado em datasets PT-BR (`FakeNewsTFIDFClassifier`) existe e foi avaliado em
-    `research/`, mas **não está ligado ao worker**. Hoje a priorização não usa esse sinal. Quando for integrado, deve
-    continuar sendo apenas um sinal de prioridade, como define o ADR 0008.
+!!! note "Pré-filtro clássico fora do fluxo"
+    O classificador TF-IDF (`FakeNewsTFIDFClassifier`) foi treinado e avaliado em `research/`, mas **não está ligado
+    ao worker**, por decisão do [ADR 0015](../adr/0015-pre-filtro-tfidf-nao-integrado.md): em posts reais do Bluesky
+    ele chegou a ROC-AUC 0,76 (F1 0,72, amostra pequena), contra 0,99 em notícias, e a verificação local eliminou o
+    argumento de custo. Hoje a fila usa relevância, velocidade de propagação e bot score. Esses sinais medem alcance,
+    não a chance de o post ser falso.
 
 É como organizar uma fila de investigação: prioridade não é condenação.
 
@@ -51,7 +53,7 @@ sigmoide e guardados em cache por 24 horas. Uma nota alta é um indício, não p
 
 ## 3. Verificação Jev: confrontar a alegação com evidências
 
-1. **Separar frases candidatas:** o worker divide o post e, quando disponível, o contexto do fio. O Jev identifica quais frases são alegações factuais verificáveis; opinião, pergunta, ironia e retórica encerram sem ação.
+1. **Separar frases candidatas:** o worker divide o post e, quando disponível, o contexto do fio. Uma heurística determinística (sem LLM nem Jev) mantém só as frases com ancoramento factual (número, título político, sigla institucional, predicado fático ou nome próprio) e descarta perguntas, expressões idiomáticas e hashtags de campanha; sem frases candidatas, a análise encerra sem ação. Essa heurística ainda não tem validação quantitativa.
 2. **Buscar evidências:** cada alegação factual consulta as fontes habilitadas — agências de checagem, Wikipédia, busca web e acervo RSS. A busca web utiliza primariamente a instância self-hosted do SearXNG (com fallback para Tavily e DuckDuckGo) e extração estruturada de conteúdo com Trafilatura, evitando dependência de créditos e ruídos de raspagem HTML. A consulta usa a frase específica, sem URLs, para evitar resultados apenas tematicamente relacionados.
 3. **Filtrar relevância:** o Jev compara alegação e trecho de fonte e só conserva evidência que trate dos mesmos fatos, pessoas, números ou eventos. Ele mede essa decisão por probabilidades de tokens, sem depender de JSON gerado.
 4. **Classificar o veredito:** com as fontes relevantes, o Jev escolhe entre "confirmam a alegação", "desmentem a alegação" e "confirmam o fato, mas desmentem a conclusão ou o exagero". Isso produz, respectivamente, `true`, `false` ou `misleading`.
