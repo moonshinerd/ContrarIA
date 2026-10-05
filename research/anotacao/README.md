@@ -8,6 +8,8 @@ Amostra de 200 posts reais, tirados da fila de produção em 05/10/2026 e dividi
 | `amostra_samantha.csv` | 67 | Samantha |
 | `amostra_kyara.csv` | 66 | Kyara |
 
+Cada pessoa também tem uma `tabela_<nome>.md`, uma versão só para leitura (o GitHub a renderiza com links clicáveis). O preenchimento é feito no CSV.
+
 **Para que serve.** Hoje não há dado rotulado de posts reais para medir se um sinal de falsidade ou de bot funciona
 (a única amostra anotada do projeto tem 20 exemplos; veja o ADR 0015). Esta planilha é a **verdade de referência**:
 com ela dá para calcular o AUC de sinais baratos, avaliar o classificador de texto curto e conferir os rótulos do
