@@ -26,6 +26,7 @@ Registro formal das decisões técnicas de engenharia e arquitetura do projeto *
 | [**0016**](0016-remocao-do-tavily.md) | Remoção do Tavily da busca web | `Aceita` | 05/10/2026 | RF11, RNF02, RNF05 |
 | [**0017**](0017-rotulagem-de-contas-ao-vivo.md) | Rotulagem de contas com `provavel-bot` ao vivo | `Aceita` | 05/10/2026 | RF02, RF07, RNF01, GQ07 |
 | [**0018**](0018-concorrencia-e-contrapressao-do-worker.md) | Análises simultâneas e teto de fila no worker | `Aceita` | 05/10/2026 | RNF05, RF08, RF10, GQ04 |
+| [**0019**](0019-fonte-citada-pelo-post-e-entidade.md) | Fonte citada pelo post e checagem de entidade | `Aceita` | 05/10/2026 | RNF01, RF03, GQ03 |
 
 ---
 

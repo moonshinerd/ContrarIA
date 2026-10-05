@@ -81,6 +81,7 @@ class PipelineService:
         verification_enabled = getattr(self.settings, "pipeline_verification_enabled", True)
         if not verification_enabled:
             raise RuntimeError("Pipeline de verificação está desabilitado")
+        await self._attach_links(post)
         thread_context = await self._thread_context(post)
         verdict = await self.verification.verify(post, parent_text=thread_context)
         is_adverse = verdict.label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING)
@@ -168,6 +169,18 @@ class PipelineService:
             )
 
         return decision
+
+    async def _attach_links(self, post: Post) -> None:
+        """Busca no Bluesky as URLs que o post cita (card de link), que o texto não traz."""
+        if post.links:
+            return
+        try:
+            hydrated = await self.bluesky.get_posts([post.uri])
+        except Exception as exc:
+            logger.warning("Falha ao buscar links de %s: %s", post.uri, type(exc).__name__)
+            return
+        if hydrated:
+            post.links = hydrated[0].links
 
     async def _thread_context(self, post: Post) -> str | None:
         try:

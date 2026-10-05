@@ -145,12 +145,14 @@ flowchart TD
     P[Post + contexto do fio] --> S[Frases candidatas<br/>até 6, sem URLs]
     S --> K{Frase com ancoramento<br/>factual? heurística}
     K -- não --> X[Sem ação]
-    K -- sim --> Q[Consulta por frase<br/>às fontes habilitadas]
+    K -- sim --> CT[Fonte citada pelo post<br/>link do card, facets, texto]
+    CT -- post repete a manchete --> VT[true: fiel à fonte]
+    CT -- senão --> Q[Consulta por frase<br/>às fontes habilitadas]
     Q --> E1[Google Fact Check]
     Q --> E2[Wikipédia]
     Q --> E3[Busca web:<br/>SearXNG, DuckDuckGo]
     Q --> E4[Acervo RSS<br/>pgvector]
-    E1 & E2 & E3 & E4 --> F[Filtro de relevância NLI<br/>até 8 evidências, margem mínima]
+    E1 & E2 & E3 & E4 --> F[Filtro de relevância NLI<br/>rejeita zona e cidade/UF diferentes<br/>até 8 evidências, margem mínima]
     F --> M[Matérias completas<br/>trafilatura, até encher o contexto]
     M --> C[Classificação do veredito<br/>confirmam / desmentem / enganosa]
     C --> G[Gate CRC<br/>chave jev:repo]
@@ -233,6 +235,7 @@ ContrarIA/
 - **Pré-filtro clássico (TF-IDF) fora do pipeline, por decisão.** `FakeNewsTFIDFClassifier` existe e foi avaliado em
   `research/`, mas o [ADR 0015](../adr/0015-pre-filtro-tfidf-nao-integrado.md) o deixou de fora: ROC-AUC 0,76 em posts
   do Bluesky contra 0,99 em notícias. A priorização usa relevância, velocidade e bot score.
+- **O atalho "post reproduz a manchete da fonte que cita" e a guarda de entidade são heurísticas** (cobertura de título ≥ 80%; zona e cidade/UF), sem validação em conjunto anotado. Ver [ADR 0019](../adr/0019-fonte-citada-pelo-post-e-entidade.md).
 - **O filtro de alegações verificáveis é uma heurística (regex) sem validação quantitativa.** Ele fica em
   `jev_verification.py` e não usa LLM nem Jev. A similaridade com `fact_articles` como sinal de triagem é uma
   alternativa ainda não implementada.

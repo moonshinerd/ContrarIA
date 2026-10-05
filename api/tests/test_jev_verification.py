@@ -555,3 +555,170 @@ def test_candidate_sentences_ignores_anaphoric_relative_clauses_and_blind_items(
     )
     candidates = _candidate_sentences(post_cyrus)
     assert candidates == []
+
+
+class CitedSourceClassifier:
+    """Fonte do post: relevante e confirma. Registra se a busca aberta foi feita."""
+
+    def __init__(self, verdict: list[float]) -> None:
+        self.verdict = verdict
+
+    async def classify(self, question: str, options: list[str]) -> dict[str, float]:
+        if options == ["relevante", "irrelevante"]:
+            return {"relevante": 0.95, "irrelevante": 0.05}
+        return dict(zip(options, self.verdict, strict=True))
+
+    async def count_tokens(self, texts: list[str]) -> list[int]:
+        return [10 for _ in texts]
+
+
+class CountingSource:
+    name = "counting"
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def search(self, query: str, *, limit: int = 5) -> list[Evidence]:
+        self.calls += 1
+        return []
+
+
+CLAIM = "A votação para presidente na 3ª zona eleitoral de Itacoatiara (AM) aconteceu na escola."
+CITED_TEXT = "Votação para presidente na 3ª zona eleitoral de Itacoatiara (AM) escola resultado."
+
+
+async def test_fonte_citada_que_confirma_encerra_sem_buscar_na_web(monkeypatch):
+    async def fake_fetch(url):
+        return CITED_TEXT
+
+    monkeypatch.setattr("app.services.jev_verification._fetch_article_text", fake_fetch)
+    source = CountingSource()
+    service = build_service(None)
+    service.classifier = CitedSourceClassifier([0.9, 0.05, 0.05])  # confirmam
+    service.sources = [source]
+    post = Post(
+        uri="at://x",
+        cid="c",
+        author_did="d",
+        text=CLAIM,
+        created_at=datetime.now(UTC),
+        links=["https://g1.globo.com/materia", "https://bsky.app/profile/x"],
+    )
+    cited = await service._cited_evidence(post)
+    assert [e.url for e in cited] == ["https://g1.globo.com/materia"]  # rede social fica de fora
+    assert cited[0].source == "post_link"
+
+    verdict = await service._verify_claim(
+        CLAIM, {}, prefix="p", post_date=date.today(), cited=cited
+    )
+    assert verdict.label == VerdictLabel.TRUE
+    assert "cita" in verdict.rationale
+    assert source.calls == 0
+
+
+async def test_fonte_citada_que_nao_confirma_segue_para_a_busca_com_ela_no_conjunto(monkeypatch):
+    async def fake_fetch(url):
+        return CITED_TEXT
+
+    monkeypatch.setattr("app.services.jev_verification._fetch_article_text", fake_fetch)
+    monkeypatch.setattr("app.services.jev_verification._TITLE_ECHO_MIN", 1.1)
+    source = CountingSource()
+    service = build_service(None)
+    service.classifier = CitedSourceClassifier([0.05, 0.9, 0.05])  # desmentem
+    service.sources = [source]
+    post = Post(
+        uri="at://x",
+        cid="c",
+        author_did="d",
+        text=CLAIM,
+        created_at=datetime.now(UTC),
+        links=["https://g1.globo.com/materia"],
+    )
+    cited = await service._cited_evidence(post)
+    verdict = await service._verify_claim(
+        CLAIM, {}, prefix="p", post_date=date.today(), cited=cited
+    )
+    assert source.calls == 1  # a fonte citada não confirmou: a busca aberta acontece
+    assert verdict.label != VerdictLabel.TRUE
+
+
+def test_sigla_de_uma_letra_nao_quebra_o_nome_da_escola():
+    from app.services.jev_verification import _candidate_sentences
+
+    texto = (
+        "Resultado das eleições 2026 em Itacoatiara (AM): votação para presidente "
+        "no E. M. Dom Pedro I, na 3ª zona eleitoral"
+    )
+    assert _candidate_sentences(texto) == [texto]
+
+
+def _ev(title, snippet=""):
+    return Evidence(source="searxng", url="https://g1.globo.com/x", title=title, snippet=snippet)
+
+
+def test_entidade_homonima_de_outra_cidade_ou_zona_e_rejeitada():
+    from app.services.jev_verification import _entity_conflict
+
+    claim = "votação para presidente em Itacoatiara (AM) no E. M. Dom Pedro I, na 3ª zona eleitoral"
+    maribondo = evidence(
+        "E.M. Dom Pedro I", "Local de votação na 48ª zona eleitoral (Maribondo/AL)."
+    )
+    assert "zona eleitoral diferente" in _entity_conflict(claim, maribondo)
+    so_localidade = _ev("Dom Pedro I", "Escola em Maribondo/AL.")
+    assert "localidade diferente" in _entity_conflict(claim, so_localidade)
+
+
+def test_entidade_que_bate_ou_e_neutra_nao_e_barrada():
+    from app.services.jev_verification import _entity_conflict
+
+    claim = "votação em Itacoatiara (AM) no E. M. Dom Pedro I, na 3ª zona eleitoral"
+    assert _entity_conflict(claim, _ev("Itacoatiara/AM", "3ª zona eleitoral")) is None
+    assert _entity_conflict(claim, _ev("Eleições", "Lula (PT) foi o mais votado.")) is None
+    assert _entity_conflict(claim, _ev("Eleições 2026", "Sem local citado.")) is None
+
+
+def test_titulo_da_materia_vem_do_slug_da_url():
+    from app.services.jev_verification import _title_from_url
+
+    url = "https://g1.globo.com/am/noticia/2026/10/05/votacao-em-itacoatiara-am-na-3a-zona.ghtml"
+    assert _title_from_url(url) == "votacao em itacoatiara am na 3a zona"
+    assert _title_from_url("https://site.com/a/12") == ""
+
+
+def test_titulo_reproduzido_pelo_post_tem_cobertura_alta():
+    from app.services.jev_verification import _title_coverage
+
+    claim = "Resultado das eleições 2026 em Itacoatiara (AM): votação na 3ª zona eleitoral"
+    title = "resultado das eleicoes 2026 em itacoatiara am votacao na 3a zona eleitoral"
+    assert _title_coverage(claim, title) >= 0.8
+    assert _title_coverage(claim, "previsao do tempo para sao paulo amanha") < 0.3
+
+
+async def test_post_que_repete_a_manchete_da_fonte_citada_e_true(monkeypatch):
+    async def fake_fetch(url):
+        return "Lula foi o mais votado, com 33 mil votos. Corpo sem repetir a manchete."
+
+    monkeypatch.setattr("app.services.jev_verification._fetch_article_text", fake_fetch)
+    source = CountingSource()
+    service = build_service(None)
+    service.classifier = CitedSourceClassifier([0.1, 0.1, 0.8])  # classificador diria enganoso
+    service.sources = [source]
+    claim = "Resultado das eleições 2026 em Itacoatiara (AM): votação para presidente na 3ª zona"
+    post = Post(
+        uri="at://x",
+        cid="c",
+        author_did="d",
+        text=claim,
+        created_at=datetime.now(UTC),
+        links=[
+            "https://g1.globo.com/am/2026/10/05/resultado-das-eleicoes-2026-em-itacoatiara-am"
+            "-votacao-para-presidente-na-3a-zona.ghtml"
+        ],
+    )
+    cited = await service._cited_evidence(post)
+    verdict = await service._verify_claim(
+        claim, {}, prefix="p", post_date=date.today(), cited=cited
+    )
+    assert verdict.label == VerdictLabel.TRUE
+    assert "reproduz o título" in verdict.rationale
+    assert source.calls == 0
