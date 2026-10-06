@@ -230,4 +230,4 @@ compartilhadas fora de um canal seguro.
 - [ ] Liberar a porta 7844 de saída na rede da VM e mover o `cloudflared` para ela, eliminando a dependência do talos.
 - [ ] Anotar uma amostra de posts reais para medir sinais de falsidade ([ADR 0015](../adr/0015-pre-filtro-tfidf-nao-integrado.md)). Uma amostra de 200 posts foi exportada da fila da VM para `research/datasets/data/amostra_anotacao.csv` (ignorada pelo git).
 - [x] Primeiro deploy automático pelo Actions com token OIDC: concluído em 06/10/2026 (commit `9fb71eb`: `queued`, `running` e `ok`).
-- [ ] Apagar o registro DNS `ssh-contraria` na zona `schmidt.monster`: a rota foi removida e o hostname responde 530, mas o CNAME ainda existe.
+- [x] Registro DNS `ssh-contraria`: removido pela Cloudflare junto com a rota em 06/10/2026 (o hostname deixou de resolver). Na zona restam só `contraria` e `deploy-contraria`.
