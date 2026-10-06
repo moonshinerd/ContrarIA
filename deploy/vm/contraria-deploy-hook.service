@@ -1,0 +1,8 @@
+[Unit]
+Description=Executa o deploy pedido pelo GitHub Actions (ContrarIA)
+After=docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+ExecStart=/opt/contraria-deploy-run.sh

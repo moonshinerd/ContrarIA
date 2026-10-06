@@ -1,0 +1,9 @@
+[Unit]
+Description=Observa o gatilho de deploy gravado pelo endpoint (ContrarIA)
+
+[Path]
+PathExists=/var/lib/contraria-deploy/trigger
+Unit=contraria-deploy-hook.service
+
+[Install]
+WantedBy=multi-user.target
