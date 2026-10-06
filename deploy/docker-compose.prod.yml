@@ -109,6 +109,29 @@ services:
     # 1g ficava a ~90% de uso (o worker carrega o modelo de embeddings do pré-filtro).
     mem_limit: 2g
 
+  # Endpoint de deploy: valida o token OIDC do GitHub Actions e só grava um gatilho (ADR 0020).
+  # Sem env_file (não recebe os segredos da aplicação), sem root e sem acesso ao Docker.
+  deployhook:
+    logging: *default-logging
+    build: ../api
+    restart: unless-stopped
+    command: uvicorn app.deployhook:app --host 0.0.0.0 --port 8081
+    user: "${DEPLOY_UID:-1001}:${DEPLOY_GID:-1001}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: [/tmp]
+    ports:
+      - "127.0.0.1:8081:8081"
+    volumes:
+      - /var/lib/contraria-deploy:/var/lib/contraria-deploy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    mem_limit: 192m
+
   # Serviço oficial de labeler AT Protocol. Usa banco próprio, conforme o guia
   # de hospedagem do Ozone, para isolar seus dados de moderação da aplicação.
   ozone-db:

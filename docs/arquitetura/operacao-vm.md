@@ -13,7 +13,7 @@ As decisões estão no [ADR 0020](../adr/0020-acesso-vm-tunel-cloudflare.md) e n
 | Rede | Sem conexões de entrada; saída só por TCP 443 (a porta 7844 do túnel é bloqueada) |
 | Código | `/opt/contraria` (usuário `deploy`), clone da `main` por deploy key somente leitura |
 | Segredos | `/opt/contraria/api/.env` (permissão 600, fora do git) |
-| Domínio | Ozone em `contraria.schmidt.monster`; SSH em `ssh-contraria.schmidt.monster` |
+| Domínio | Ozone em `contraria.schmidt.monster`; deploy em `deploy-contraria.schmidt.monster` (só aceita token do GitHub) |
 
 ## Como o tráfego chega
 
@@ -24,38 +24,36 @@ SSH reverso, usando só conexões de saída pela 443.
 ```mermaid
 flowchart LR
     I((Internet)) -->|HTTPS| CF[Cloudflare]
-    GH[GitHub Actions] -->|cloudflared access ssh| CF
-    ADM[Administrador] -->|ssh contraria-vm| CF
+    GH[GitHub Actions<br/>token OIDC] -->|HTTPS| CF
     CF --> T[Túnel contraria-vm<br/>no talos]
     T -->|localhost:3000| R1((talos))
-    T -->|localhost:2223| R1
-    VM[VM: serviço ozone-forward] -. ssh -R 3000 e 2223<br/>saída pela 443 .-> R1
+    T -->|localhost:8081| R1
+    VM[VM: serviço ozone-forward] -. ssh -R 3000 e 8081<br/>saída pela 443 .-> R1
     VM --> OZ[Ozone :3000]
-    VM --> SSHD[sshd :22]
+    VM --> DH[deployhook :8081]
 ```
 
 - `contraria.schmidt.monster` → `localhost:3000` do talos → Ozone na VM.
-- `ssh-contraria.schmidt.monster` → `localhost:2223` do talos → sshd da VM.
+- `deploy-contraria.schmidt.monster` → `localhost:8081` do talos → container `deployhook` na VM (veja [Deploy](#deploy)).
 - **Dependência:** com o talos desligado ou sem rede, o Ozone e o deploy ficam fora do ar. A pilha na VM continua
   rodando normalmente.
 
-!!! warning "SSH exposto"
-    O hostname `ssh-contraria` é público (não usamos Cloudflare Access). O acesso é protegido só por chave SSH: a
-    autenticação por senha está **desligada** na VM (`/etc/ssh/sshd_config.d/00-contraria.conf`) e o root entra somente
-    por chave. A chave do deploy ainda tem `command=` e só executa o script de deploy.
+!!! success "O SSH da VM não é exposto à internet"
+    Não existe rota pública para o sshd. A VM só aceita SSH pela rede local ou pela VPN, com a senha **desligada**
+    (`/etc/ssh/sshd_config.d/00-contraria.conf`) e o root entrando somente por chave. O único endpoint público além do
+    Ozone é o de deploy, que só aceita um token assinado pelo GitHub para este repositório (veja abaixo).
 
 ## Acesso administrativo
 
-No `~/.ssh/config` da máquina de quem administra (precisa do `cloudflared` instalado e da chave SSH autorizada):
+Pela rede local ou pela VPN do laboratório, com a chave SSH autorizada no root da VM. No `~/.ssh/config`:
 
 ```text
 Host contraria-vm
-    HostName ssh-contraria.schmidt.monster
+    HostName 10.0.0.146
     User root
-    ProxyCommand cloudflared access ssh --hostname %h
 ```
 
-Depois: `ssh contraria-vm`. Funciona de qualquer rede.
+Depois: `ssh contraria-vm`. Fora da rede/VPN não há acesso por SSH, de propósito.
 
 ## Deploy
 
@@ -63,20 +61,32 @@ O workflow `.github/workflows/deploy.yml` roda em **push na `main`** (inclusive 
 `pull_request`, e pode ser reexecutado à mão (`workflow_dispatch`). Pushes que mexem só em `docs/**`, `mkdocs.yml` ou
 arquivos `.md` não disparam deploy. Usa o ambiente `production` do GitHub, restrito à branch `main`.
 
-1. O runner instala o `cloudflared` e entra na VM por `cloudflared access ssh`, com a chave `DEPLOY_SSH_KEY`.
-2. No `authorized_keys` do usuário `deploy`, essa chave tem `command="/opt/contraria-deploy.sh",restrict,no-pty`: ela
-   **só consegue executar o script de deploy**, sem shell, sem outros comandos e sem forward.
-3. O script faz `git reset --hard origin/main`, `docker compose up -d --build --remove-orphans`,
-   `alembic upgrade head` e a [limpeza do Docker](#disco-e-cache-do-docker).
-4. A identidade do servidor é fixada por `DEPLOY_HOST_KEY`, e não há confiança no primeiro acesso.
+Não há chave nem segredo guardado: o workflow se autentica com o **token OIDC do próprio GitHub** (`id-token: write`).
+
+1. O job pede ao GitHub um token JWT com `audience=contraria-deploy` e faz `POST /deploy` em
+   `https://deploy-contraria.schmidt.monster`.
+2. O container `deployhook` (`api/app/deployhook.py`) verifica a assinatura com o JWKS do GitHub e exige, no mesmo
+   token: emissor `token.actions.githubusercontent.com`, `audience`, `repository` e `repository_id` (o ID numérico
+   impede reaproveitar o nome de um repositório apagado), `repository_owner_id`, `ref = refs/heads/main`,
+   `job_workflow_ref` igual a `deploy.yml` na `main`, `environment = production` e evento `push` ou
+   `workflow_dispatch`. Só aceita RS256 (recusa `alg: none` e a troca por HS256) e tokens emitidos há menos de 10 min.
+   Qualquer outra coisa recebe `401`.
+3. O container **não executa o deploy**: só grava um arquivo de gatilho em `/var/lib/contraria-deploy`. Ele roda sem
+   o `.env` da aplicação, como usuário sem privilégio, com sistema de arquivos somente leitura, sem capabilities e sem
+   acesso ao Docker.
+4. A unidade `contraria-deploy-hook.path` (systemd) vê o gatilho e executa `/opt/contraria-deploy-run.sh` como usuário
+   `deploy`, que roda `/opt/contraria-deploy.sh`: `git reset --hard origin/main`,
+   `docker compose up -d --build --remove-orphans`, `alembic upgrade head` e a
+   [limpeza do Docker](#disco-e-cache-do-docker). O endpoint não recebe comandos nem parâmetros: o deploy sempre usa a
+   `origin/main`, e pedidos repetidos viram um só.
+5. O workflow consulta `GET /status` (também com token) até o deploy terminar e falha se ele falhar. O resultado e o
+   log ficam em `/var/lib/contraria-deploy/` (`status.json` e `last-deploy.log`).
 
 | Onde | Nome | Tipo |
 |---|---|---|
-| Ambiente `production` | `DEPLOY_SSH_KEY` | secret (chave privada só do deploy) |
-| Ambiente `production` | `DEPLOY_HOST` | variável (`ssh-contraria.schmidt.monster`) |
-| Ambiente `production` | `DEPLOY_HOST_KEY` | variável (chave pública do servidor) |
+| Ambiente `production` | `DEPLOY_URL` | variável (`https://deploy-contraria.schmidt.monster`) |
 
-**Deploy manual de uma branch** (por exemplo, para testar antes do merge), como administrador:
+**Deploy manual de uma branch** (por exemplo, para testar antes do merge), na rede local ou VPN:
 
 ```bash
 ssh contraria-vm 'su deploy -c "DEPLOY_BRANCH=nome-da-branch /opt/contraria-deploy.sh"'
@@ -208,14 +218,15 @@ compartilhadas fora de um canal seguro.
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
 | Ozone e deploy fora do ar, VM saudável | talos desligado ou sem rede | Religar o talos; `ozone-forward` reconecta sozinho |
-| `ssh contraria-vm` falha | talos fora ou serviço `ozone-forward` parado | Acessar pela rede local e rodar `systemctl status ozone-forward` |
+| Deploy do Actions falha com 401 | Token recusado (repositório, branch, workflow ou environment diferentes) | Ver `docker logs deploy-deployhook-1` (o motivo fica só no log) |
+| Deploy do Actions falha com 403 ou 5xx | Cloudflare bloqueando o runner, ou talos fora | Testar `curl https://deploy-contraria.schmidt.monster/health` |
+| Deploy fica em `running` | Build longo ou falha no script | `cat /var/lib/contraria-deploy/last-deploy.log` na VM |
 | Jetstream reconectando de tempos em tempos | Instabilidade da rede na saída | Esperado; o cursor retoma de onde parou |
 | `worker` reiniciando | Falta de memória | Conferir `docker inspect ... OOMKilled` e o limite do serviço |
-| Deploy falha com "host key" | `DEPLOY_HOST_KEY` desatualizada (reinstalação da VM) | Atualizar a variável do ambiente `production` |
 
 ## Pendências {#pendencias}
 
-- [ ] Regra de IP no WAF da Cloudflare para `ssh-contraria` (faixas do GitHub Actions); reduz ruído, não é identidade.
+- [ ] Conversar com a infra (Arthur) sobre as duas portas públicas (Ozone e endpoint de deploy) e sobre o túnel por outra máquina.
 - [ ] Liberar a porta 7844 de saída na rede da VM e mover o `cloudflared` para ela, eliminando a dependência do talos.
 - [ ] Anotar uma amostra de posts reais para medir sinais de falsidade ([ADR 0015](../adr/0015-pre-filtro-tfidf-nao-integrado.md)). Uma amostra de 200 posts foi exportada da fila da VM para `research/datasets/data/amostra_anotacao.csv` (ignorada pelo git).
 - [ ] Primeiro deploy automático pelo Actions (só dispara após o merge deste PR na `main`).

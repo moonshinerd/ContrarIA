@@ -1,8 +1,9 @@
 name: Deploy
 
-# Só em push na main, nunca em pull_request: o ambiente `production` também
-# aceita apenas a main. A VM fica atrás de um túnel Cloudflare (sem porta de
-# entrada); o runner chega nela por `cloudflared access ssh`.
+# Só em push na main, nunca em pull_request: o ambiente `production` também aceita apenas a main.
+# A VM não recebe conexões de entrada. O workflow se autentica com o token OIDC do próprio GitHub
+# (sem nenhum segredo guardado) e pede o deploy a um endpoint que só aceita este repositório, nesta
+# branch e neste workflow (ADR 0020, api/app/deployhook.py).
 on:
   push:
     branches:
@@ -18,6 +19,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write # necessário para pedir o token OIDC
 
 concurrency:
   group: deploy
@@ -27,31 +29,42 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: production
+    timeout-minutes: 30
     steps:
-      - name: Instalar cloudflared
-        run: |
-          curl -fsSL -o /tmp/cloudflared.deb \
-            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-          sudo dpkg -i /tmp/cloudflared.deb
-
-      - name: Configurar SSH
+      - name: Pedir o deploy e esperar o resultado
         env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_HOST_KEY: ${{ vars.DEPLOY_HOST_KEY }}
+          DEPLOY_URL: ${{ vars.DEPLOY_URL }}
         run: |
-          install -d -m 700 ~/.ssh
-          umask 077
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
-          printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
+          set -euo pipefail
+          UA="contraria-deploy/1.0 (github-actions)"
 
-      # A chave só executa /opt/contraria-deploy.sh na VM (command= no
-      # authorized_keys do usuário `deploy`): git reset na main,
-      # `docker compose up -d --build` e `alembic upgrade head`.
-      - name: Deploy na VM
-        env:
-          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
-        run: |
-          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts \
-            -o ProxyCommand="cloudflared access ssh --hostname %h" \
-            "deploy@${DEPLOY_HOST}" deploy
+          # Um token novo a cada chamada: ele vale por pouco tempo e carrega a identidade do job.
+          oidc_token() {
+            curl -sSf -A "$UA" \
+              -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=contraria-deploy" | jq -r .value
+          }
+
+          tok=$(oidc_token); echo "::add-mask::$tok"
+          resp=$(curl -sSf -A "$UA" -X POST -H "Authorization: Bearer $tok" "$DEPLOY_URL/deploy")
+          echo "$resp"
+          requested=$(echo "$resp" | jq -r .requested_at)
+
+          for i in $(seq 1 120); do
+            sleep 10
+            tok=$(oidc_token); echo "::add-mask::$tok"
+            st=$(curl -sSf -A "$UA" -H "Authorization: Bearer $tok" "$DEPLOY_URL/status" || echo '{}')
+            state=$(echo "$st" | jq -r '.state // "unknown"')
+            finished=$(echo "$st" | jq -r '.finished_at // ""')
+            echo "[$i] estado: $state"
+            if [ "$state" = ok ] || [ "$state" = failed ]; then
+              # só vale um deploy que terminou depois do pedido (o status guarda o último)
+              if [ -n "$finished" ] && [ "$(printf '%s\n%s\n' "$requested" "$finished" | sort | head -1)" = "$requested" ]; then
+                echo "$st" | jq .
+                [ "$state" = ok ]
+                exit $?
+              fi
+            fi
+          done
+          echo "Tempo esgotado esperando o deploy terminar."
+          exit 1

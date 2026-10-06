@@ -9,17 +9,16 @@ executa localmente o modelo mDeBERTa-v3 NLI via PyTorch/Transformers; API e work
 ## Acesso e deploy (Cloudflare)
 
 - **Ozone:** `https://contraria.schmidt.monster` → túnel `contraria-vm` → `localhost:3000`.
-- **SSH da VM:** `ssh-contraria.schmidt.monster`, com `ProxyCommand cloudflared access ssh --hostname %h`.
-  O serviço `ozone-forward` (systemd na VM) mantém o SSH reverso que publica as portas 3000 e 2223 no
-  host que roda o túnel. Sem esse host ligado, Ozone e deploy ficam fora do ar.
-- **Deploy:** push na `main` dispara `.github/workflows/deploy.yml` (ambiente `production`). A chave
-  `DEPLOY_SSH_KEY` só executa `/opt/contraria-deploy.sh` na VM (usuário `deploy`, `command=` no
-  `authorized_keys`): `git reset` na `main`, `docker compose up -d --build` e `alembic upgrade head`.
-- **Variáveis do ambiente `production`:** secret `DEPLOY_SSH_KEY`; variáveis `DEPLOY_HOST` e
-  `DEPLOY_HOST_KEY` (chave pública do servidor, fixa a identidade).
+- **Deploy:** push na `main` dispara `.github/workflows/deploy.yml` (ambiente `production`). O workflow se autentica
+  com o token OIDC do GitHub e chama `https://deploy-contraria.schmidt.monster/deploy`; o endpoint
+  (`api/app/deployhook.py`) só aceita este repositório, a branch `main` e o workflow `deploy.yml`, e apenas grava um
+  gatilho. O serviço systemd `contraria-deploy-hook` roda o script de deploy (`git reset` na `main`,
+  `docker compose up -d --build`, `alembic upgrade head`). Não há chave SSH nem segredo no GitHub; a única variável do
+  ambiente `production` é `DEPLOY_URL`.
+- **SSH da VM:** não é publicado. Acesso só pela rede local ou VPN.
 - **Na VM:** `api/.env` em `/opt/contraria/api/.env` (permissão 600, fora do git).
-- **Scripts da VM** em `deploy/vm/`: `contraria-deploy.sh` (comando forçado da chave do GitHub) e a limpeza do Docker
-  (`contraria-docker-prune.sh` + timer semanal), instalados em `/opt/` com dono `root`. Os logs dos containers têm
+- **Scripts da VM** em `deploy/vm/`: `contraria-deploy.sh`, `contraria-deploy-run.sh` + unidades `contraria-deploy-hook.{path,service}` (executam o deploy
+  pedido pelo endpoint) e a limpeza do Docker (`contraria-docker-prune.sh` + timer semanal), instalados em `/opt/` com dono `root`. Os logs dos containers têm
   rotação no compose. Veja [Operação na VM](../docs/arquitetura/operacao-vm.md#disco-e-cache-do-docker).
 
 ## Backend Jev
