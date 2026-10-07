@@ -13,41 +13,53 @@ publica um *quote post* na conta do bot e (opcionalmente) emite um rótulo pelo 
 
 ```mermaid
 flowchart LR
-    subgraph Externo["Serviços externos"]
-        JS[Jetstream<br/>firehose do Bluesky]
-        PDS[PDS bsky.social<br/>searchPosts e escritas]
-        APP[AppView pública<br/>getPosts / getProfile / getAuthorFeed]
-        FC[Google Fact Check<br/>Tools API]
-        WP[Wikipédia]
-        DDG[DuckDuckGo]
-        RSSX[Feeds RSS das<br/>agências de checagem]
-        OR[LLM na nuvem<br/>via LiteLLM / OpenRouter]
+    classDef in fill:#0284c7,stroke:#0369a1,color:#fff
+    classDef core fill:#2563eb,stroke:#1e3a8a,color:#fff
+    classDef out fill:#16a34a,stroke:#14532d,color:#fff
+    classDef db fill:#7c3aed,stroke:#5b21b6,color:#fff
+    classDef human fill:#db2777,stroke:#9d174d,color:#fff
+
+    subgraph ENTRADA["1. Fontes de Entrada & Contexto"]
+        direction TB
+        JS["Jetstream<br/>firehose de posts pt"]:::in
+        SP["searchPosts<br/>posts de alto alcance"]:::in
+        AV["AppView Bluesky<br/>perfil, feed do autor, thread"]:::in
+        EV["Fontes de Checagem<br/>Google Fact Check, Wiki, RSS"]:::in
     end
 
-    subgraph ContrarIA["ContrarIA (docker compose)"]
-        W[worker]
-        A[api FastAPI :8000]
-        J[jev :8100<br/>mDeBERTa NLI]
-        SX[searxng :8080]
-        DB[(Postgres + pgvector)]
+    subgraph NUCLEO["2. Núcleo ContrarIA (Docker Compose)"]
+        direction TB
+        WK["Worker Autônomo<br/>coleta, triagem, análise e rodadas"]:::core
+        API["API FastAPI :8000<br/>saúde, consulta e auditoria"]:::core
+        JEV["Jev :8100<br/>classificador local mDeBERTa NLI"]:::core
+        SX["SearXNG :8080<br/>metabuscador web self-hosted"]:::core
+        DB[("PostgreSQL + pgvector<br/>posts, decisões, logs, vetores")]:::db
+
+        WK --> JEV
+        WK --> SX
+        WK --> DB
+        API --> DB
+        API --> JEV
     end
 
-    OZ[Ozone<br/>labeler]
-    U((Pessoa<br/>avaliadora))
+    subgraph SAIDA["3. Destinos, LLM & Moderação"]
+        direction TB
+        LLM["LiteLLM / OpenRouter<br/>redação socrática e critic"]:::out
+        QP["Bluesky PDS<br/>quote post @contraria-bot"]:::out
+        OZ["Ozone Labeler<br/>rótulos @contraria-labeler"]:::out
+    end
 
-    JS --> W
-    PDS <--> W
-    APP --> W
-    W --> J
-    W --> SX
-    W --> DB
-    W --> FC & WP & DDG
-    RSSX --> W
-    W --> OR
-    W -- rótulos via outbox --> OZ
-    U -- /v1/decisions, /v1/analyze --> A
-    A --> DB
-    A --> J
+    USER(("Pessoa<br/>avaliadora")):::human -->|GET /admin, POST /v1/analyze| API
+
+    JS -->|posts em tempo real| WK
+    SP -->|posts populares 24h| WK
+    AV -->|hidratação e engajamento| WK
+    EV -->|evidências factuais| WK
+
+    WK -->|redação e validação| LLM
+    LLM -->|texto aprovado| WK
+    WK -->|publicação socrática| QP
+    WK -->|outbox com repetição| OZ
 ```
 
 | Serviço | Papel | Porta |

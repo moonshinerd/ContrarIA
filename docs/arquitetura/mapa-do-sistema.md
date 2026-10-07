@@ -35,46 +35,47 @@ flowchart LR
     classDef human fill:#db2777,stroke:#831843,color:#fff
     classDef out fill:#16a34a,stroke:#14532d,color:#fff
 
-    AUTH(("Autor do post<br/>monitorado")):::human
-    USER(("Pessoa assinante<br/>do labeler")):::human
-    OPS(("Operador<br/>e revisor")):::human
-    DEV(("Pessoa<br/>desenvolvedora")):::human
-
-    subgraph BSKY["Rede Bluesky (AT Protocol)"]
-        JS["Jetstream<br/>firehose de posts"]:::ext
+    subgraph IN["1. Entradas (Leitura Pública)"]
+        direction TB
+        JS["Jetstream<br/>firehose de posts pt"]:::ext
         SRCH["searchPosts<br/>posts mais populares"]:::ext
-        APPV["AppView pública<br/>perfil, feed, fio, engajamento"]:::ext
-        PDS["PDS do bot<br/>escrita de quote posts"]:::ext
-        APPC["App Bluesky<br/>exibe quote e rótulos"]:::ext
+        APPV["AppView Bluesky<br/>perfil, feed, contexto do fio"]:::ext
+        EVID["Checagens & Notícias<br/>Google, Wiki, SearXNG, RSS"]:::ext
     end
 
-    subgraph EVID["Fontes de evidência"]
-        FC["Google Fact Check"]:::ext
-        WP["Wikipédia"]:::ext
-        WEB["Busca web<br/>SearXNG e DuckDuckGo"]:::ext
-        RSS["Feeds RSS das<br/>agências de checagem"]:::ext
-        ART["Páginas de notícia<br/>citadas ou achadas"]:::ext
+    subgraph SYSTEM["2. Sistema ContrarIA"]
+        direction TB
+        CORE["ContrarIA Core<br/>Worker, API, Jev e Banco"]:::core
+        OB["Outbox de Rótulos<br/>persistência e repetições"]:::core
+        CORE --> OB
     end
 
-    LLM["LLM na nuvem<br/>LiteLLM e OpenRouter"]:::ext
-    GH["GitHub<br/>Actions e OIDC"]:::ext
+    subgraph OUT["3. Saídas, LLM & Destinos"]
+        direction TB
+        LLM["LiteLLM / OpenRouter<br/>redação socrática e critic"]:::ext
+        QP["Quote Post Público<br/>@contraria-bot.bsky.social"]:::out
+        OZ["Labeler Ozone<br/>@contraria-labeler.bsky.social"]:::out
+        APP["App Bluesky<br/>notificação e exibição de selos"]:::ext
+        QP --> APP
+        OZ --> APP
+    end
 
-    CORE["ContrarIA<br/>worker, api, jev, banco"]:::core
-    OZ["Labeler Ozone<br/>conta contraria-labeler"]:::out
-    QP["Quote post<br/>conta contraria-bot"]:::out
+    AUTH(("Autor do post<br/>citado")):::human
+    USER(("Assinante<br/>do labeler")):::human
+    OPS(("Operador /<br/>Revisor")):::human
 
-    JS -->|"posts novos"| CORE
-    SRCH -->|"posts populares"| CORE
-    APPV -->|"contexto da análise"| CORE
-    RSS -->|"artigos de checagem"| CORE
-    FC & WP & WEB & ART -->|"evidências"| CORE
-    CORE -->|"redação do quote"| LLM
-    CORE --> QP --> PDS --> APPC
-    CORE -->|"pedido de rótulo"| OZ --> APPC
-    APPC -.->|"notifica ao citar"| AUTH
-    USER -->|"assina o labeler"| APPC
-    OPS -->|"API admin e revisão"| CORE
-    DEV -->|"merge na main"| GH -->|"deploy"| CORE
+    JS -->|"tempo real"| CORE
+    SRCH -->|"top 24 h"| CORE
+    APPV -->|"engajamento"| CORE
+    EVID -->|"evidências"| CORE
+
+    CORE <-->|"redação & critic"| LLM
+    CORE -->|"publicação"| QP
+    OB -->|"emissão confiável"| OZ
+
+    APP -.->|"notifica citação"| AUTH
+    USER -->|"assina selos"| APP
+    OPS -->|"auditoria e revisão"| CORE
 ```
 
 | Ator ou sistema | Papel | Como o ContrarIA interage |
