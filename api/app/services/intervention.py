@@ -296,6 +296,44 @@ class InterventionService:
 
         return True
 
+    async def _validate_semantic_coherence(
+        self, post_text: str, generated_text: str, claim: str
+    ) -> tuple[bool, str]:
+        """Audita semanticamente via LLM se a pergunta socrática gerada é pertinente
+
+        ao que o autor do post realmente afirmou, garantindo que não atribui ao post
+        fatos, pessoas ou alegações ausentes trazidos apenas pelas fontes externas.
+        """
+        if not getattr(self.settings, "enable_semantic_critic", True):
+            return True, "Auditoria semântica desabilitada por configuração"
+
+        try:
+            critic_prompt = load_prompt("semantic_critic", version=1).format(
+                post_text=post_text,
+                claim=claim,
+                generated_text=generated_text,
+            )
+            response = await self.llm.complete(
+                system=critic_prompt,
+                user="Avalie a intervenção proposta segundo as regras e retorne DECISAO e MOTIVO.",
+                purpose="critic_coherence",
+            )
+            text = response.strip()
+            if "REPROVADA" in text.upper():
+                lines = [line.strip() for line in text.splitlines() if line.strip()]
+                reason_line = next((line for line in lines if "MOTIVO:" in line.upper()), "")
+                reason = (
+                    reason_line.replace("MOTIVO:", "").strip()
+                    if reason_line
+                    else "Inconsistência semântica apontada pelo auditor"
+                )
+                return False, reason
+
+            return True, "Intervenção aprovada pelo auditor semântico"
+        except Exception as e:
+            logger.warning("Falha ao executar auditor semântico: %s; prosseguindo com cautela", e)
+            return True, "Auditoria semântica indisponível"
+
     async def execute_intervention(
         self, post: Post, author: Account, verdict: Verdict, bot_score: float
     ) -> str | None:
@@ -415,6 +453,18 @@ class InterventionService:
         is_aggressive = any(term in generated_text.casefold() for term in _AGGRESSIVE_TERMS)
         if not generated_text or is_aggressive:
             logger.warning("Texto de intervenção reprovado pelos guardrails de agressividade")
+            return None
+
+        # Validação de pertinência socrática e grounding semântico via LLM (Critic)
+        is_coherent, critic_reason = await self._validate_semantic_coherence(
+            post.text, generated_text, verdict.claim
+        )
+        if not is_coherent:
+            logger.warning(
+                "Intervenção vetada pelo auditor semântico: %s (post: %s)",
+                critic_reason,
+                post.uri,
+            )
             return None
 
         hallucinated_name = _find_hallucinated_entity(generated_text, post.text)

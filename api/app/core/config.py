@@ -136,10 +136,11 @@ class Settings(BaseSettings):
     # notícia amadureça e seja indexada por agências de checagem e buscadores antes da verificação.
     post_min_age_hours: float = Field(default=3.0, ge=0.0)
     # Idade máxima em horas para análise: posts mais antigos que este limite são expirados.
-    post_max_age_hours: float = Field(default=24.0, ge=1.0)
+    post_max_age_hours: float = Field(default=48.0, ge=1.0)
     pipeline_bot_scoring_enabled: bool = True
     pipeline_verification_enabled: bool = True
     pipeline_intervention_enabled: bool = True
+    enable_semantic_critic: bool = True
     # A label is an externally visible moderation action. Keep it opt-in even
     # when quote generation is configured as dry-run.
     pipeline_labeler_enabled: bool = False

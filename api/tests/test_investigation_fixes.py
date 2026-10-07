@@ -117,9 +117,9 @@ def test_post_aging_delay_in_repository():
 
     now = datetime(2026, 10, 7, 12, 0, 0, tzinfo=UTC)
 
-    # Post 1: criado há 30 minutos (jovem)
-    # Post 2: criado há 4 horas (maduro)
-    # Post 3: criado há 30 horas (velho)
+    # Post 1: criado há 30 minutos (jovem, < 3h)
+    # Post 2: criado há 20 horas (maduro, >= 3h e <= 48h)
+    # Post 3: criado há 55 horas (velho, > 48h)
     posts_data = [
         {
             "uri": "at://recent",
@@ -136,7 +136,7 @@ def test_post_aging_delay_in_repository():
             "cid": "c2",
             "author_did": "d2",
             "text": "post maduro",
-            "created_at": now - timedelta(hours=4),
+            "created_at": now - timedelta(hours=20),
             "source": "jetstream",
             "triage_status": "monitor",
             "priority": 1.0,
@@ -146,7 +146,7 @@ def test_post_aging_delay_in_repository():
             "cid": "c3",
             "author_did": "d3",
             "text": "post velho",
-            "created_at": now - timedelta(hours=30),
+            "created_at": now - timedelta(hours=55),
             "source": "jetstream",
             "triage_status": "monitor",
             "priority": 1.0,
@@ -154,13 +154,13 @@ def test_post_aging_delay_in_repository():
     ]
     repo.upsert_posts(posts_data)
 
-    # 1. Com aging delay (min_age_hours=3, max_age_hours=24), apenas o post maduro entra
-    candidates = repo.get_triage_candidates(10, min_age_hours=3.0, max_age_hours=24.0, now=now)
+    # 1. Com aging delay (min_age_hours=3, max_age_hours=48), apenas o post maduro entra
+    candidates = repo.get_triage_candidates(10, min_age_hours=3.0, max_age_hours=48.0, now=now)
     uris = [p.uri for p, _ in candidates]
     assert uris == ["at://mature"]
 
-    # 2. Expiração de posts velhos (> 24h)
-    expired_count = repo.expire_older_than(24.0, now=now)
+    # 2. Expiração de posts velhos (> 48h)
+    expired_count = repo.expire_older_than(48.0, now=now)
     assert expired_count == 1
 
     # Após expiração, o post velho não consta mais como pendente
@@ -168,3 +168,100 @@ def test_post_aging_delay_in_repository():
     pending_uris = [p.uri for p, _ in all_pending]
     assert "at://old" not in pending_uris
     assert set(pending_uris) == {"at://recent", "at://mature"}
+
+
+@pytest.mark.asyncio
+async def test_semantic_critic_veto_blocks_intervention():
+    mock_repo = MagicMock()
+    mock_repo.has_intervened_on_post.return_value = False
+    mock_repo.count_interventions_by_author_in_last_24h.return_value = 0
+    mock_repo.count_interventions_in_last_24h.return_value = 0
+    mock_bsky = AsyncMock()
+    mock_bsky.has_postgate_quote_disabled.return_value = False
+    mock_llm = AsyncMock()
+
+    # Simula o critic reprovando por falta de pertinência socrática
+    async def fake_complete(*args, **kwargs):
+        if kwargs.get("purpose") == "critic_coherence":
+            return "DECISAO: REPROVADA\nMOTIVO: A pergunta questiona dados que não constam no post."
+        return "revisão de fontes"
+
+    mock_llm.complete.side_effect = fake_complete
+    mock_llm.complete_with_tools.return_value = (
+        "TIPO: FATO\nVEREDITO: DESMENTE\nFONTE: 1\n"
+        "Mas por que você afirma que o candidato gastou milhões na campanha?"
+    )
+
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    service.settings.intervention_dry_run = False
+
+    post = DomainPost(
+        uri="at://did:1/post/drift",
+        cid="cid1",
+        author_did="did:1",
+        text="Apoiando nosso candidato no segundo turno das eleições!",
+        created_at=datetime.now(UTC),
+    )
+    verdict = Verdict(
+        claim="Apoiando candidato no segundo turno",
+        label=VerdictLabel.FALSE,
+        confidence=0.9,
+        rationale="r",
+        evidences=[Evidence("t", "https://fonte.example", "Fonte", "trecho")],
+    )
+
+    res = await service.execute_intervention(post, Account(did="did:1", handle="user"), verdict, 0.1)
+    # A intervenção DEVE ser abortada pelo Critic Semântico
+    assert res is None
+    mock_bsky.quote_post.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_semantic_critic_approval_allows_intervention(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.intervention.fetch_article_text",
+        AsyncMock(return_value="texto completo da matéria sobre o resultado eleitoral"),
+    )
+    mock_repo = MagicMock()
+    mock_repo.has_intervened_on_post.return_value = False
+    mock_repo.count_interventions_by_author_in_last_24h.return_value = 0
+    mock_repo.count_interventions_in_last_24h.return_value = 0
+    mock_bsky = AsyncMock()
+    mock_bsky.has_postgate_quote_disabled.return_value = False
+    mock_bsky.quote_post.return_value = ("at://did:bot/quote/1", "cid_quote")
+    mock_llm = AsyncMock()
+
+    # Simula o critic aprovando a pertinência
+    async def fake_complete(*args, **kwargs):
+        if kwargs.get("purpose") == "critic_coherence":
+            return "DECISAO: APROVADA\nMOTIVO: O questionamento dialoga diretamente com o post."
+        return "revisão de fontes"
+
+    mock_llm.complete.side_effect = fake_complete
+    mock_llm.complete_with_tools.return_value = (
+        "TIPO: FATO\nVEREDITO: DESMENTE\nFONTE: 1\n"
+        "Será que a votação ocorreu no segundo turno, considerando que a eleição acabou no primeiro?"
+    )
+
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    service.settings.intervention_dry_run = False
+
+    post = DomainPost(
+        uri="at://did:1/post/valid",
+        cid="cid1",
+        author_did="did:1",
+        text="Candidato venceu a disputa eleitoral no segundo turno das eleições.",
+        created_at=datetime.now(UTC),
+    )
+    verdict = Verdict(
+        claim="Candidato venceu disputa no segundo turno",
+        label=VerdictLabel.FALSE,
+        confidence=0.9,
+        rationale="r",
+        evidences=[Evidence("t", "https://fonte.example", "Fonte", "trecho")],
+    )
+
+    res = await service.execute_intervention(post, Account(did="did:1", handle="user"), verdict, 0.1)
+    assert res == "at://did:bot/quote/1"
+    mock_bsky.quote_post.assert_called_once()
+
