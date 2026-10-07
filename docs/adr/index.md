@@ -28,6 +28,7 @@ Registro formal das decisões técnicas de engenharia e arquitetura do projeto *
 | [**0018**](0018-concorrencia-e-contrapressao-do-worker.md) | Análises simultâneas e teto de fila no worker | `Aceita` | 05/10/2026 | RNF05, RF08, RF10, GQ04 |
 | [**0019**](0019-fonte-citada-pelo-post-e-entidade.md) | Fonte citada pelo post e checagem de entidade | `Aceita` | 05/10/2026 | RNF01, RF03, GQ03 |
 | [**0020**](0020-acesso-vm-tunel-cloudflare.md) | Acesso à VM e deploy por túnel Cloudflare, sem porta de entrada | `Aceita` | 05/10/2026 | RNF03, RNF05, RNF07 |
+| [**0021**](0021-resiliencia-das-fontes-de-evidencia.md) | Resiliência das fontes de evidência | `Aceita` | 05/10/2026 | RNF01, RNF05, RF11 |
 
 ---
 

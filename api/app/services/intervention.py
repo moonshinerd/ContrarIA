@@ -36,6 +36,69 @@ _SOURCE_LINE = re.compile(r"\s*FONTE:\s*([0-9, ]+)[^\n]*\n?", re.IGNORECASE)
 _ACTIONABLE_VERDICTS = {"DESMENTE", "DISTORCE"}
 
 
+_PROPER_NAME_REGEX = re.compile(
+    r"\b[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+(?:\s+(?:d[aeo]s?\s+)?[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+)+\b"
+)
+_COMMON_NAME_EXCEPTIONS = {
+    "o post",
+    "a postagem",
+    "as fontes",
+    "a fonte",
+    "o autor",
+    "a autora",
+    "de acordo",
+    "no brasil",
+    "do brasil",
+    "o brasil",
+    "minas gerais",
+    "são paulo",
+    "espírito santo",
+    "mato grosso",
+    "rio de janeiro",
+    "estados unidos",
+    "américa latina",
+}
+
+_PORTUGUESE_STOPWORDS = frozenset(
+    "a o os as um uma uns umas de do da dos das em no na nos nas por para com sem "
+    "sobre pelo pela pelos pelas que se como quando onde porque qual quem este esta "
+    "esse essa aquele aquela isto isso aquilo ele ela eles elas seu sua seus suas "
+    "foi foram era eram ser é são ter teve tinham mais menos muito pouco todo toda".split()
+)
+
+
+def _find_hallucinated_entity(generated_text: str, source_text: str) -> str | None:
+    """Detecta menções a nomes próprios na intervenção que não aparecem no post original."""
+    source_lower = source_text.casefold()
+    for match in _PROPER_NAME_REGEX.finditer(generated_text):
+        name = match.group(0).strip()
+        if name.casefold() in _COMMON_NAME_EXCEPTIONS:
+            continue
+        first_token = name.split()[0].casefold()
+        if first_token not in source_lower:
+            return name
+    return None
+
+
+def _is_claim_relevant_to_post(claim: str, post_text: str) -> bool:
+    """Verifica se a claim possui palavras informativas em comum com o texto do post."""
+    if len(claim.strip()) <= 5 or len(post_text.strip()) <= 5:
+        return True
+    claim_informative = {
+        w.casefold()
+        for w in re.findall(r"\w{4,}", claim)
+        if w.casefold() not in _PORTUGUESE_STOPWORDS
+    }
+    post_words = {
+        w.casefold()
+        for w in re.findall(r"\w{4,}", post_text)
+        if w.casefold() not in _PORTUGUESE_STOPWORDS
+    }
+    if not claim_informative or not post_words:
+        return True
+    return bool(claim_informative & post_words)
+
+
 async def _no_tool_call(name: str, arguments: dict[str, Any]) -> str:
     """Defesa para a interface de tool calling; a redação final não usa ferramentas."""
     return "Não há ferramentas disponíveis nesta etapa; responda usando as revisões."
@@ -233,10 +296,57 @@ class InterventionService:
 
         return True
 
+    async def _validate_semantic_coherence(
+        self, post_text: str, generated_text: str, claim: str
+    ) -> tuple[bool, str]:
+        """Audita semanticamente via LLM se a pergunta socrática gerada é pertinente
+
+        ao que o autor do post realmente afirmou, garantindo que não atribui ao post
+        fatos, pessoas ou alegações ausentes trazidos apenas pelas fontes externas.
+        """
+        if not getattr(self.settings, "enable_semantic_critic", True):
+            return True, "Auditoria semântica desabilitada por configuração"
+
+        try:
+            critic_prompt = load_prompt("semantic_critic", version=1).format(
+                post_text=post_text,
+                claim=claim,
+                generated_text=generated_text,
+            )
+            response = await self.llm.complete(
+                system=critic_prompt,
+                user="Avalie a intervenção proposta segundo as regras e retorne DECISAO e MOTIVO.",
+                purpose="critic_coherence",
+            )
+            text = response.strip()
+            if "REPROVADA" in text.upper():
+                lines = [line.strip() for line in text.splitlines() if line.strip()]
+                reason_line = next((line for line in lines if "MOTIVO:" in line.upper()), "")
+                reason = (
+                    reason_line.replace("MOTIVO:", "").strip()
+                    if reason_line
+                    else "Inconsistência semântica apontada pelo auditor"
+                )
+                return False, reason
+
+            return True, "Intervenção aprovada pelo auditor semântico"
+        except Exception as e:
+            logger.warning("Falha ao executar auditor semântico: %s; prosseguindo com cautela", e)
+            return True, "Auditoria semântica indisponível"
+
     async def execute_intervention(
         self, post: Post, author: Account, verdict: Verdict, bot_score: float
     ) -> str | None:
         if not await self._should_intervene(post, author, verdict):
+            return None
+
+        # Alinhamento da claim com o post: a claim precisa ter pertinência com o post.
+        if not _is_claim_relevant_to_post(verdict.claim, post.text):
+            logger.warning(
+                "Intervenção abortada: alegação '%s' não possui correspondência com o post %s",
+                verdict.claim,
+                post.uri,
+            )
             return None
 
         # Determinar tom
@@ -342,7 +452,28 @@ class InterventionService:
         generated_text = generated_text.strip()
         is_aggressive = any(term in generated_text.casefold() for term in _AGGRESSIVE_TERMS)
         if not generated_text or is_aggressive:
-            logger.warning("Texto de intervenção reprovado pelos guardrails")
+            logger.warning("Texto de intervenção reprovado pelos guardrails de agressividade")
+            return None
+
+        # Validação de pertinência socrática e grounding semântico via LLM (Critic)
+        is_coherent, critic_reason = await self._validate_semantic_coherence(
+            post.text, generated_text, verdict.claim
+        )
+        if not is_coherent:
+            logger.warning(
+                "Intervenção vetada pelo auditor semântico: %s (post: %s)",
+                critic_reason,
+                post.uri,
+            )
+            return None
+
+        hallucinated_name = _find_hallucinated_entity(generated_text, post.text)
+        if hallucinated_name:
+            logger.warning(
+                "Intervenção vetada por grounding: entidade '%s' ausente do post %s",
+                hallucinated_name,
+                post.uri,
+            )
             return None
 
         # Quando o texto não cabe em um post só, continua como resposta

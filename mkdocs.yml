@@ -99,6 +99,7 @@ nav:
       - "0018 – Concorrência do Worker": adr/0018-concorrencia-e-contrapressao-do-worker.md
       - "0019 – Fonte Citada e Entidade": adr/0019-fonte-citada-pelo-post-e-entidade.md
       - "0020 – Acesso à VM por Túnel": adr/0020-acesso-vm-tunel-cloudflare.md
+      - "0021 – Resiliência das Fontes": adr/0021-resiliencia-das-fontes-de-evidencia.md
   - Resultados e Benchmarks: resultados/benchmark.md
   - Glossário: glossario.md
   - Atas:

@@ -69,8 +69,9 @@ class ScriptedClassifier:
         if options == ["relevante", "irrelevante"]:
             score = next(v for title, v in self.relevance_by_title.items() if title in question)
             return {"relevante": score, "irrelevante": 1 - score}
-        # Veredito: confirmam=0.1, desmentem=0.7, distorcem=0.2 (ordem de _LABEL_BY_OPTION).
-        return dict(zip(options, [0.1, 0.7, 0.2], strict=True))
+        # Veredito: confirmam=0.1, desmentem=0.7, distorcem=0.15, insuficientes=0.05
+        weights = [0.1, 0.7, 0.15, 0.05] if len(options) == 4 else [0.1, 0.7, 0.2]
+        return dict(zip(options, weights, strict=True))
 
     async def count_tokens(self, texts: list[str]) -> list[int]:
         # Matéria completa "pesa" 3000 tokens; o resto, 10.
@@ -557,16 +558,32 @@ def test_candidate_sentences_ignores_anaphoric_relative_clauses_and_blind_items(
     assert candidates == []
 
 
-class CitedSourceClassifier:
-    """Fonte do post: relevante e confirma. Registra se a busca aberta foi feita."""
+class NliClassifier:
+    """NLI scriptado: o entailment depende do trecho conter `marker`. Registra as chamadas."""
 
-    def __init__(self, verdict: list[float]) -> None:
-        self.verdict = verdict
+    def __init__(self, marker: str, entail: float = 0.9) -> None:
+        self.marker, self.entail = marker, entail
+        self.pairs: list[tuple[str, str]] = []
+
+    async def predict_nli_batch(self, pairs):
+        self.pairs += pairs
+        return [
+            {
+                "entailment": self.entail if self.marker.lower() in premise.lower() else 0.02,
+                "neutral": 0.1,
+                "contradiction": 0.01,
+            }
+            for premise, _ in pairs
+        ]
 
     async def classify(self, question: str, options: list[str]) -> dict[str, float]:
         if options == ["relevante", "irrelevante"]:
             return {"relevante": 0.95, "irrelevante": 0.05}
-        return dict(zip(options, self.verdict, strict=True))
+        verdict = getattr(self, "verdict", [0.1, 0.8, 0.1])
+        verdict = list(verdict)
+        if len(verdict) < len(options):
+            verdict += [0.0] * (len(options) - len(verdict))
+        return dict(zip(options, verdict, strict=True))
 
     async def count_tokens(self, texts: list[str]) -> list[int]:
         return [10 for _ in texts]
@@ -583,89 +600,92 @@ class CountingSource:
         return []
 
 
-CLAIM = "A votação para presidente na 3ª zona eleitoral de Itacoatiara (AM) aconteceu na escola."
-CITED_TEXT = "Votação para presidente na 3ª zona eleitoral de Itacoatiara (AM) escola resultado."
+CLAIM = "Resultado das eleições 2026 em Itacoatiara (AM): votação para presidente na 3ª zona"
+G1 = "https://g1.globo.com/am/amazonas/2026/10/05/votacao-em-itacoatiara-am-na-3a-zona.ghtml"
+BLOG = "https://blog-desconhecido.example.org/2026/10/05/votacao-em-itacoatiara-am-na-3a-zona"
+ARTICLE = "Lula foi o mais votado, com 33 mil votos. O resultado vale para a zona. Outro trecho."
 
 
-async def test_fonte_citada_que_confirma_encerra_sem_buscar_na_web(monkeypatch):
-    async def fake_fetch(url):
-        return CITED_TEXT
-
-    monkeypatch.setattr("app.services.jev_verification._fetch_article_text", fake_fetch)
-    source = CountingSource()
-    service = build_service(None)
-    service.classifier = CitedSourceClassifier([0.9, 0.05, 0.05])  # confirmam
-    service.sources = [source]
-    post = Post(
+def post_with(link: str) -> Post:
+    return Post(
         uri="at://x",
         cid="c",
         author_did="d",
         text=CLAIM,
         created_at=datetime.now(UTC),
-        links=["https://g1.globo.com/materia", "https://bsky.app/profile/x"],
+        links=[link],
     )
-    cited = await service._cited_evidence(post)
-    assert [e.url for e in cited] == ["https://g1.globo.com/materia"]  # rede social fica de fora
-    assert cited[0].source == "post_link"
 
+
+def service_with(classifier, source, monkeypatch, article=ARTICLE):
+    async def fake_fetch(url):
+        return article
+
+    monkeypatch.setattr("app.services.jev_verification._fetch_article_text", fake_fetch)
+    service = build_service(None)
+    service.classifier = classifier
+    service.sources = [source]
+    return service
+
+
+async def test_fonte_citada_confiavel_que_sustenta_encerra_sem_buscar_na_web(monkeypatch):
+    source = CountingSource()
+    service = service_with(NliClassifier("Itacoatiara"), source, monkeypatch)
+    cited = await service._cited_evidence(post_with(G1))
+    assert cited[0].evidence.source == "post_link"
     verdict = await service._verify_claim(
-        CLAIM, {}, prefix="p", post_date=date.today(), cited=cited
+        CLAIM, {}, prefix="p", post_date=date.today(), cited=cited, discourse=CLAIM
     )
-    assert verdict.label == VerdictLabel.TRUE
-    assert "cita" in verdict.rationale
+    assert verdict.label == VerdictLabel.SOURCE_CONSISTENT
+    assert verdict.confidence == pytest.approx(0.9)
     assert source.calls == 0
 
 
-async def test_fonte_citada_que_nao_confirma_segue_para_a_busca_com_ela_no_conjunto(monkeypatch):
-    async def fake_fetch(url):
-        return CITED_TEXT
-
-    monkeypatch.setattr("app.services.jev_verification._fetch_article_text", fake_fetch)
-    monkeypatch.setattr("app.services.jev_verification._TITLE_ECHO_MIN", 1.1)
+async def test_fonte_citada_sem_autoridade_nao_blinda_o_post(monkeypatch):
     source = CountingSource()
-    service = build_service(None)
-    service.classifier = CitedSourceClassifier([0.05, 0.9, 0.05])  # desmentem
-    service.sources = [source]
-    post = Post(
-        uri="at://x",
-        cid="c",
-        author_did="d",
-        text=CLAIM,
-        created_at=datetime.now(UTC),
-        links=["https://g1.globo.com/materia"],
-    )
-    cited = await service._cited_evidence(post)
+    service = service_with(NliClassifier("Itacoatiara"), source, monkeypatch)
+    cited = await service._cited_evidence(post_with(BLOG))
+    outputs: dict[str, str] = {}
     verdict = await service._verify_claim(
-        CLAIM, {}, prefix="p", post_date=date.today(), cited=cited
+        CLAIM, outputs, prefix="p", post_date=date.today(), cited=cited, discourse=CLAIM
     )
-    assert source.calls == 1  # a fonte citada não confirmou: a busca aberta acontece
-    assert verdict.label != VerdictLabel.TRUE
+    assert verdict.label != VerdictLabel.SOURCE_CONSISTENT
+    assert source.calls == 1  # continua verificando
+    assert outputs["p.cited_support_ignored"]
 
 
-def test_sigla_de_uma_letra_nao_quebra_o_nome_da_escola():
-    from app.services.jev_verification import _candidate_sentences
-
-    texto = (
-        "Resultado das eleições 2026 em Itacoatiara (AM): votação para presidente "
-        "no E. M. Dom Pedro I, na 3ª zona eleitoral"
+async def test_fonte_citada_que_nao_sustenta_segue_para_a_busca(monkeypatch):
+    source = CountingSource()
+    service = service_with(NliClassifier("trecho inexistente"), source, monkeypatch)
+    cited = await service._cited_evidence(post_with(G1))
+    verdict = await service._verify_claim(
+        CLAIM, {}, prefix="p", post_date=date.today(), cited=cited, discourse=CLAIM
     )
-    assert _candidate_sentences(texto) == [texto]
+    assert verdict.label != VerdictLabel.SOURCE_CONSISTENT
+    assert source.calls == 1
 
 
-def _ev(title, snippet=""):
-    return Evidence(source="searxng", url="https://g1.globo.com/x", title=title, snippet=snippet)
+async def test_redes_sociais_nao_sao_lidas_como_fonte_citada(monkeypatch):
+    service = service_with(NliClassifier("x"), CountingSource(), monkeypatch)
+    assert await service._cited_evidence(post_with("https://bsky.app/profile/x/post/1")) == []
 
 
-def test_entidade_homonima_de_outra_cidade_ou_zona_e_rejeitada():
-    from app.services.jev_verification import _entity_conflict
+def _ev(title, snippet="", url="https://g1.globo.com/x"):
+    return Evidence(source="searxng", url=url, title=title, snippet=snippet)
 
-    claim = "votação para presidente em Itacoatiara (AM) no E. M. Dom Pedro I, na 3ª zona eleitoral"
-    maribondo = evidence(
-        "E.M. Dom Pedro I", "Local de votação na 48ª zona eleitoral (Maribondo/AL)."
+
+async def test_localidade_do_post_inteiro_protege_fragmento_sem_cidade():
+    """Regressão: o divisor cortava "E. M." e o fragmento perdia a cidade do post."""
+    service = build_service(None)
+    service.classifier = NliClassifier("x")
+    maribondo = _ev("E.M. Dom Pedro I", "48ª zona eleitoral (Maribondo/AL), local de votação.")
+    fragment = "Dom Pedro I, na 3ª zona eleitoral"
+    discourse = "Resultado das eleições 2026 em Itacoatiara (AM): votação no E. M. Dom Pedro I"
+    relevant, log = await service._filter_relevant(
+        fragment, [maribondo], discourse=discourse, post_date=date.today()
     )
-    assert "zona eleitoral diferente" in _entity_conflict(claim, maribondo)
-    so_localidade = _ev("Dom Pedro I", "Escola em Maribondo/AL.")
-    assert "localidade diferente" in _entity_conflict(claim, so_localidade)
+    assert relevant == []
+    assert "entidade diferente" in log[0]["reason"]
 
 
 def test_entidade_que_bate_ou_e_neutra_nao_e_barrada():
@@ -675,50 +695,25 @@ def test_entidade_que_bate_ou_e_neutra_nao_e_barrada():
     assert _entity_conflict(claim, _ev("Itacoatiara/AM", "3ª zona eleitoral")) is None
     assert _entity_conflict(claim, _ev("Eleições", "Lula (PT) foi o mais votado.")) is None
     assert _entity_conflict(claim, _ev("Eleições 2026", "Sem local citado.")) is None
+    # matéria que lista muitas localidades não é "outro lugar"
+    muitas = _ev(
+        "Resultado", "Manaus (AM), Belém (PA), Fortaleza (CE), Recife (PE) e Salvador (BA)"
+    )
+    assert _entity_conflict(claim, muitas) is None
 
 
 def test_titulo_da_materia_vem_do_slug_da_url():
     from app.services.jev_verification import _title_from_url
 
-    url = "https://g1.globo.com/am/noticia/2026/10/05/votacao-em-itacoatiara-am-na-3a-zona.ghtml"
-    assert _title_from_url(url) == "votacao em itacoatiara am na 3a zona"
+    assert _title_from_url(G1) == "votacao em itacoatiara am na 3a zona"
     assert _title_from_url("https://site.com/a/12") == ""
 
 
-def test_titulo_reproduzido_pelo_post_tem_cobertura_alta():
-    from app.services.jev_verification import _title_coverage
+def test_candidatas_nao_cortam_nome_com_sigla():
+    from app.services.jev_verification import _candidate_sentences
 
-    claim = "Resultado das eleições 2026 em Itacoatiara (AM): votação na 3ª zona eleitoral"
-    title = "resultado das eleicoes 2026 em itacoatiara am votacao na 3a zona eleitoral"
-    assert _title_coverage(claim, title) >= 0.8
-    assert _title_coverage(claim, "previsao do tempo para sao paulo amanha") < 0.3
-
-
-async def test_post_que_repete_a_manchete_da_fonte_citada_e_true(monkeypatch):
-    async def fake_fetch(url):
-        return "Lula foi o mais votado, com 33 mil votos. Corpo sem repetir a manchete."
-
-    monkeypatch.setattr("app.services.jev_verification._fetch_article_text", fake_fetch)
-    source = CountingSource()
-    service = build_service(None)
-    service.classifier = CitedSourceClassifier([0.1, 0.1, 0.8])  # classificador diria enganoso
-    service.sources = [source]
-    claim = "Resultado das eleições 2026 em Itacoatiara (AM): votação para presidente na 3ª zona"
-    post = Post(
-        uri="at://x",
-        cid="c",
-        author_did="d",
-        text=claim,
-        created_at=datetime.now(UTC),
-        links=[
-            "https://g1.globo.com/am/2026/10/05/resultado-das-eleicoes-2026-em-itacoatiara-am"
-            "-votacao-para-presidente-na-3a-zona.ghtml"
-        ],
+    texto = (
+        "Resultado das eleições 2026 em Itacoatiara (AM): votação para presidente "
+        "no E. M. Dom Pedro I, na 3ª zona eleitoral"
     )
-    cited = await service._cited_evidence(post)
-    verdict = await service._verify_claim(
-        claim, {}, prefix="p", post_date=date.today(), cited=cited
-    )
-    assert verdict.label == VerdictLabel.TRUE
-    assert "reproduz o título" in verdict.rationale
-    assert source.calls == 0
+    assert _candidate_sentences(texto) == [texto]

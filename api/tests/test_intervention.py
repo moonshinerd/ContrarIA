@@ -347,7 +347,10 @@ async def test_intervention_consults_sources_and_cites_the_chosen_one(
     await service.execute_intervention(post, Account(did="did:1", handle="user"), verdict, 0.1)
 
     assert opened == ["https://a", "https://b"]
-    assert mock_llm.complete.await_count == 1
+    source_reviews = [
+        c for c in mock_llm.complete.call_args_list if c.kwargs.get("purpose") == "source_review"
+    ]
+    assert len(source_reviews) == 1
     _, kwargs = mock_bsky.quote_post.call_args
     assert kwargs["text"] == "Será que a matéria B diz isso mesmo?"
     assert kwargs["source_url"] == "https://b"

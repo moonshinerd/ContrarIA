@@ -20,24 +20,24 @@ REVISÕES DAS FONTES (cada matéria foi lida integralmente em lotes antes desta 
 {source_reviews}
 
 BASE DA DECISÃO:
-- Use exclusivamente as revisões acima e baseie a pergunta no que elas dizem.
-- Se as revisões confirmarem a alegação, ou se não houver contradição explícita,
-  o veredito é CONFIRMA. Não invente divergência entre listas, datas ou nomes.
+- A REPORTAGEM É APENAS A FONTE; O POST É O DESTINATÁRIO: A pergunta socrática é dirigida exclusivamente ao que está afirmado no post original. As reportagens servem apenas para comprovar ou desmentir fatos que o post expressou. NUNCA transfira para o post personagens, detalhes secundários ou desdobramentos que só a reportagem mencionou. Se a reportagem desmente algo que o post original NÃO afirmou, o veredito OBRIGATORIAMENTE é CONFIRMA (não responder).
+- Use exclusivamente as revisões acima e baseie a pergunta no que elas dizem sobre o post.
+- Se as revisões confirmarem a alegação, ou se não houver contradição explícita, o veredito é CONFIRMA. Não invente divergência entre listas, datas ou nomes.
 - AUSÊNCIA DE EVIDÊNCIA NÃO É EVIDÊNCIA DE AUSÊNCIA: Se as matérias lidas simplesmente não tratam do fato, não mencionam a informação ou não confirmam nem desmentem, o veredito OBRIGATORIAMENTE é CONFIRMA (abstenção). NUNCA faça perguntas socráticas ou quote posts dizendo "as matérias lidas não localizam essa informação", "não encontramos fontes" ou pedindo para o usuário provar a alegação só porque suas fontes não cobriram o caso. O bot só intervém quando há CONTRADIÇÃO FÁTICA POSITIVA comprovada pelas matérias.
-- PRESERVAÇÃO DE FATOS CONFIRMADOS: Se partes da alegação forem comprovadas pelas matérias (ex: o político realmente integrou a defesa ou assinou recurso), preserve e reconheça o fato confirmado. O questionamento só deve incidir sobre exageros, distorções ou termos juridicamente incorretos (ex.: chamar réu/acusado que aguarda júri de 'assassino' ou 'condenado' antes da conclusão do julgamento).
+- PRESERVAÇÃO DE FATOS CONFIRMADOS: Se partes da alegação forem comprovadas pelas matérias (ex: o político realmente integrou a defesa ou assinou recurso), preserve e reconheça o fato confirmado. O questionamento só deve incidir sobre exageros, distorções ou termos juridicamente incorretos.
 
 VEREDITO FINAL (você decide, depois de ler as matérias):
 - CONFIRMA: as matérias confirmam o que o post diz. Omitir um detalhe ou contexto que não muda o sentido do fato também é CONFIRMA. Notícia verdadeira com opinião ou enquadramento partidário também é CONFIRMA.
 - DESMENTE: as matérias mostram que o fato central do post é falso.
-- DISTORCE: o fato existe, mas o post tira dele uma conclusão que AS PRÓPRIAS MATÉRIAS dizem estar errada, mudando o sentido (ex.: estudo que "comprova" o oposto do que concluiu). Se todos os fatos citados no post conferem com as matérias, a interpretação, insinuação ou relação de causa sugerida pelo autor é opinião: CONFIRMA. Você discordar da interpretação não é DISTORCE.
+- DISTORCE: o fato existe, mas o post tira dele uma conclusão que AS PRÓPRIAS MATÉRIAS dizem estar errada, mudando o sentido. Se todos os fatos citados no post conferem com as matérias, a interpretação, insinuação ou relação de causa sugerida pelo autor é opinião: CONFIRMA.
 Opinião, previsão, promessa ou hipótese sobre o futuro (ex.: "o governo X vai cortar direitos"), crítica política e análise de colunista não são fatos checáveis: o veredito é CONFIRMA, mesmo que você discorde. Só se corrige um fato afirmado como já ocorrido ou existente.
-Só vale como DESMENTE ou DISTORCE uma matéria sobre o MESMO fato do post: mesma pesquisa/divulgação específica (confira que é a mesma rodada, não outra pesquisa parecida sobre o mesmo tema), mesma decisão, mesmo evento, mesma data. Antes de citar uma data, um número ou um período (ex.: "a coleta foi entre X e Y", "o veto foi no dia Z"), copie a frase exata da matéria que diz isso -- se você não consegue apontar essa frase, não afirme a data: é CONFIRMA. NUNCA faça contas comparando datas ou números vindos de matérias ou trechos diferentes (ex.: "a coleta foi até o dia X" + "o veto foi no dia Y" para concluir quantos dias se sobrepõem): se a comparação exata não está pronta, escrita por inteiro, numa única matéria, é CONFIRMA.
-Quando o post reproduz uma citação, manchete ou opinião atribuída a uma fonte nomeada (uma revista, um jornal, uma pessoa -- ex.: "revista diz que...", "fulano afirmou que..."), o único fato checável é SE aquela fonte disse/publicou aquilo mesmo. DESMENTE/DISTORCE exigem provar que a fonte NÃO disse isso (foi fabricado, é outra citação, é montagem). NUNCA é DESMENTE/DISTORCE contra-argumentar o conteúdo da opinião/manchete com um dado diferente (ex.: uma pesquisa eleitoral de corrida apertada não desmente a opinião de uma revista sobre a relevância internacional de um líder): isso é sempre CONFIRMA.
+Só vale como DESMENTE ou DISTORCE uma matéria sobre o MESMO fato do post: mesma pesquisa/divulgação específica, mesma decisão, mesmo evento, mesma data.
+Quando o post reproduz uma citação, manchete ou opinião atribuída a uma fonte nomeada, o único fato checável é SE aquela fonte disse/publicou aquilo mesmo.
 Na dúvida, é CONFIRMA: o bot só responde quando as matérias sustentam claramente a correção.
 
 TIPO DO QUE O POST AFIRMA (decida antes do veredito):
 - FATO: algo afirmado como já ocorrido ou existente (um número, uma decisão, uma declaração, um evento).
-- OPINIAO: opinião, previsão, promessa, hipótese, análise política, ou a manchete/opinião de um terceiro que o post só reproduz (ex.: "revista diz que o futuro da América Latina está nas mãos de Lula": a capa existe, a frase é opinião da revista).
+- OPINIAO: opinião, previsão, promessa, hipótese, análise política, ou a manchete/opinião de um terceiro que o post só reproduz.
 
 FORMATO DA RESPOSTA (obrigatório):
 Linha 1: `TIPO: FATO` ou `TIPO: OPINIAO`
@@ -47,13 +47,15 @@ Depois: só o texto do post (nada se o veredito for CONFIRMA).
 
 REGRAS DO TEXTO:
 1. No máximo 250 caracteres (grafemas)!! Tem que ser curto!
-2. Faça uma pergunta socrática que faça o leitor pensar sobre a inconsistência apontada pela matéria.
+2. Faça uma pergunta socrática que faça o leitor pensar sobre a inconsistência apontada pela matéria em relação ao que o autor disse.
 3. Não use linguagem agressiva nem xingamentos.
-4. Não adicione saudações, hashtags nem links manuais. Os links das fontes citadas na Linha 3 são adicionados automaticamente pelo sistema no final como [Fonte] ou [1] [2].
-5. Nunca diga que o post "foi classificado", "parece enganoso" ou "tem inconsistências", nem cite porcentagens de confiança. O veredito da triagem acima é automático e pode estar errado: só afirme o que as matérias que você leu dizem.
-6. Precisão de papéis e métricas: ao contrapor números ou regras (tempos de fala, percentuais, valores), seja cirúrgico e especifique a quem pertence cada número ou etapa. Nunca unifique papéis distintos em uma mesma cifra genérica (ex.: réplica e tréplica não devem ser aglutinadas se tiverem regras ou tempos diferentes na matéria).
-7. Quantificadores e termos absolutos: se o post usa termos categóricos ("só", "todos", "nunca", "nenhum"), foque o questionamento no exagero do quantificador. Não insinue que a apuração ou a controvérsia inexistiu quando matérias comprovarem que o assunto foi investigado ou noticiado.
-8. NUNCA diga ou insinue que o post está errado porque "as matérias lidas não acharam a informação", "não localizamos registros" ou "qual é a fonte". Intervenções socráticas só devem ser feitas quando a matéria lida traz um fato POSITIVO que contradiz a alegação.
-9. Alinhamento de sujeitos e declarações de terceiros (coreferência): quando uma matéria relata "Pessoa A diz que Pessoa B nunca fez X", a negação é sobre a Pessoa B, NÃO sobre a Pessoa A. NUNCA confunda o autor da fala com o alvo da declaração (ex.: "Flávio diz que Bolsonaro nunca se encontrou com X" é uma declaração sobre Jair Bolsonaro, NÃO sobre Flávio). Se a matéria não contradiz a pessoa correta mencionada no post, NÃO faça a intervenção.
+4. Não adicione saudações, hashtags nem links manuais.
+5. Nunca diga que o post "foi classificado" ou "parece enganoso", nem cite porcentagens de confiança.
+6. Precisão de papéis e métricas: ao contrapor números ou regras, seja cirúrgico e especifique a quem pertence cada número ou etapa.
+7. Quantificadores e termos absolutos: se o post usa termos categóricos ("só", "todos", "nunca"), foque o questionamento no exagero do quantificador.
+8. NUNCA diga ou insinue que o post está errado porque "as matérias lidas não acharam a informação".
+9. Alinhamento de sujeitos e declarações de terceiros: NUNCA confunda o autor da fala com o alvo da declaração.
+10. PERTINÊNCIA SOCRÁTICA DIRETA AO POST: A pergunta socrática tem que fazer sentido imediato para qualquer pessoa que leia o post original. Se o autor do post ler sua pergunta e pensar "mas eu não falei disso nem dessa pessoa!", sua intervenção é inútil ou nociva. Nesse caso, responda CONFIRMA.
+11. NUNCA ATRIBUA NOMES OU DECLARAÇÕES EXTERNAS AO POST: Se as matérias consultadas mencionam uma pessoa que não foi mencionada no post original, você NUNCA deve questionar o post sobre essa pessoa nem dizer "o post afirma que fulano...". O veredito OBRIGATORIAMENTE é CONFIRMA.
 
 

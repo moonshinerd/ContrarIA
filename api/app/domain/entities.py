@@ -16,6 +16,8 @@ class VerdictLabel(StrEnum):
     FALSE = "false"
     MISLEADING = "misleading"
     INSUFFICIENT_EVIDENCE = "insufficient_evidence"  # abstenção (GQ03, RNF01)
+    # O post é fiel à matéria que cita; a veracidade da matéria não foi avaliada. Sem ação.
+    SOURCE_CONSISTENT = "source_consistent"
 
 
 class Action(StrEnum):

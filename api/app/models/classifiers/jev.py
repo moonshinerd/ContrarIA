@@ -191,7 +191,10 @@ class JevClassifier:
                     res[opt] = e
                 elif "desmentem a alegação" in opt:
                     res[opt] = c
-                elif "insuficiente" in opt or "não contêm" in opt:
+                elif any(
+                    term in opt
+                    for term in ("insuficiente", "não contêm", "não tratam", "inconclusiv")
+                ):
                     res[opt] = n
                 else:
                     # Distorcem / Exagero / Misleading
