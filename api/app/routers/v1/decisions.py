@@ -18,6 +18,7 @@ from app.schemas.decisions import AnalyzeRequest, DecisionLogOut, DecisionReview
 from app.services import build_verification_service
 from app.services.bot_scoring import BotScoringService
 from app.services.intervention import InterventionService
+from app.services.label_outbox import LabelOutbox
 from app.services.pipeline import PipelineService
 
 router = APIRouter(prefix="/v1", tags=["decisions"])
@@ -47,6 +48,7 @@ def get_pipeline(db: Session = Depends(get_db)):  # noqa: B008
         bots=bots,
         verification=verification,
         intervention=intervention,
+        label_outbox=LabelOutbox(settings, db, ozone),
     )
 
 
