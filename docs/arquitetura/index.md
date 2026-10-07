@@ -1,8 +1,10 @@
 # Arquitetura
 
-Esta página descreve o ContrarIA **como ele está implementado hoje**. Os detalhes de cada etapa
-estão em [O Pipeline do Agente](pipeline.md); o esquema do banco, a configuração e a operação estão
-em [Dados, Infraestrutura e Deploy](dados-e-infra.md).
+Esta página descreve a visão geral da arquitetura do ContrarIA **como ele está implementado hoje**. Para o diagrama visual
+completo com todos os pipelines de entrada, reposts, ciclo de vida e outbox do Ozone, consulte o
+[:material-map: **Mapa do Sistema**](mapa-do-sistema.md). Os detalhes de cada etapa do processamento estão em
+[O Pipeline do Agente](pipeline.md); o esquema do banco, a configuração e a infraestrutura estão em
+[Dados, Infraestrutura e Deploy](dados-e-infra.md); e o guia de execução em produção está em [Operação na VM](operacao-vm.md).
 
 ## Contexto do sistema
 
@@ -42,7 +44,7 @@ flowchart LR
     W --> FC & WP & DDG
     RSSX --> W
     W --> OR
-    W -- rótulos --> OZ
+    W -- rótulos via outbox --> OZ
     U -- /v1/decisions, /v1/analyze --> A
     A --> DB
     A --> J
@@ -72,13 +74,14 @@ flowchart TD
     ER[EngagementRefresher<br/>a cada 5 min, últimas 48h] --> SNAP[(post_engagement_snapshots)]
     ER -- relevância + velocidade<br/>matriz GQ04 --> POSTS
 
-    POSTS -- triage_status = monitor / queued<br/>ordenado por priority --> LOOP{{Pool do worker<br/>3 análises simultâneas}}
+    POSTS -- triage_status = monitor / queued<br/>aging delay: entre 3 h e 48 h<br/>ordenado por priority --> LOOP{{Pool do worker<br/>concorrência configurável}}
     GATE[IngestGate<br/>teto de 100 na fila] -. descarta quando cheia .-> J1
     GATE -. descarta quando cheia .-> J2
     RSSJ[FeedIngestor<br/>RSS a cada 1 h + embeddings] --> FA[(fact_articles<br/>pgvector)]
 
     LOOP --> PIPE[PipelineService.analyze]
     PIPE --> BOT[Bot score<br/>cache de 24 h]
+    BOT -.-> ACC[AccountLabelService<br/>provavel-bot em contas]
     PIPE --> VER[JevVerificationService<br/>claims, evidências, relevância,<br/>veredito, CRC]
     FA -.-> VER
     BOT --> GQ01{Matriz GQ01}
@@ -86,8 +89,11 @@ flowchart TD
     GQ01 -- IGNORE / MONITOR --> LOG[(decisions)]
     GQ01 -- INTERVENE_QUEUED --> Q[InterventionQueue]
     Q -- 1 melhor por rodada de 15 min<br/>fora do silêncio 00h-07h --> INT[InterventionService<br/>travas + revisão de fontes + redação]
-    INT --> QP[Quote post no Bluesky]
-    INT --> LAB[Rótulo Ozone<br/>opt-in]
+    INT --> CRIT{Critic Semântico<br/>auditado via LLM}
+    CRIT -- vetado --> LOG
+    CRIT -- aprovado --> QP[Quote post no Bluesky]
+    CRIT -- aprovado --> OB[LabelOutbox<br/>resiliente com repetições]
+    OB --> LAB[Rótulo Ozone<br/>possivel-desinformacao]
     INT --> IL[(intervention_logs)]
     Q -- atualiza action --> LOG
     PIPE --> LOG
@@ -97,11 +103,13 @@ Pontos que o desenho deixa explícitos:
 
 - **A coleta não analisa.** Ela só grava posts. Quem escolhe o que será analisado é a triagem
   (relevância, velocidade, matriz GQ04), executada pelo `EngagementRefresher`.
-- **A verificação cara roda em um pool de análises simultâneas** (`WORKER_PIPELINE_CONCURRENCY`, padrão 3), limitado pela
-  CPU do `jev`. A fila tem teto (`WORKER_QUEUE_MAX_PENDING`, padrão 100): cheia, a coleta descarta os posts novos, e parte
+- **A verificação cara roda em um pool de análises simultâneas** (`WORKER_PIPELINE_CONCURRENCY`), respeitando a
+  **janela de maturação (3 h a 48 h)** para permitir a indexação prévia de matérias.
+- **A fila tem teto** (`WORKER_QUEUE_MAX_PENDING`, padrão 100): cheia, a coleta descarta os posts novos, e parte
   das vagas é reservada ao `searchPosts` ([ADR 0018](../adr/0018-concorrencia-e-contrapressao-do-worker.md)).
 - **Intervir é sempre assíncrono e raro.** O pipeline só enfileira o candidato; a fila publica no
-  máximo um por rodada e nenhum no horário de silêncio.
+  máximo um por rodada, nenhum no horário de silêncio (0h-7h), e o texto é auditado pelo **Critic Semântico** antes do quote.
+- **Rótulos são emitidos via outbox resiliente**, garantindo que instabilidades temporárias de rede ou do túnel do Ozone não causem perda silenciosa de rótulos.
 - **Toda análise termina em `decisions`**, inclusive abstenção e monitoramento.
 
 ## Tarefas concorrentes do worker

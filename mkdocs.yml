@@ -74,6 +74,7 @@ nav:
   - Calibração do Jev: calibracao-jev.md
   - Arquitetura:
       - Visão Geral: arquitetura/index.md
+      - Mapa do Sistema: arquitetura/mapa-do-sistema.md
       - O Pipeline do Agente: arquitetura/pipeline.md
       - Dados, Infraestrutura e Deploy: arquitetura/dados-e-infra.md
       - Operação na VM: arquitetura/operacao-vm.md
@@ -100,6 +101,8 @@ nav:
       - "0019 – Fonte Citada e Entidade": adr/0019-fonte-citada-pelo-post-e-entidade.md
       - "0020 – Acesso à VM por Túnel": adr/0020-acesso-vm-tunel-cloudflare.md
       - "0021 – Resiliência das Fontes": adr/0021-resiliencia-das-fontes-de-evidencia.md
+      - "0022 – Maturação e Critic Semântico": adr/0022-janela-de-maturacao-e-critic-semantico.md
+      - "0023 – Outbox de Rótulos": adr/0023-outbox-de-rotulos-do-ozone.md
   - Resultados e Benchmarks: resultados/benchmark.md
   - Glossário: glossario.md
   - Atas:

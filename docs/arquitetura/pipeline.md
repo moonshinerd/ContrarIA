@@ -36,7 +36,9 @@ matriz GQ04 transforma isso em `triage_status` (`monitor`, `queued` ou `discarde
 `processed` ou `ignored` não voltam para a fila.
 
 **Análise cara (pool do worker, 3 simultâneas por padrão).** Os candidatos `monitor` e `queued` são lidos por
-`priority` decrescente. A fila tem teto de 100 posts: cheia, a coleta descarta os novos, e 30 vagas ficam reservadas ao
+`priority` decrescente, respeitando a **janela de maturação (aging delay de 3 h a 48 h)** ([ADR 0022](../adr/0022-janela-de-maturacao-e-critic-semantico.md)):
+posts com menos de 3 h aguardam na fila para que haja tempo hábil de publicação e indexação de matérias e checagens;
+posts com mais de 48 h expiram automaticamente. A fila tem teto de 100 posts: cheia, a coleta descarta os novos, e 30 vagas ficam reservadas ao
 `searchPosts` ([ADR 0018](../adr/0018-concorrencia-e-contrapressao-do-worker.md)). Para cada um, o `PipelineService` calcula o **bot score** da conta: pesos em
 `domain/bot_weights.yaml` sobre características demográficas, de rede, temporais e de conteúdo, passados por uma
 sigmoide e guardados em cache por 24 horas. Uma nota alta é um indício, não prova de automação.
@@ -50,22 +52,23 @@ sigmoide e guardados em cache por 24 horas. Uma nota alta é um indício, não p
 
 É como organizar uma fila de investigação: prioridade não é condenação.
 
-**Referências:** [RF02, RF04, RF08, RF09, RF10 e RF12](../requisitos.md), [ADR 0006](../adr/0006-bot-score-heuristico.md), [ADR 0008](../adr/0008-pre-filtro-classico.md).
+**Referências:** [RF02, RF04, RF08, RF09, RF10 e RF12](../requisitos.md), [ADR 0006](../adr/0006-bot-score-heuristico.md), [ADR 0008](../adr/0008-pre-filtro-classico.md), [ADR 0022](../adr/0022-janela-de-maturacao-e-critic-semantico.md).
 
 ## 3. Verificação Jev: confrontar a alegação com evidências
 
 1. **Separar frases candidatas:** o worker divide o post e, quando disponível, o contexto do fio. Uma heurística determinística (sem LLM nem Jev) mantém só as frases com ancoramento factual (número, título político, sigla institucional, predicado fático ou nome próprio) e descarta perguntas, expressões idiomáticas e hashtags de campanha; sem frases candidatas, a análise encerra sem ação. Essa heurística ainda não tem validação quantitativa.
 2. **Ler a fonte que o próprio post cita:** o link do card, dos facets ou do texto é lido primeiro. O NLI compara a alegação com o título e com janelas de duas frases da matéria e fica com o maior entailment (abordagem SummaC/AlignScore). Se passa do limiar e a fonte é jornalística, de checagem ou oficial, o post é dado como `source_consistent` (consistente com a matéria que cita; a veracidade da matéria não foi avaliada) e não há intervenção. Se a fonte é desconhecida ou não sustenta a alegação, ela entra como mais uma evidência ([ADR 0019](../adr/0019-fonte-citada-pelo-post-e-entidade.md)).
-3. **Buscar evidências:** cada alegação factual consulta as fontes habilitadas — agências de checagem, Wikipédia, busca web e acervo RSS. A busca web utiliza primariamente a instância self-hosted do SearXNG (com fallback para o DuckDuckGo; o Tavily usado no MVP foi removido, ver [ADR 0016](../adr/0016-remocao-do-tavily.md)) e extração estruturada de conteúdo com Trafilatura, evitando dependência de créditos e ruídos de raspagem HTML. A consulta usa a frase específica, sem URLs, para evitar resultados apenas tematicamente relacionados.
+3. **Buscar evidências:** cada alegação factual consulta as fontes habilitadas — agências de checagem, Wikipédia, busca web e acervo RSS. A busca web utiliza primariamente a instância self-hosted do SearXNG (com fallback para o DuckDuckGo; o Tavily usado no MVP foi removido, ver [ADR 0016](../adr/0016-remocao-do-tavily.md)) e extração estruturada de conteúdo com Trafilatura, evitando dependência de créditos e ruídos de raspagem HTML. As fontes externas contam com disjuntor de proteção e cooldown ([ADR 0021](../adr/0021-resiliencia-das-fontes-de-evidencia.md)). A consulta usa a frase específica, sem URLs, para evitar resultados apenas tematicamente relacionados.
 4. **Filtrar relevância:** o Jev compara alegação e trecho de fonte e só conserva evidência que trate dos mesmos fatos, pessoas, números ou eventos, e descarta a que fala de outra localidade (município e UF, pelo gazetteer do IBGE, usando o texto do post inteiro como contexto) ou de outra zona eleitoral (homônimos). Ele mede essa decisão por probabilidades de tokens, sem depender de JSON gerado.
-5. **Classificar o veredito:** com as fontes relevantes, o Jev escolhe entre "confirmam a alegação", "desmentem a alegação" e "confirmam o fato, mas desmentem a conclusão ou o exagero". Isso produz, respectivamente, `true`, `false` ou `misleading`.
+5. **Classificar o veredito:** com as fontes relevantes, o Jev escolhe entre "confirmam a alegação", "desmentem a alegação", "confirmam o fato, mas desmentem a conclusão ou o exagero" e "as evidências são insuficientes ou não tratam da alegação". Isso produz, respectivamente, `true`, `false`, `misleading` ou `insufficient_evidence`.
 6. **Aplicar o controle de risco:** o Conformal Risk Control (CRC) usa um limiar aprendido com exemplos rotulados para **esse modelo Jev**, com tolerância de 5% para a perda de falsos positivos na calibração. Não é uma regra fixa de confiança nem garantia de acerto em todos os casos. Sem calibração ou abaixo do limiar, a decisão é `insufficient_evidence` e não há intervenção.
 
 É como uma análise pericial que só conclui quando a fonte trata do fato
 específico e a confiança passou por uma calibração empírica.
 
 **Referências:** [ADR 0013 — backend Jev](../adr/0013-backend-local-jev.md),
-[ADR 0014 — busca SearXNG e Trafilatura](../adr/0014-busca-web-searxng-trafilatura.md) e
+[ADR 0014 — busca SearXNG e Trafilatura](../adr/0014-busca-web-searxng-trafilatura.md),
+[ADR 0021 — resiliência das fontes](../adr/0021-resiliencia-das-fontes-de-evidencia.md) e
 [guia de calibração](../calibracao-jev.md). O fluxo CoVe/Self-RAG/debate do
 [ADR 0007](../adr/0007-verificacao-cove-selfrag-mad-crc.md) permanece como
 backend alternativo (`VERIFICATION_BACKEND=llm`).
@@ -90,15 +93,24 @@ orçamento de pontos de escrita e `postgate` que desabilite citações. Passando
 relevantes e redige o **quote post no perfil do bot**, em até 300 caracteres (em fio, se preciso). Para humanos
 prováveis o tom é empático e socrático; para bots prováveis, clínico. Não há reply nem menção direta ao autor.
 
+**Auditoria por Critic Semântico:** Antes da publicação, o texto redigido é auditado por um Critic Semântico LLM
+dedicado (`ENABLE_SEMANTIC_CRITIC=true`, prompt `semantic_critic_v1.txt`). O Critic veta categoricamente intervenções
+que imputem ao autor personagens, declarações ou leis ausentes no post original, garantindo que o bot responda ao post
+e não apenas ao conteúdo da matéria de checagem ([ADR 0022](../adr/0022-janela-de-maturacao-e-critic-semantico.md)).
+
 Quote posts notificam o autor. A decisão aceita o risco relacionado à diretriz de opt-in descrito no ADR 0002; a
 citação não elimina esse risco. Com `INTERVENTION_DRY_RUN=true` (padrão) nada é publicado.
 
-A rotulagem pelo **Ozone** é complementar, por uma conta dedicada de labeler, e só age com `PIPELINE_LABELER_ENABLED=true`. Há dois rótulos: `possivel-desinformacao` no **post** citado, emitido após o quote publicado e fora do *dry-run*; e `provavel-bot` na **conta**, emitido para toda conta analisada cujo bot score passa de 0,9 (com ao menos 20 posts) e negado quando cai abaixo de 0,8, independentemente de quote ([ADR 0017](../adr/0017-rotulagem-de-contas-ao-vivo.md)). Uma revisão
-com `reverter` nega o rótulo (`action="negate"`) sem apagar o histórico. 
+A rotulagem pelo **Ozone** é complementar, por uma conta dedicada de labeler, e só age com `PIPELINE_LABELER_ENABLED=true`. Há dois rótulos:
+`possivel-desinformacao` no **post** citado, emitido após o quote publicado e fora do *dry-run* através da **outbox resiliente**
+(`LabelOutbox`, com repetições automáticas em caso de indisponibilidade do túnel do Ozone; [ADR 0023](../adr/0023-outbox-de-rotulos-do-ozone.md));
+e `provavel-bot` na **conta**, emitido para toda conta analisada cujo bot score passa de 0,9 (com ao menos 20 posts) e negado quando cai abaixo de 0,8,
+independentemente de quote ([ADR 0017](../adr/0017-rotulagem-de-contas-ao-vivo.md)). Uma revisão
+com `reverter` nega o rótulo (`action="negate"`) sem apagar o histórico.
 
 Conteúdo verdadeiro ou não factual não recebe intervenção corretiva. Um resultado inconclusivo causa abstenção, sem ação penalizadora.
 
-**Referências:** [RF05, RF06 e RF07](../requisitos.md), [ADR 0002](../adr/0002-quote-post.md), [ADR 0003](../adr/0003-labeler-ozone.md).
+**Referências:** [RF05, RF06 e RF07](../requisitos.md), [ADR 0002](../adr/0002-quote-post.md), [ADR 0003](../adr/0003-labeler-ozone.md), [ADR 0022](../adr/0022-janela-de-maturacao-e-critic-semantico.md), [ADR 0023](../adr/0023-outbox-de-rotulos-do-ozone.md).
 
 ## 5. Auditoria: registrar o motivo da decisão
 

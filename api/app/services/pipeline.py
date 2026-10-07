@@ -18,6 +18,7 @@ from app.services.bot_scoring import BotScoringService
 from app.services.intervention import InterventionService
 from app.services.intervention_queue import InterventionCandidate, InterventionQueue
 from app.services.jev_verification import JevVerificationService
+from app.services.label_outbox import LabelOutbox
 from app.services.verification import VerificationService
 
 logger = logging.getLogger("contraria.services.pipeline")
@@ -41,6 +42,7 @@ class PipelineService:
         intervention: InterventionService,
         intervention_queue: InterventionQueue | None = None,
         account_labels: AccountLabelService | None = None,
+        label_outbox: LabelOutbox | None = None,
     ) -> None:
         self.settings = settings
         self.db = db_session
@@ -52,6 +54,8 @@ class PipelineService:
         # Com fila (worker), o candidato espera a rodada em vez de ser publicado já.
         self.intervention_queue = intervention_queue
         self.account_labels = account_labels
+        # Com outbox, o rótulo do post fica registrado e é repetido se o Ozone falhar.
+        self.label_outbox = label_outbox
 
     async def analyze(self, post: Post) -> DecisionLog:  # noqa: C901
         """Processa um post sob demanda (POST /analyze ou pelo worker)."""
@@ -127,9 +131,14 @@ class PipelineService:
                         and not getattr(self.settings, "intervention_dry_run", True)
                         and getattr(self.settings, "pipeline_labeler_enabled", False)
                     ):
-                        await self.ozone.emit_label(
-                            post, label_val="possivel-desinformacao", action="create"
-                        )
+                        if self.label_outbox is not None:
+                            await self.label_outbox.emit(
+                                post, label_val="possivel-desinformacao", action="create"
+                            )
+                        else:
+                            await self.ozone.emit_label(
+                                post, label_val="possivel-desinformacao", action="create"
+                            )
             except Exception as e:
                 logger.error("Erro na intervenção/rótulo: %s", e)
                 action = "ERROR_INTERVENTION"

@@ -19,6 +19,7 @@ from app.core.config import Settings
 from app.db.orm.decisions import DecisionLog
 from app.domain.entities import Account, Post, Verdict
 from app.services.intervention import InterventionService
+from app.services.label_outbox import LabelOutbox
 
 logger = logging.getLogger("contraria.services.intervention_queue")
 
@@ -63,11 +64,13 @@ class InterventionQueue:
         db_session: Session,
         intervention: InterventionService,
         ozone: OzoneClient,
+        outbox: LabelOutbox | None = None,
     ) -> None:
         self.settings = settings
         self.db = db_session
         self.intervention = intervention
         self.ozone = ozone
+        self.outbox = outbox or LabelOutbox(settings, db_session, ozone)
         self._candidates: list[InterventionCandidate] = []
 
     def add(self, candidate: InterventionCandidate) -> None:
@@ -131,11 +134,11 @@ class InterventionQueue:
         if self.settings.intervention_dry_run or not self.settings.pipeline_labeler_enabled:
             return
         try:
-            await self.ozone.emit_label(
+            await self.outbox.emit(
                 candidate.post, label_val="possivel-desinformacao", action="create"
             )
         except Exception as exc:
-            logger.error("Erro ao rotular %s: %s", candidate.post.uri, exc)
+            logger.error("Erro ao registrar rótulo de %s: %s", candidate.post.uri, exc)
 
     def _set_action(self, candidate: InterventionCandidate, action: str, reason: str) -> None:
         self.db.execute(

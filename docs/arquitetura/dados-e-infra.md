@@ -98,6 +98,29 @@ erDiagram
         int tokens_out
         float cost_usd
     }
+    label_events {
+        bigint id PK
+        string subject_kind "post ou account"
+        string subject_uri
+        string subject_cid
+        string label_val
+        string action "create ou negate"
+        string status "pending, sent, failed"
+        int attempts
+        text last_error
+        timestamptz next_attempt_at
+        timestamptz sent_at
+        timestamptz created_at
+    }
+    system_logs {
+        bigint id PK
+        string level
+        string logger
+        string service
+        text message
+        jsonb context
+        timestamptz created_at
+    }
 ```
 
 | Tabela | Escrita por | Função |
@@ -109,6 +132,8 @@ erDiagram
 | `decisions` | `PipelineService` e `InterventionQueue` | Log de decisões (RF13, RNF06): post, bot score, fontes, saídas do verificador, veredito, limiar CRC e ação. O `action` só muda na rodada de intervenção |
 | `decision_reviews` | `POST /v1/decisions/{id}/review` | Revisão posterior sem alterar o registro original |
 | `intervention_logs` | `InterventionService` | Base das travas anti-loop e dos limites diários |
+| `label_events` | `LabelOutbox` | Outbox resiliente para emissão e repetição de rótulos do Ozone com backoff exponencial |
+| `system_logs` | `DatabaseLogHandler`, `backfill_logs` | Logs estruturados assíncronos da API e do Worker para monitoramento |
 | `fact_articles` | `FeedIngestor` | Acervo RSS das agências com embedding para busca vetorial |
 | `crc_calibration` | `ensure_calibration_seeded`, `research/experiments/calibrate_crc.py` | Limiar CRC por chave de modelo |
 | `llm_usage` | `LiteLLMModel` | Controle do orçamento diário de LLM (`DAILY_LLM_BUDGET_USD`) |
@@ -137,13 +162,14 @@ Os grupos principais:
 | Verificação | `VERIFICATION_BACKEND` (código: `llm`; operação: `jev`), `JEV_MODEL_REPO`, `JEV_SERVER_URL`, `CRC_ALPHA=0.05`, `JEV_ALLOW_UNCALIBRATED=false` |
 | LLM (redação e backend `llm`) | `LLM_MODEL_NAME`, `LLM_API_KEY` / `OPENROUTER_API_KEY`, `DAILY_LLM_BUDGET_USD=1.0` |
 | Evidências | `GOOGLE_FACTCHECK_API_KEY`, `SEARXNG_*`, `RSS_CHECKERS_ENABLED`, `RSS_ENABLED_SOURCES`, `RSS_POLL_SECONDS=3600` |
-| Triagem | `TRIAGE_THRESHOLD_RELEVANCE`, `TRIAGE_THRESHOLD_BOT`, `TRIAGE_THRESHOLD_FALSEHOOD`, `WORKER_TICK_SECONDS=30` |
+| Triagem e Aging | `TRIAGE_THRESHOLD_RELEVANCE`, `TRIAGE_THRESHOLD_BOT`, `TRIAGE_THRESHOLD_FALSEHOOD`, `POST_MIN_AGE_HOURS=3.0`, `POST_MAX_AGE_HOURS=48.0`, `WORKER_TICK_SECONDS=30` |
 | Resiliência das fontes | `EVIDENCE_PROVIDER_TIMEOUT_SECONDS=8`, `EVIDENCE_FAILURE_COOLDOWN_SECONDS=30`, `EVIDENCE_FAILURE_COOLDOWN_MAX_SECONDS=600` |
 | Fonte citada | `CITED_SOURCE_ENTAILMENT_MIN=0.7`, `CITED_SOURCE_MIN_AUTHORITY=2.0` |
 | Vazão do worker | `WORKER_PIPELINE_CONCURRENCY=3`, `WORKER_QUEUE_MAX_PENDING=100`, `WORKER_QUEUE_SEARCH_RESERVE=30`, `WORKER_PIPELINE_MAX_ATTEMPTS=3` |
-| Intervenção | `INTERVENTION_DRY_RUN=true`, `INTERVENTION_ROUND_MINUTES=15`, silêncio 0h–7h (Brasília), `DAILY_MAX_INTERVENTIONS`, `DAILY_WRITE_POINTS_BUDGET`, `PIPELINE_MIN_FOLLOWERS_FOR_INTERVENTION=1000` |
-| Rótulo | `PIPELINE_LABELER_ENABLED=false`, `OZONE_LABELER_*`, `ACCOUNT_LABEL_THRESHOLD=0.9`, `ACCOUNT_LABEL_HYSTERESIS=0.1`, `ACCOUNT_LABEL_MIN_POSTS=20` |
-| Feature flags | `PIPELINE_BOT_SCORING_ENABLED`, `PIPELINE_VERIFICATION_ENABLED`, `PIPELINE_INTERVENTION_ENABLED` |
+| Intervenção e Critic | `INTERVENTION_DRY_RUN=true`, `INTERVENTION_ROUND_MINUTES=15`, silêncio 0h–7h (Brasília), `DAILY_MAX_INTERVENTIONS`, `DAILY_WRITE_POINTS_BUDGET`, `PIPELINE_MIN_FOLLOWERS_FOR_INTERVENTION=1000`, `ENABLE_SEMANTIC_CRITIC=true` |
+| Rótulo e Outbox | `PIPELINE_LABELER_ENABLED=false`, `OZONE_LABELER_*`, `LABEL_RETRY_INTERVAL_SECONDS=60`, `LABEL_RETRY_MAX_ATTEMPTS=8`, `OZONE_HEALTH_URL`, `ACCOUNT_LABEL_THRESHOLD=0.9`, `ACCOUNT_LABEL_HYSTERESIS=0.1`, `ACCOUNT_LABEL_MIN_POSTS=20` |
+| Feature flags | `PIPELINE_BOT_SCORING_ENABLED`, `PIPELINE_VERIFICATION_ENABLED`, `PIPELINE_INTERVENTION_ENABLED`, `ENABLE_SEMANTIC_CRITIC` |
+| Administração e Logs | `ADMIN_API_KEY`, `DATABASE_URL`, `SERVICE_NAME` |
 
 Segredos (`api/.env`, App Passwords, chaves de API) **nunca** vão para o repositório.
 

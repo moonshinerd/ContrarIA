@@ -29,6 +29,7 @@ from app.services.bot_scoring import BotScoringService
 from app.services.crc_seed import ensure_calibration_seeded
 from app.services.intervention import InterventionService
 from app.services.intervention_queue import InterventionQueue, expire_stale_candidates
+from app.services.label_outbox import LabelOutbox
 from app.services.pipeline import PipelineService
 
 logger = logging.getLogger("contraria.worker")
@@ -51,6 +52,27 @@ async def run_due_intervention_round(
         logger.exception("Falha na rodada de intervenção")
         queue.db.rollback()
     return current + round_seconds
+
+
+async def run_due_label_flush(
+    outbox: LabelOutbox,
+    next_flush: float,
+    interval_seconds: float,
+    *,
+    now: float | None = None,
+) -> float:
+    """Repete os rótulos pendentes quando a janela vence, sem derrubar o worker."""
+    current = monotonic() if now is None else now
+    if current < next_flush:
+        return next_flush
+    try:
+        delivered = await outbox.flush()
+        if delivered:
+            logger.info("%d rótulo(s) pendente(s) entregue(s) ao Ozone", delivered)
+    except Exception:
+        logger.exception("Falha ao repetir rótulos pendentes")
+        outbox.db.rollback()
+    return current + interval_seconds
 
 
 async def main() -> None:
@@ -96,7 +118,9 @@ async def main() -> None:
     expired = expire_stale_candidates(queue_session)
     if expired:
         logger.warning("%d candidato(s) de intervenção expirado(s) ao iniciar", expired)
-    queue = InterventionQueue(settings, queue_session, intervention, ozone)
+    # Sessão própria: a outbox faz commit no meio de awaits e não pode misturar com a da fila.
+    outbox = LabelOutbox(settings, Session(engine), ozone)
+    queue = InterventionQueue(settings, queue_session, intervention, ozone, outbox=outbox)
     pipeline = PipelineService(
         settings=settings,
         db_session=Session(engine),
@@ -107,6 +131,7 @@ async def main() -> None:
         intervention=intervention,
         intervention_queue=queue,
         account_labels=AccountLabelService(settings, Session(engine), ozone),
+        label_outbox=outbox,
     )
 
     # Inicia as tasks em background
@@ -139,8 +164,11 @@ async def main() -> None:
     next_ingestion = 0.0
     round_seconds = settings.intervention_round_minutes * 60
     next_round = monotonic() + round_seconds
+    flush_seconds = settings.label_retry_interval_seconds
+    next_flush = monotonic() + flush_seconds
     try:
         while True:
+            next_flush = await run_due_label_flush(outbox, next_flush, flush_seconds)
             previous_round = next_round
             next_round = await run_due_intervention_round(queue, next_round, round_seconds)
             if next_round != previous_round and settings.post_max_age_hours > 0:

@@ -29,6 +29,8 @@ Registro formal das decisões técnicas de engenharia e arquitetura do projeto *
 | [**0019**](0019-fonte-citada-pelo-post-e-entidade.md) | Fonte citada pelo post e checagem de entidade | `Aceita` | 05/10/2026 | RNF01, RF03, GQ03 |
 | [**0020**](0020-acesso-vm-tunel-cloudflare.md) | Acesso à VM e deploy por túnel Cloudflare, sem porta de entrada | `Aceita` | 05/10/2026 | RNF03, RNF05, RNF07 |
 | [**0021**](0021-resiliencia-das-fontes-de-evidencia.md) | Resiliência das fontes de evidência | `Aceita` | 05/10/2026 | RNF01, RNF05, RF11 |
+| [**0022**](0022-janela-de-maturacao-e-critic-semantico.md) | Janela de maturação (3 h a 48 h) e critic semântico | `Aceita` | 07/10/2026 | RNF01, RF03, RF05, GQ03 |
+| [**0023**](0023-outbox-de-rotulos-do-ozone.md) | Outbox de rótulos do Ozone com repetição | `Aceita` | 07/10/2026 | RF06, RF07, RNF05, RNF06 |
 
 ---
 

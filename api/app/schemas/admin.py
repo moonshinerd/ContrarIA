@@ -63,4 +63,6 @@ class AdminOverviewOut(BaseModel):
     llm_usage: dict[str, Any]
     bots: dict[str, Any]
     logs: dict[str, Any]
+    labels: dict[str, Any] = Field(default_factory=dict)
+    ozone: dict[str, Any] = Field(default_factory=dict)
     config_summary: dict[str, Any]

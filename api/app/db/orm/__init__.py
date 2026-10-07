@@ -5,6 +5,7 @@ from app.db.orm.crc_calibration import CRCCalibrationRecord
 from app.db.orm.decisions import DecisionLog, DecisionReview
 from app.db.orm.fact_article import FactArticle
 from app.db.orm.interventions import InterventionLog
+from app.db.orm.label_events import LabelEvent
 from app.db.orm.llm_usage import LLMUsage
 from app.db.orm.posts import IngestCursor, Post
 from app.db.orm.system_logs import SystemLog
@@ -14,6 +15,7 @@ __all__ = [
     "CRCCalibrationRecord",
     "FactArticle",
     "IngestCursor",
+    "LabelEvent",
     "LLMUsage",
     "Post",
     "InterventionLog",

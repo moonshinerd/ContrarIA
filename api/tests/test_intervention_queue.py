@@ -113,3 +113,31 @@ def test_expire_stale_candidates_closes_them_as_monitor():
     assert stuck.action == "MONITOR"
     assert "expirado" in stuck.justification
     assert already_done.action == "INTERVENE"
+
+
+async def test_label_failure_after_published_quote_is_kept_for_retry():
+    from app.core.config import Settings
+    from app.db.orm.label_events import LabelEvent
+
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+    intervention = MagicMock()
+    intervention.execute_intervention = AsyncMock(return_value="at://bot/1")
+    ozone = AsyncMock()
+    ozone.emit_label.side_effect = RuntimeError("502 Bad Gateway")
+    settings = Settings(_env_file=None, intervention_dry_run=False, pipeline_labeler_enabled=True)
+    queue = InterventionQueue(settings, session, intervention, ozone)
+    add(queue, session, "at://a", 0.9)
+
+    published = await queue.run_round()
+
+    assert published == "at://bot/1"
+    assert actions(session) == {"at://a": "INTERVENE"}
+    event = session.query(LabelEvent).one()
+    assert (event.subject_uri, event.label_val, event.status) == (
+        "at://a",
+        "possivel-desinformacao",
+        "pending",
+    )
+    assert "502" in event.last_error
