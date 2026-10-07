@@ -141,7 +141,19 @@ async def main() -> None:
     next_round = monotonic() + round_seconds
     try:
         while True:
+            previous_round = next_round
             next_round = await run_due_intervention_round(queue, next_round, round_seconds)
+            if next_round != previous_round and settings.post_max_age_hours > 0:
+                try:
+                    expired_old = post_repo.expire_older_than(settings.post_max_age_hours)
+                    if expired_old:
+                        logger.info(
+                            "%d post(s) com mais de %.1fh expirados da fila na rodada periódica",
+                            expired_old,
+                            settings.post_max_age_hours,
+                        )
+                except Exception as exc:
+                    logger.error("Falha ao expirar posts antigos na rodada: %s", exc)
             if settings.rss_checkers_enabled and monotonic() >= next_ingestion:
                 try:
                     report = await ingestor.run()
