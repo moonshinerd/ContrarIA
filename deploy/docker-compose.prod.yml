@@ -193,7 +193,7 @@ services:
         condition: service_started
     labels:
       contraria.service: "gateway"
-      contraria.config.version: "2026.10.07.2"
+      contraria.config.version: "2026.10.07.3"
     mem_limit: 64m
 
 
