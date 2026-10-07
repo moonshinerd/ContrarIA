@@ -170,23 +170,37 @@ O backend de verificação é escolhido por `VERIFICATION_BACKEND` em `build_ver
     `VERIFICATION_BACKEND=jev` definido no `.env`. Sem essa variável, o worker sobe com o backend de LLM.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
 flowchart TD
-    P[Post + contexto do fio] --> S[Frases candidatas<br/>até 6, sem URLs]
-    S --> K{Frase com ancoramento<br/>factual? heurística}
-    K -- não --> X[Sem ação]
-    K -- sim --> CT[Fonte citada pelo post<br/>card, facets, texto]
-    CT -- NLI por trechos sustenta<br/>e fonte reconhecida --> VT[source_consistent<br/>sem ação]
-    CT -- senão --> Q[Consulta por frase<br/>às fontes habilitadas]
-    Q --> E1[Google Fact Check]
-    Q --> E2[Wikipédia]
-    Q --> E3[Busca web:<br/>SearXNG, DuckDuckGo]
-    Q --> E4[Acervo RSS<br/>pgvector]
-    E1 & E2 & E3 & E4 --> F[Filtro de relevância NLI<br/>rejeita outra localidade ou zona<br/>(gazetteer IBGE + contexto do post)<br/>até 8 evidências, margem mínima]
-    F --> M[Matérias completas<br/>trafilatura, até encher o contexto]
-    M --> C[Classificação do veredito<br/>confirmam / desmentem / enganosa]
-    C --> G[Gate CRC<br/>chave jev:repo]
-    G -- abaixo do limiar<br/>ou sem calibração --> I[insufficient_evidence]
-    G -- passou --> V[true / false / misleading]
+    classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
+    classDef ingest fill:#E0F2FE,stroke:#0284C7,stroke-width:2px,color:#0369A1
+    classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
+    classDef store fill:#F3E8FF,stroke:#7E22CE,stroke-width:2px,color:#581C87
+    classDef guard fill:#FEF3C7,stroke:#D97706,stroke-width:2px,color:#78350F
+    classDef out fill:#DCFCE7,stroke:#15803D,stroke-width:2px,color:#14532D
+
+    P["<b>Post + contexto do fio</b>"]:::ingest --> S["<b>Frases candidatas</b><br/>até 6, sem URLs"]:::core
+    S --> K{"Frase com ancoramento<br/>factual? (heurística)"}:::guard
+    K -- "não" --> X["<b>Sem ação</b>"]:::guard
+    K -- "sim" --> CT["<b>Fonte citada pelo post</b><br/>card, facets, texto"]:::core
+    CT -- "NLI sustenta e fonte confiável" --> VT["<b>source_consistent</b><br/>sem ação"]:::guard
+    CT -- "senão" --> Q["<b>Consulta por frase</b><br/>às fontes habilitadas"]:::core
+    
+    Q --> E1["Google Fact Check"]:::ext
+    Q --> E2["Wikipédia"]:::ext
+    Q --> E3["Busca web:<br/>SearXNG, DuckDuckGo"]:::ext
+    Q --> E4["Acervo RSS<br/>pgvector"]:::store
+    
+    E1 --> F["<b>Filtro de relevância NLI</b><br/>rejeita outra localidade ou zona<br/>(gazetteer IBGE + contexto do post)<br/>até 8 evidências, margem mínima"]:::guard
+    E2 --> F
+    E3 --> F
+    E4 --> F
+    
+    F --> M["<b>Matérias completas</b><br/>trafilatura, até preencher contexto"]:::core
+    M --> C["<b>Classificação do veredito</b><br/>confirmam / desmentem / enganosa"]:::core
+    C --> G["<b>Gate CRC</b><br/>chave jev:repo"]:::guard
+    G -- "abaixo do limiar ou sem calibração" --> I["<b>insufficient_evidence</b>"]:::guard
+    G -- "passou" --> V["<b>true / false / misleading</b>"]:::out
 ```
 
 O Jev é um *cross-encoder* NLI (`MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7`) servido
