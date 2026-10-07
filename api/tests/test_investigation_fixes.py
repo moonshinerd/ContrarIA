@@ -1,0 +1,170 @@
+from datetime import UTC, datetime, timedelta
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+
+from app.domain.entities import Account, Evidence, Post as DomainPost, Verdict, VerdictLabel
+from app.repositories.posts import PostRepository
+from app.services.jev_verification import _entity_conflict, _is_verifiable_claim
+from app.services.intervention import (
+    InterventionService,
+    _find_hallucinated_entity,
+    _is_claim_relevant_to_post,
+)
+from app.models.classifiers.jev import JevClassifier
+
+
+def test_is_verifiable_claim_rejects_orphan_fragment():
+    # Fragmento nominal sem verbo nem nome próprio
+    assert not _is_verifiable_claim("Deputado mais votado do ES.")
+    # Com verbo e sujeito explícito, é uma alegação completa
+    assert _is_verifiable_claim("Lucas Polese foi eleito deputado mais votado do ES.")
+    # Com título político e verbo
+    assert _is_verifiable_claim("Deputado votou contra a proposta salarial.")
+
+
+def test_entity_conflict_blocks_cross_state_evidence():
+    claim = "Lucas Polese foi o deputado mais votado do ES."
+    ev_mg = Evidence(
+        source="wikipedia",
+        url="https://pt.wikipedia.org/wiki/Nikolas_Ferreira",
+        title="Nikolas Ferreira",
+        snippet="Nikolas Ferreira é deputado federal pelo estado de Minas Gerais.",
+    )
+    conflict = _entity_conflict(claim, ev_mg)
+    assert conflict is not None
+    assert "UF diferente" in conflict or "localidade diferente" in conflict
+
+    ev_es = Evidence(
+        source="gazeta",
+        url="https://gazeta.example/polese",
+        title="Lucas Polese no Espírito Santo",
+        snippet="Lucas Polese foi o mais votado no ES.",
+    )
+    assert _entity_conflict(claim, ev_es) is None
+
+
+def test_find_hallucinated_entity_detects_unmentioned_public_figures():
+    post_text = (
+        "O ES sempre teve governadores progressistas, pela primeira vez vai eleger um governador do PL. "
+        "O concorrente era cria do Casagrande que foi governador duas vezes e não conseguiu fazer o Ferraço vencer."
+    )
+    gen_text = (
+        "O post afirma que Nikolas Ferreira foi o deputado mais votado do ES. "
+        "Mas a fonte aponta que ele é de Minas Gerais."
+    )
+    hallucinated = _find_hallucinated_entity(gen_text, post_text)
+    assert hallucinated == "Nikolas Ferreira"
+
+    # Quando a entidade está no post, não é alucinação
+    valid_gen = "Seria possível o Ferraço vencer no Espírito Santo com apoio de Casagrande?"
+    assert _find_hallucinated_entity(valid_gen, post_text) is None
+
+
+def test_is_claim_relevant_to_post():
+    post_text = "O ES sempre teve governadores progressistas, vai eleger governador do PL. Casagrande e Ferraço."
+    orphan_claim = "Jornada de 16 horas por dia no trabalho."
+    assert not _is_claim_relevant_to_post(orphan_claim, post_text)
+
+    relevant_claim = "Ferraço não conseguiu se eleger governador no ES."
+    assert _is_claim_relevant_to_post(relevant_claim, post_text)
+
+
+@pytest.mark.asyncio
+async def test_intervention_blocks_hallucinated_entity_in_quote():
+    mock_repo = MagicMock()
+    mock_bsky = AsyncMock()
+    mock_llm = AsyncMock()
+
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    service.settings.intervention_dry_run = False
+
+    post = DomainPost(
+        uri="at://did:1/post/1",
+        cid="cid1",
+        author_did="did:1",
+        text="Casagrande e Ferraço disputam o governo do estado contra o candidato da oposição.",
+        created_at=datetime.now(UTC),
+    )
+    verdict = Verdict(
+        claim="Casagrande e Ferraço disputam o governo do estado",
+        label=VerdictLabel.FALSE,
+        confidence=0.95,
+        rationale="r",
+        evidences=[
+            Evidence("t", "https://fonte.example", "Fonte Exemplo", "trecho explicativo"),
+        ],
+    )
+
+    # Simula que o LLM alucinou Nikolas Ferreira na resposta
+    mock_llm.complete_with_tools.return_value = (
+        "TIPO: FATO\nVEREDITO: DESMENTE\nFONTE: 1\n"
+        "O post afirma que Nikolas Ferreira participou dessa disputa eleitoral."
+    )
+
+    res = await service.execute_intervention(post, Account(did="did:1", handle="user"), verdict, 0.1)
+    # A intervenção DEVE ser abortada pelo guardrail de grounding
+    assert res is None
+    mock_bsky.quote_post.assert_not_called()
+
+
+def test_post_aging_delay_in_repository():
+    from sqlalchemy import create_engine
+    from app.db.base import Base
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repo = PostRepository(engine)
+
+    now = datetime(2026, 10, 7, 12, 0, 0, tzinfo=UTC)
+
+    # Post 1: criado há 30 minutos (jovem)
+    # Post 2: criado há 4 horas (maduro)
+    # Post 3: criado há 30 horas (velho)
+    posts_data = [
+        {
+            "uri": "at://recent",
+            "cid": "c1",
+            "author_did": "d1",
+            "text": "post jovem",
+            "created_at": now - timedelta(minutes=30),
+            "source": "jetstream",
+            "triage_status": "monitor",
+            "priority": 1.0,
+        },
+        {
+            "uri": "at://mature",
+            "cid": "c2",
+            "author_did": "d2",
+            "text": "post maduro",
+            "created_at": now - timedelta(hours=4),
+            "source": "jetstream",
+            "triage_status": "monitor",
+            "priority": 1.0,
+        },
+        {
+            "uri": "at://old",
+            "cid": "c3",
+            "author_did": "d3",
+            "text": "post velho",
+            "created_at": now - timedelta(hours=30),
+            "source": "jetstream",
+            "triage_status": "monitor",
+            "priority": 1.0,
+        },
+    ]
+    repo.upsert_posts(posts_data)
+
+    # 1. Com aging delay (min_age_hours=3, max_age_hours=24), apenas o post maduro entra
+    candidates = repo.get_triage_candidates(10, min_age_hours=3.0, max_age_hours=24.0, now=now)
+    uris = [p.uri for p, _ in candidates]
+    assert uris == ["at://mature"]
+
+    # 2. Expiração de posts velhos (> 24h)
+    expired_count = repo.expire_older_than(24.0, now=now)
+    assert expired_count == 1
+
+    # Após expiração, o post velho não consta mais como pendente
+    all_pending = repo.get_triage_candidates(10, min_age_hours=0.0, max_age_hours=None, now=now)
+    pending_uris = [p.uri for p, _ in all_pending]
+    assert "at://old" not in pending_uris
+    assert set(pending_uris) == {"at://recent", "at://mature"}

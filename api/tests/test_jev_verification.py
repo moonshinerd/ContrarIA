@@ -69,8 +69,9 @@ class ScriptedClassifier:
         if options == ["relevante", "irrelevante"]:
             score = next(v for title, v in self.relevance_by_title.items() if title in question)
             return {"relevante": score, "irrelevante": 1 - score}
-        # Veredito: confirmam=0.1, desmentem=0.7, distorcem=0.2 (ordem de _LABEL_BY_OPTION).
-        return dict(zip(options, [0.1, 0.7, 0.2], strict=True))
+        # Veredito: confirmam=0.1, desmentem=0.7, distorcem=0.15, insuficientes=0.05
+        weights = [0.1, 0.7, 0.15, 0.05] if len(options) == 4 else [0.1, 0.7, 0.2]
+        return dict(zip(options, weights, strict=True))
 
     async def count_tokens(self, texts: list[str]) -> list[int]:
         # Matéria completa "pesa" 3000 tokens; o resto, 10.
@@ -566,7 +567,10 @@ class CitedSourceClassifier:
     async def classify(self, question: str, options: list[str]) -> dict[str, float]:
         if options == ["relevante", "irrelevante"]:
             return {"relevante": 0.95, "irrelevante": 0.05}
-        return dict(zip(options, self.verdict, strict=True))
+        verdict = list(self.verdict)
+        if len(verdict) < len(options):
+            verdict += [0.0] * (len(options) - len(verdict))
+        return dict(zip(options, verdict, strict=True))
 
     async def count_tokens(self, texts: list[str]) -> list[int]:
         return [10 for _ in texts]

@@ -74,6 +74,14 @@ async def main() -> None:
                 settings.worker_queue_max_pending,
                 expired,
             )
+    if settings.post_max_age_hours > 0:
+        expired_old = post_repo.expire_older_than(settings.post_max_age_hours)
+        if expired_old:
+            logger.info(
+                "%d post(s) com mais de %.1fh expirados da fila ao iniciar",
+                expired_old,
+                settings.post_max_age_hours,
+            )
     gate = IngestGate(
         post_repo,
         settings.worker_queue_max_pending,
@@ -118,11 +126,15 @@ async def main() -> None:
         concurrency=settings.worker_pipeline_concurrency,
         tick_seconds=settings.worker_tick_seconds,
         max_attempts=settings.worker_pipeline_max_attempts,
+        min_age_hours=settings.post_min_age_hours,
+        max_age_hours=settings.post_max_age_hours,
     )
     logger.info(
-        "pool de análises: concorrência=%d, fila máxima=%d",
+        "pool de análises: concorrência=%d, fila máxima=%d, delay=%0.1fh-%0.1fh",
         settings.worker_pipeline_concurrency,
         settings.worker_queue_max_pending,
+        settings.post_min_age_hours,
+        settings.post_max_age_hours,
     )
     next_ingestion = 0.0
     round_seconds = settings.intervention_round_minutes * 60

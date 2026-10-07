@@ -13,13 +13,23 @@ logger = logging.getLogger("contraria.services.analysis_pool")
 
 class AnalysisPool:
     def __init__(
-        self, posts, pipeline, *, concurrency: int, tick_seconds: float, max_attempts: int
+        self,
+        posts,
+        pipeline,
+        *,
+        concurrency: int,
+        tick_seconds: float,
+        max_attempts: int,
+        min_age_hours: float = 0.0,
+        max_age_hours: float | None = None,
     ):
         self.posts = posts
         self.pipeline = pipeline
         self.concurrency = concurrency
         self.tick_seconds = tick_seconds
         self.max_attempts = max_attempts
+        self.min_age_hours = min_age_hours
+        self.max_age_hours = max_age_hours
         self.in_flight: dict[str, asyncio.Task] = {}
         self._attempts: dict[str, int] = {}
 
@@ -44,7 +54,17 @@ class AnalysisPool:
         free = self.concurrency - len(self.in_flight)
         if free <= 0:
             return
-        candidates = self.posts.get_triage_candidates(free, exclude_uris=set(self.in_flight))
+        kwargs = {"exclude_uris": set(self.in_flight)}
+        if self.min_age_hours > 0:
+            kwargs["min_age_hours"] = self.min_age_hours
+        if self.max_age_hours is not None and self.max_age_hours > 0:
+            kwargs["max_age_hours"] = self.max_age_hours
+
+        try:
+            candidates = self.posts.get_triage_candidates(free, **kwargs)
+        except TypeError:
+            candidates = self.posts.get_triage_candidates(free, exclude_uris=set(self.in_flight))
+
         for post, _relevance in candidates:
             self.in_flight[post.uri] = asyncio.create_task(self._process(post))
 

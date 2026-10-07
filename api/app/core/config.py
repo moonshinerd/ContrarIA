@@ -132,6 +132,11 @@ class Settings(BaseSettings):
     worker_queue_search_reserve: int = Field(default=30, ge=0)
     # Após N falhas seguidas na análise de um mesmo post, ele sai da fila ('ignored').
     worker_pipeline_max_attempts: int = Field(default=3, ge=1)
+    # Idade mínima em horas para um post ser analisado (aging delay). Permite que a
+    # notícia amadureça e seja indexada por agências de checagem e buscadores antes da verificação.
+    post_min_age_hours: float = Field(default=3.0, ge=0.0)
+    # Idade máxima em horas para análise: posts mais antigos que este limite são expirados.
+    post_max_age_hours: float = Field(default=24.0, ge=1.0)
     pipeline_bot_scoring_enabled: bool = True
     pipeline_verification_enabled: bool = True
     pipeline_intervention_enabled: bool = True

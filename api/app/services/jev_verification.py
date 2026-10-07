@@ -60,6 +60,9 @@ _LABEL_BY_OPTION = {
     "confirmam o fato, mas desmentem a conclusão ou o exagero da alegação": (
         VerdictLabel.MISLEADING
     ),
+    "as evidências são insuficientes ou não tratam da alegação": (
+        VerdictLabel.INSUFFICIENT_EVIDENCE
+    ),
 }
 _MAX_CANDIDATE_CLAIMS = 6
 _MIN_SENTENCE_LEN = 15
@@ -765,12 +768,38 @@ def _is_verifiable_claim(fragment: str) -> bool:
         return True
     # 2. Título político ou institucional (ministro, senador, presidente, juiz, candidato)
     if _POLITICAL_TITLES_PATTERN.search(fragment):
-        return True
+        words = fragment.split()
+        if (
+            len(words) >= 8
+            or _FACTUAL_PREDICATE_PATTERN.search(fragment)
+            or re.search(
+                r"\b(foi|é|era|será|disse|declarou|afirmou|votou|gastou|recebeu|perdeu|venceu|assumiu|quer|decretou)\b",
+                fragment,
+                re.IGNORECASE,
+            )
+        ):
+            return True
+        proper_nouns = _PROPER_NOUN_PATTERN.findall(fragment)
+        first_word = words[0].rstrip(",.:;!?").casefold() if words else ""
+        has_real_name = any(
+            p.casefold() != first_word
+            and p.upper() not in _CLICKBAIT_TERMS
+            and p.casefold() not in _PORTUGUESE_STOPWORDS
+            and p.upper() not in _UFS
+            for p in proper_nouns
+        )
+        if has_real_name:
+            return True
+        return False
     # 3. Predicado fático, judicial ou investigativo específico
     if _FACTUAL_PREDICATE_PATTERN.search(fragment):
         return True
-    # 4. Sigla institucional (STF, TSE, PF, CPMI, etc)
-    acronyms = [a for a in _ACRONYM_PATTERN.findall(fragment) if a not in _CLICKBAIT_TERMS]
+    # 4. Sigla institucional (STF, TSE, PF, CPMI, etc) -- UFs isoladas não contam
+    acronyms = [
+        a
+        for a in _ACRONYM_PATTERN.findall(fragment)
+        if a not in _CLICKBAIT_TERMS and a not in _UFS
+    ]
     if acronyms:
         return True
     # 5. Entidade nomeada ou nome próprio além da primeira palavra capitalizada
@@ -838,6 +867,41 @@ def _places(text: str) -> set[tuple[str, str]]:
     return {(_normalize_place(city), uf) for city, uf in found if uf in _UFS}
 
 
+_STATE_NAME_TO_UF = {
+    "acre": "AC", "alagoas": "AL", "amapa": "AP", "amapá": "AP", "amazonas": "AM",
+    "bahia": "BA", "ceara": "CE", "ceará": "CE", "distrito federal": "DF",
+    "espirito santo": "ES", "espírito santo": "ES", "goias": "GO", "goiás": "GO",
+    "maranhao": "MA", "maranhão": "MA", "mato grosso do sul": "MS", "mato grosso": "MT",
+    "minas gerais": "MG", "para": "PA", "pará": "PA", "paraiba": "PB", "paraíba": "PB",
+    "parana": "PR", "paraná": "PR", "pernambuco": "PE", "piaui": "PI", "piauí": "PI",
+    "rio de janeiro": "RJ", "rio grande do norte": "RN", "rio grande do sul": "RS",
+    "rondonia": "RO", "rondônia": "RO", "roraima": "RR", "santa catarina": "SC",
+    "sao paulo": "SP", "são paulo": "SP", "sergipe": "SE", "tocantins": "TO",
+}
+
+_UF_PATTERN = re.compile(
+    r"\b(?:d[oe]|em|no|na|pelo|pela|para|do estado d[oe])\s+"
+    r"([A-Z]{2})\b",
+    re.IGNORECASE,
+)
+
+
+def _extract_ufs(text: str) -> set[str]:
+    """Extrai siglas de UF ou nomes de estados brasileiros citados no texto."""
+    ufs = set()
+    norm = _normalize_place(text)
+    for state_name, uf in _STATE_NAME_TO_UF.items():
+        if re.search(rf"\b{re.escape(_normalize_place(state_name))}\b", norm):
+            ufs.add(uf)
+    for match in _UF_PATTERN.finditer(text):
+        uf_cand = match.group(1).upper()
+        if uf_cand in _UFS:
+            ufs.add(uf_cand)
+    for _, uf in _places(text):
+        ufs.add(uf)
+    return ufs
+
+
 def _entity_conflict(claim: str, evidence: Evidence) -> str | None:
     """Detecta evidência sobre outra entidade homônima (outra cidade, UF ou zona eleitoral).
 
@@ -854,6 +918,10 @@ def _entity_conflict(claim: str, evidence: Evidence) -> str | None:
     evidence_places = _places(text)
     if claim_places and evidence_places and claim_places.isdisjoint(evidence_places):
         return f"localidade diferente ({sorted(evidence_places)} x {sorted(claim_places)})"
+    claim_ufs = _extract_ufs(claim)
+    evidence_ufs = _extract_ufs(text)
+    if claim_ufs and evidence_ufs and claim_ufs.isdisjoint(evidence_ufs):
+        return f"UF diferente ({sorted(evidence_ufs)} x {sorted(claim_ufs)})"
     return None
 
 

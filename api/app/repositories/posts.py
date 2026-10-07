@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -80,13 +82,28 @@ class PostRepository:
         return result.rowcount
 
     def get_triage_candidates(
-        self, limit: int, *, exclude_uris: set[str] | frozenset[str] = frozenset()
+        self,
+        limit: int,
+        *,
+        exclude_uris: set[str] | frozenset[str] = frozenset(),
+        min_age_hours: float = 0.0,
+        max_age_hours: float | None = None,
+        now: datetime | None = None,
     ) -> list[tuple[DomainPost, float]]:
-        """Retorna candidatos recentes em ordem de prioridade para o pipeline caro."""
+        """Retorna candidatos que cumpram o requisito de idade na fila em ordem de prioridade."""
+        now_dt = now or datetime.now(timezone.utc)
+        conditions = [Post.triage_status.in_(PENDING_STATUSES), Post.uri.not_in(exclude_uris)]
+        if min_age_hours > 0:
+            min_cutoff = now_dt - timedelta(hours=min_age_hours)
+            conditions.append(Post.created_at <= min_cutoff)
+        if max_age_hours is not None and max_age_hours > 0:
+            max_cutoff = now_dt - timedelta(hours=max_age_hours)
+            conditions.append(Post.created_at >= max_cutoff)
+
         with Session(self.engine) as session:
             rows = session.scalars(
                 select(Post)
-                .where(Post.triage_status.in_(PENDING_STATUSES), Post.uri.not_in(exclude_uris))
+                .where(*conditions)
                 .order_by(Post.priority.desc().nullslast(), Post.first_seen_at.desc())
                 .limit(limit)
             )
@@ -104,6 +121,20 @@ class PostRepository:
                 )
                 for row in rows
             ]
+
+    def expire_older_than(self, max_age_hours: float, *, now: datetime | None = None) -> int:
+        """Expira posts pendentes mais antigos que max_age_hours."""
+        if max_age_hours <= 0:
+            return 0
+        now_dt = now or datetime.now(timezone.utc)
+        cutoff = now_dt - timedelta(hours=max_age_hours)
+        with Session(self.engine) as session, session.begin():
+            result = session.execute(
+                update(Post)
+                .where(_is_pending(), Post.created_at < cutoff)
+                .values(triage_status="expired")
+            )
+            return result.rowcount
 
     def update_triage(self, uri: str, *, status: str, priority: float) -> None:
         from sqlalchemy import update
