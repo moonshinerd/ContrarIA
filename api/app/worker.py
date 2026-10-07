@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.clients.bluesky_client import BlueskyClient
 from app.clients.ozone_client import OzoneClient
 from app.core.config import get_settings
-from app.core.logging import configure_logging
+from app.core.logging import configure_logging, enable_database_logging
 from app.jobs.collector import IngestGate, JetstreamConsumer, SearchPoller
 from app.jobs.ingest_fact_articles import FeedIngestor
 from app.models.llm.litellm_model import LiteLLMModel
@@ -56,6 +56,7 @@ async def run_due_intervention_round(
 async def main() -> None:
     settings = get_settings()
     configure_logging(settings)
+    enable_database_logging(settings, service_name="worker")
     logger.info("worker started", extra={"tick_seconds": settings.worker_tick_seconds})
     engine = create_engine(settings.database_url, pool_pre_ping=True)
     ensure_calibration_seeded(CRCCalibrationRepository(engine), settings)

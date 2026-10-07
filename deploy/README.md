@@ -8,7 +8,9 @@ executa localmente o modelo mDeBERTa-v3 NLI via PyTorch/Transformers; API e work
 
 ## Acesso e deploy (Cloudflare)
 
-- **Ozone:** `https://contraria.schmidt.monster` → túnel `contraria-vm` → `localhost:3000`.
+- **Ozone e FastAPI (Gateway):** `https://contraria.schmidt.monster` → túnel `contraria-vm` → `localhost:3000` (container `gateway` Nginx).
+  O gateway roteia `/admin/*` e `/v1/*` para a API FastAPI e todo o resto para o Ozone.
+- **Acesso Administrativo via API:** endpoints somente-leitura em `https://contraria.schmidt.monster/admin/` protegidos por `ADMIN_API_KEY`.
 - **Deploy:** push na `main` dispara `.github/workflows/deploy.yml` (ambiente `production`). O workflow se autentica
   com o token OIDC do GitHub e chama `https://deploy-contraria.schmidt.monster/deploy`; o endpoint
   (`api/app/deployhook.py`) só aceita este repositório, a branch `main` e o workflow `deploy.yml`, e apenas grava um
@@ -20,6 +22,7 @@ executa localmente o modelo mDeBERTa-v3 NLI via PyTorch/Transformers; API e work
 - **Scripts da VM** em `deploy/vm/`: `contraria-deploy.sh`, `contraria-deploy-run.sh` + unidades `contraria-deploy-hook.{path,service}` (executam o deploy
   pedido pelo endpoint) e a limpeza do Docker (`contraria-docker-prune.sh` + timer semanal), instalados em `/opt/` com dono `root`. Os logs dos containers têm
   rotação no compose. Veja [Operação na VM](../docs/arquitetura/operacao-vm.md#disco-e-cache-do-docker).
+
 
 ## Backend Jev
 

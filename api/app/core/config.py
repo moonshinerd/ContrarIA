@@ -150,6 +150,11 @@ class Settings(BaseSettings):
     ozone_labeler_app_password: str = ""
     ozone_labeler_did: str = ""
 
+    # Chave de API administrativa para acesso seguro aos endpoints de consulta/logs/banco.
+    admin_api_key: str = ""
+    # Nome do serviço corrente para identificação nos logs estruturados (api, worker, etc.)
+    service_name: str = "app"
+
 
 @lru_cache
 def get_settings() -> Settings:

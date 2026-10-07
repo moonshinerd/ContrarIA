@@ -7,6 +7,7 @@ from app.db.orm.fact_article import FactArticle
 from app.db.orm.interventions import InterventionLog
 from app.db.orm.llm_usage import LLMUsage
 from app.db.orm.posts import IngestCursor, Post
+from app.db.orm.system_logs import SystemLog
 
 __all__ = [
     "AccountAssessment",
@@ -18,4 +19,5 @@ __all__ = [
     "InterventionLog",
     "DecisionLog",
     "DecisionReview",
+    "SystemLog",
 ]
