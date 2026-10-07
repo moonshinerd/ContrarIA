@@ -67,6 +67,7 @@ services:
       BLUESKY_SESSION_PATH: /srv/data/bluesky.session
       JEV_SERVER_URL: http://jev:8100
       SEARXNG_BASE_URL: http://searxng:8080
+      SERVICE_NAME: api
     depends_on:
       db:
         condition: service_healthy
@@ -95,6 +96,8 @@ services:
       BLUESKY_SESSION_PATH: /srv/data/bluesky.session
       JEV_SERVER_URL: http://jev:8100
       SEARXNG_BASE_URL: http://searxng:8080
+      SERVICE_NAME: worker
+
     depends_on:
       db:
         condition: service_healthy
@@ -167,13 +170,29 @@ services:
       OZONE_APPVIEW_URL: https://api.bsky.app
       OZONE_APPVIEW_DID: did:web:api.bsky.app
       LOG_ENABLED: "1"
-    # Só em loopback: o acesso externo vem do túnel Cloudflare (ver deploy/README.md).
-    ports:
-      - "127.0.0.1:3000:3000"
+    # Porta interna no compose; o acesso externo passa pelo gateway na porta 3000
     depends_on:
       ozone-db:
         condition: service_healthy
     mem_limit: 1g
+
+  # Gateway Nginx: unifica Ozone (labeler Bluesky) e FastAPI (endpoints administrativos e /v1)
+  # na porta 3000 da VM, mantendo compatibilidade total com o túnel Cloudflare sem portas novas.
+  gateway:
+    logging: *default-logging
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      ozone:
+        condition: service_started
+    mem_limit: 64m
+
 
   ozone-daemon:
     logging: *default-logging

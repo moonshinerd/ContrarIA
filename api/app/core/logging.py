@@ -29,3 +29,25 @@ def configure_logging(settings: Settings) -> None:
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(settings.log_level)
+
+
+def enable_database_logging(settings: Settings, service_name: str | None = None) -> None:
+    """Ativa o DatabaseLogHandler no root logger para persistir eventos em system_logs."""
+    from app.core.db_logging import DatabaseLogHandler
+
+    root = logging.getLogger()
+    # Evita duplicar o handler
+    for h in root.handlers:
+        if isinstance(h, DatabaseLogHandler):
+            return
+
+    try:
+        svc = service_name or getattr(settings, "service_name", "app")
+        db_handler = DatabaseLogHandler(
+            database_url=settings.database_url,
+            service_name=svc,
+        )
+        root.addHandler(db_handler)
+    except Exception:
+        # Se falhar ao conectar ou instanciar, mantém apenas o log em stdout
+        pass

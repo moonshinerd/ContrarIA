@@ -29,19 +29,22 @@ flowchart LR
     T -->|localhost:3000| R1((talos))
     T -->|localhost:8081| R1
     VM[VM: serviço ozone-forward] -. ssh -R 3000 e 8081<br/>saída pela 443 .-> R1
-    VM --> OZ[Ozone :3000]
+    VM --> GW[gateway Nginx :3000]
+    GW -->|/admin e /v1| API[FastAPI :8000]
+    GW -->|/xrpc e /| OZ[Ozone :3000]
     VM --> DH[deployhook :8081]
 ```
 
-- `contraria.schmidt.monster` → `localhost:3000` do talos → Ozone na VM.
+- `contraria.schmidt.monster` → `localhost:3000` do talos → `gateway` Nginx na VM, que encaminha `/admin/*` e `/v1/*` para a API FastAPI e todo o resto para o Ozone.
 - `deploy-contraria.schmidt.monster` → `localhost:8081` do talos → container `deployhook` na VM (veja [Deploy](#deploy)).
 - **Dependência:** com o talos desligado ou sem rede, o Ozone e o deploy ficam fora do ar. A pilha na VM continua
   rodando normalmente.
 
 !!! success "O SSH da VM não é exposto à internet"
     Não existe rota pública para o sshd. A VM só aceita SSH pela rede local ou pela VPN, com a senha **desligada**
-    (`/etc/ssh/sshd_config.d/00-contraria.conf`) e o root entrando somente por chave. O único endpoint público além do
-    Ozone é o de deploy, que só aceita um token assinado pelo GitHub para este repositório (veja abaixo).
+    (`/etc/ssh/sshd_config.d/00-contraria.conf`) e o root entrando somente por chave. Fora da rede local, o acesso
+    administrativo é feito via API autenticada em `contraria.schmidt.monster/admin` com `ADMIN_API_KEY`.
+
 
 ## Acesso administrativo
 
@@ -104,9 +107,63 @@ ssh contraria-vm 'su deploy -c "DEPLOY_BRANCH=nome-da-branch /opt/contraria-depl
 | `searxng` | Busca web | 256 MB |
 | `api` | FastAPI | 1 GB |
 | `worker` | Coleta, triagem e análise | 2 GB |
+| `gateway` | Proxy reverso Nginx na porta 3000 (roteia FastAPI e Ozone) | 64 MB |
 | `ozone-db`, `ozone`, `ozone-daemon` | Labeler | 512 MB, 1 GB, 512 MB |
 
-Com a pilha completa a VM usa ~3,5 GB de RAM e ~13 GB de disco. O gargalo é a CPU do `jev`.
+Com a pilha completa a VM usa ~3,6 GB de RAM e ~13 GB de disco. O gargalo é a CPU do `jev`.
+
+## Acesso administrativo via API (sem SSH/VPN)
+
+Para monitorar e inspecionar o ContrarIA diretamente pela internet sem precisar de túnel SSH ou estar na VPN da universidade, a aplicação expõe endpoints administrativos **somente-leitura** protegidos pela chave `ADMIN_API_KEY`:
+
+- **Autenticação:** Header `X-Admin-Api-Key: <chave>` ou `Authorization: Bearer <chave>`.
+- **Endereço base:** `https://contraria.schmidt.monster/admin/` (ou `/v1/admin/`).
+
+### Principais endpoints
+
+| Método | Endpoint | Descrição |
+|---|---|---|
+| `GET` | `/admin/overview` | Resumo de métricas: total de posts por status, decisões por veredito, intervenções de hoje, tokens e custo de LLM, contas avaliadas. |
+| `GET` | `/admin/logs` | Logs estruturados da tabela `system_logs`. Filtros: `service` (`worker`/`api`), `level` (`ERROR`/`INFO`), `search`, `limit`, `offset`. |
+| `GET` | `/admin/db/tables` | Lista todas as tabelas mapeadas da aplicação e a contagem de registros em cada uma. |
+| `GET` | `/admin/db/tables/{table_name}` | Dados paginados de uma tabela específica (`posts`, `decision_log`, `intervention_logs`, `account_assessments`, etc.). |
+| `POST` | `/admin/db/query` | Execução segura de consultas SQL arbitrárias **estritamente somente-leitura** (`SELECT`/`WITH`). Rejeita qualquer mutação ou injeção. |
+
+Exemplos de uso via `curl`:
+
+```bash
+# Visão geral do sistema
+curl -s -H "X-Admin-Api-Key: SUA_CHAVE" https://contraria.schmidt.monster/admin/overview | jq .
+
+# Últimos 50 logs de erro do worker
+curl -s -H "X-Admin-Api-Key: SUA_CHAVE" \
+  "https://contraria.schmidt.monster/admin/logs?service=worker&level=ERROR&limit=50" | jq .
+
+# Consulta SQL personalizada (somente-leitura)
+curl -s -X POST -H "X-Admin-Api-Key: SUA_CHAVE" -H "Content-Type: application/json" \
+  -d '{"query": "SELECT uri, triage_status, priority FROM posts ORDER BY priority DESC LIMIT 5;"}' \
+  https://contraria.schmidt.monster/admin/db/query | jq .
+```
+
+### Importação de logs anteriores (Backfill)
+
+Como os logs antes da tabela `system_logs` ficavam apenas nos arquivos rotacionados do Docker na VM, é possível importar todo o histórico disponível nos containers para o banco de dados executando:
+
+```bash
+ssh contraria-vm
+cd /opt/contraria
+
+# Importa logs acumulados do worker:
+docker compose -f deploy/docker-compose.prod.yml --env-file api/.env logs worker | \
+  docker compose -f deploy/docker-compose.prod.yml --env-file api/.env exec -T api \
+  python -m app.scripts.backfill_logs --service worker
+
+# Importa logs acumulados da API:
+docker compose -f deploy/docker-compose.prod.yml --env-file api/.env logs api | \
+  docker compose -f deploy/docker-compose.prod.yml --env-file api/.env exec -T api \
+  python -m app.scripts.backfill_logs --service api
+```
+
 
 ### Valores calibrados para esta máquina
 
