@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -91,7 +91,7 @@ class PostRepository:
         now: datetime | None = None,
     ) -> list[tuple[DomainPost, float]]:
         """Retorna candidatos que cumpram o requisito de idade na fila em ordem de prioridade."""
-        now_dt = now or datetime.now(timezone.utc)
+        now_dt = now or datetime.now(UTC)
         conditions = [Post.triage_status.in_(PENDING_STATUSES), Post.uri.not_in(exclude_uris)]
         if min_age_hours > 0:
             min_cutoff = now_dt - timedelta(hours=min_age_hours)
@@ -126,7 +126,7 @@ class PostRepository:
         """Expira posts pendentes mais antigos que max_age_hours."""
         if max_age_hours <= 0:
             return 0
-        now_dt = now or datetime.now(timezone.utc)
+        now_dt = now or datetime.now(UTC)
         cutoff = now_dt - timedelta(hours=max_age_hours)
         with Session(self.engine) as session, session.begin():
             result = session.execute(

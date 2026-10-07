@@ -1,16 +1,17 @@
 from datetime import UTC, datetime, timedelta
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from app.domain.entities import Account, Evidence, Post as DomainPost, Verdict, VerdictLabel
+import pytest
+
+from app.domain.entities import Account, Evidence, Verdict, VerdictLabel
+from app.domain.entities import Post as DomainPost
 from app.repositories.posts import PostRepository
-from app.services.jev_verification import _entity_conflict, _is_verifiable_claim
 from app.services.intervention import (
     InterventionService,
     _find_hallucinated_entity,
     _is_claim_relevant_to_post,
 )
-from app.models.classifiers.jev import JevClassifier
+from app.services.jev_verification import _entity_conflict, _is_verifiable_claim
 
 
 def test_is_verifiable_claim_rejects_orphan_fragment():
@@ -45,8 +46,8 @@ def test_entity_conflict_blocks_cross_state_evidence():
 
 def test_find_hallucinated_entity_detects_unmentioned_public_figures():
     post_text = (
-        "O ES sempre teve governadores progressistas, pela primeira vez vai eleger um governador do PL. "
-        "O concorrente era cria do Casagrande que foi governador duas vezes e não conseguiu fazer o Ferraço vencer."
+        "O ES sempre teve governadores progressistas, vai eleger um governador do PL. "
+        "O concorrente era cria do Casagrande e não conseguiu fazer o Ferraço vencer."
     )
     gen_text = (
         "O post afirma que Nikolas Ferreira foi o deputado mais votado do ES. "
@@ -61,7 +62,10 @@ def test_find_hallucinated_entity_detects_unmentioned_public_figures():
 
 
 def test_is_claim_relevant_to_post():
-    post_text = "O ES sempre teve governadores progressistas, vai eleger governador do PL. Casagrande e Ferraço."
+    post_text = (
+        "O ES sempre teve governadores progressistas, vai eleger governador do PL. "
+        "Casagrande e Ferraço."
+    )
     orphan_claim = "Jornada de 16 horas por dia no trabalho."
     assert not _is_claim_relevant_to_post(orphan_claim, post_text)
 
@@ -101,7 +105,9 @@ async def test_intervention_blocks_hallucinated_entity_in_quote():
         "O post afirma que Nikolas Ferreira participou dessa disputa eleitoral."
     )
 
-    res = await service.execute_intervention(post, Account(did="did:1", handle="user"), verdict, 0.1)
+    res = await service.execute_intervention(
+        post, Account(did="did:1", handle="user"), verdict, 0.1
+    )
     # A intervenção DEVE ser abortada pelo guardrail de grounding
     assert res is None
     mock_bsky.quote_post.assert_not_called()
@@ -109,6 +115,7 @@ async def test_intervention_blocks_hallucinated_entity_in_quote():
 
 def test_post_aging_delay_in_repository():
     from sqlalchemy import create_engine
+
     from app.db.base import Base
 
     engine = create_engine("sqlite:///:memory:")
@@ -210,7 +217,9 @@ async def test_semantic_critic_veto_blocks_intervention():
         evidences=[Evidence("t", "https://fonte.example", "Fonte", "trecho")],
     )
 
-    res = await service.execute_intervention(post, Account(did="did:1", handle="user"), verdict, 0.1)
+    res = await service.execute_intervention(
+        post, Account(did="did:1", handle="user"), verdict, 0.1
+    )
     # A intervenção DEVE ser abortada pelo Critic Semântico
     assert res is None
     mock_bsky.quote_post.assert_not_called()
@@ -240,7 +249,7 @@ async def test_semantic_critic_approval_allows_intervention(monkeypatch):
     mock_llm.complete.side_effect = fake_complete
     mock_llm.complete_with_tools.return_value = (
         "TIPO: FATO\nVEREDITO: DESMENTE\nFONTE: 1\n"
-        "Será que a votação ocorreu no segundo turno, considerando que a eleição acabou no primeiro?"
+        "Será que a votação foi no 2º turno, já que a disputa encerrou no 1º?"
     )
 
     service = InterventionService(mock_repo, mock_bsky, mock_llm)
@@ -261,7 +270,8 @@ async def test_semantic_critic_approval_allows_intervention(monkeypatch):
         evidences=[Evidence("t", "https://fonte.example", "Fonte", "trecho")],
     )
 
-    res = await service.execute_intervention(post, Account(did="did:1", handle="user"), verdict, 0.1)
+    res = await service.execute_intervention(
+        post, Account(did="did:1", handle="user"), verdict, 0.1
+    )
     assert res == "at://did:bot/quote/1"
     mock_bsky.quote_post.assert_called_once()
-

@@ -340,10 +340,10 @@ class InterventionService:
         if not await self._should_intervene(post, author, verdict):
             return None
 
-        # Alinhamento da claim com o post original: a claim precisa ter pertinência com o post a ser citado.
+        # Alinhamento da claim com o post: a claim precisa ter pertinência com o post.
         if not _is_claim_relevant_to_post(verdict.claim, post.text):
             logger.warning(
-                "Intervenção abortada: alegação '%s' não possui correspondência temática com o post original %s",
+                "Intervenção abortada: alegação '%s' não possui correspondência com o post %s",
                 verdict.claim,
                 post.uri,
             )
@@ -470,7 +470,7 @@ class InterventionService:
         hallucinated_name = _find_hallucinated_entity(generated_text, post.text)
         if hallucinated_name:
             logger.warning(
-                "Intervenção vetada pelo guardrail de grounding: entidade '%s' ausente do post original %s",
+                "Intervenção vetada por grounding: entidade '%s' ausente do post %s",
                 hallucinated_name,
                 post.uri,
             )

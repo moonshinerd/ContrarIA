@@ -796,9 +796,7 @@ def _is_verifiable_claim(fragment: str) -> bool:
         return True
     # 4. Sigla institucional (STF, TSE, PF, CPMI, etc) -- UFs isoladas não contam
     acronyms = [
-        a
-        for a in _ACRONYM_PATTERN.findall(fragment)
-        if a not in _CLICKBAIT_TERMS and a not in _UFS
+        a for a in _ACRONYM_PATTERN.findall(fragment) if a not in _CLICKBAIT_TERMS and a not in _UFS
     ]
     if acronyms:
         return True
@@ -868,15 +866,44 @@ def _places(text: str) -> set[tuple[str, str]]:
 
 
 _STATE_NAME_TO_UF = {
-    "acre": "AC", "alagoas": "AL", "amapa": "AP", "amapá": "AP", "amazonas": "AM",
-    "bahia": "BA", "ceara": "CE", "ceará": "CE", "distrito federal": "DF",
-    "espirito santo": "ES", "espírito santo": "ES", "goias": "GO", "goiás": "GO",
-    "maranhao": "MA", "maranhão": "MA", "mato grosso do sul": "MS", "mato grosso": "MT",
-    "minas gerais": "MG", "para": "PA", "pará": "PA", "paraiba": "PB", "paraíba": "PB",
-    "parana": "PR", "paraná": "PR", "pernambuco": "PE", "piaui": "PI", "piauí": "PI",
-    "rio de janeiro": "RJ", "rio grande do norte": "RN", "rio grande do sul": "RS",
-    "rondonia": "RO", "rondônia": "RO", "roraima": "RR", "santa catarina": "SC",
-    "sao paulo": "SP", "são paulo": "SP", "sergipe": "SE", "tocantins": "TO",
+    "acre": "AC",
+    "alagoas": "AL",
+    "amapa": "AP",
+    "amapá": "AP",
+    "amazonas": "AM",
+    "bahia": "BA",
+    "ceara": "CE",
+    "ceará": "CE",
+    "distrito federal": "DF",
+    "espirito santo": "ES",
+    "espírito santo": "ES",
+    "goias": "GO",
+    "goiás": "GO",
+    "maranhao": "MA",
+    "maranhão": "MA",
+    "mato grosso do sul": "MS",
+    "mato grosso": "MT",
+    "minas gerais": "MG",
+    "para": "PA",
+    "pará": "PA",
+    "paraiba": "PB",
+    "paraíba": "PB",
+    "parana": "PR",
+    "paraná": "PR",
+    "pernambuco": "PE",
+    "piaui": "PI",
+    "piauí": "PI",
+    "rio de janeiro": "RJ",
+    "rio grande do norte": "RN",
+    "rio grande do sul": "RS",
+    "rondonia": "RO",
+    "rondônia": "RO",
+    "roraima": "RR",
+    "santa catarina": "SC",
+    "sao paulo": "SP",
+    "são paulo": "SP",
+    "sergipe": "SE",
+    "tocantins": "TO",
 }
 
 _UF_PATTERN = re.compile(
