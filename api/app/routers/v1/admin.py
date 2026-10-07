@@ -5,6 +5,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Security, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import create_engine, func, text
@@ -19,6 +20,7 @@ from app.db.orm import (
     FactArticle,
     IngestCursor,
     InterventionLog,
+    LabelEvent,
     LLMUsage,
     Post,
     SystemLog,
@@ -41,6 +43,7 @@ ALLOWED_TABLES: dict[str, type] = {
     "decision_log": DecisionLog,
     "decision_reviews": DecisionReview,
     "intervention_logs": InterventionLog,
+    "label_events": LabelEvent,
     "llm_usage": LLMUsage,
     "account_assessments": AccountAssessment,
     "crc_calibration": CRCCalibrationRecord,
@@ -90,6 +93,21 @@ def require_admin_key(
         )
 
     return provided
+
+
+def check_ozone_health(url: str, timeout: float = 3.0) -> dict[str, Any]:
+    """Confere o health público do Ozone (o caminho que passa pelo túnel)."""
+    if not url:
+        return {"configured": False, "reachable": None}
+    try:
+        response = httpx.get(url, timeout=timeout, headers={"User-Agent": "contraria-admin/1.0"})
+    except httpx.HTTPError as exc:
+        return {"configured": True, "reachable": False, "error": type(exc).__name__}
+    return {
+        "configured": True,
+        "reachable": response.status_code == 200,
+        "status_code": response.status_code,
+    }
 
 
 @router.get(
@@ -160,6 +178,17 @@ def get_overview(
         or 0
     )
 
+    # Rótulos do Ozone (outbox)
+    labels_by_status = dict(
+        db.query(LabelEvent.status, func.count(LabelEvent.id)).group_by(LabelEvent.status).all()
+    )
+    last_label_error = (
+        db.query(LabelEvent.last_error, LabelEvent.subject_uri, LabelEvent.created_at)
+        .filter(LabelEvent.last_error.isnot(None))
+        .order_by(LabelEvent.id.desc())
+        .first()
+    )
+
     return AdminOverviewOut(
         timestamp=now,
         app_name=settings.app_name,
@@ -191,6 +220,21 @@ def get_overview(
             "total_records": logs_total,
             "errors_last_24h": logs_errors_24h,
         },
+        labels={
+            "by_status": labels_by_status,
+            "pending": labels_by_status.get("pending", 0),
+            "failed": labels_by_status.get("failed", 0),
+            "last_error": (
+                {
+                    "error": last_label_error[0],
+                    "subject": last_label_error[1],
+                    "at": last_label_error[2],
+                }
+                if last_label_error
+                else None
+            ),
+        },
+        ozone=check_ozone_health(settings.ozone_health_url),
         config_summary={
             "verification_backend": settings.verification_backend,
             "intervention_dry_run": settings.intervention_dry_run,

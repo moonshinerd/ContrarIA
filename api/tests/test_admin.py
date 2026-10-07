@@ -303,3 +303,46 @@ def test_database_log_handler_saves_to_db(tmp_path):
     finally:
         test_logger.removeHandler(handler)
         engine.dispose()
+
+
+def test_admin_overview_reports_label_outbox_and_ozone_health(monkeypatch):
+    from app.db.orm.label_events import LabelEvent
+    from app.routers.v1 import admin as admin_module
+
+    with Session(test_engine) as session:
+        session.add_all(
+            [
+                LabelEvent(
+                    subject_kind="post",
+                    subject_uri="at://a",
+                    label_val="possivel-desinformacao",
+                    action="create",
+                    status="pending",
+                    attempts=1,
+                    last_error="RequestException: 502",
+                ),
+                LabelEvent(
+                    subject_kind="post",
+                    subject_uri="at://b",
+                    label_val="possivel-desinformacao",
+                    action="create",
+                    status="sent",
+                    attempts=1,
+                ),
+            ]
+        )
+        session.commit()
+    monkeypatch.setattr(
+        admin_module,
+        "check_ozone_health",
+        lambda url: {"configured": True, "reachable": False, "error": "ConnectTimeout"},
+    )
+
+    response = client.get("/v1/admin/overview", headers={"X-Admin-Api-Key": "secret-test-key"})
+
+    data = response.json()
+    assert data["labels"]["pending"] == 1
+    assert data["labels"]["failed"] == 0
+    assert data["labels"]["by_status"] == {"pending": 1, "sent": 1}
+    assert "502" in data["labels"]["last_error"]["error"]
+    assert data["ozone"]["reachable"] is False

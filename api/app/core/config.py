@@ -167,6 +167,13 @@ class Settings(BaseSettings):
     ozone_labeler_handle: str = ""
     ozone_labeler_app_password: str = ""
     ozone_labeler_did: str = ""
+    # Repetição de rótulos que o Ozone não aceitou (ex.: túnel fora do ar). A espera dobra a
+    # cada falha, até 1 h; ao esgotar as tentativas o evento fica `failed` em `label_events`.
+    label_retry_interval_seconds: float = Field(default=60.0, gt=0)
+    label_retry_max_attempts: int = Field(default=8, ge=1)
+    # URL pública do health do Ozone (a que passa pelo túnel), conferida no /admin/overview.
+    # Vazio desliga a checagem.
+    ozone_health_url: str = ""
 
     # Chave de API administrativa para acesso seguro aos endpoints de consulta/logs/banco.
     admin_api_key: str = ""

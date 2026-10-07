@@ -209,6 +209,20 @@ reversão não apaga o histórico: o Ozone registra o evento de negação.
     A Cloudflare responde 403 a `urllib` com o User-Agent padrão em `contraria.schmidt.monster`; use um User-Agent
     identificável ou o `curl`. O `OzoneClient` do projeto não é afetado (fala com o PDS e usa o proxy do labeler).
 
+### Rótulos com repetição (outbox)
+
+O rótulo `possivel-desinformacao` é pedido depois que o quote já saiu. Se o Ozone estiver inacessível (por exemplo,
+o túnel `ozone-forward` caiu e a chamada volta **502**), o pedido não se perde: cada emissão vira uma linha em
+`label_events` (`pending`, `sent` ou `failed`) e o worker repete as pendentes a cada `LABEL_RETRY_INTERVAL_SECONDS`
+(60 s), com espera dobrando a cada falha, até 1 h, e desiste como `failed` depois de `LABEL_RETRY_MAX_ATTEMPTS` (8).
+
+- `/admin/overview` traz `labels` (contagem por estado e o último erro) e `ozone` (resposta do health público).
+  Para ligar a checagem, defina em `/opt/contraria/api/.env`
+  `OZONE_HEALTH_URL=https://contraria.schmidt.monster/xrpc/_health`.
+- `label_events` também sai em `/admin/db/tables` e `/admin/db/query`.
+- Um rótulo `failed` não volta sozinho: depois de religar o túnel, reenvie com o `OzoneClient` ou crie nova decisão.
+- A emissão de `provavel-bot` em contas já se repetia sozinha (o estado da conta só muda depois do sucesso).
+
 ### Produção ligada (05/10/2026)
 
 Desde 05/10/2026 a aplicação roda **de verdade** na VM, sem modo seco (`INTERVENTION_DRY_RUN=false` e
