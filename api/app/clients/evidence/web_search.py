@@ -64,10 +64,47 @@ def parse_date(value: str | None) -> datetime | None:
 
 
 class CachedSource(EvidenceSource):
+    """Fonte com cache, chamada única por consulta e disjuntor.
+
+    - Consultas iguais e simultâneas compartilham uma só chamada de rede (sem lock global: uma
+      consulta lenta não segura as outras).
+    - Disjuntor: depois de uma falha a fonte fica fora por um tempo que dobra a cada falha seguida
+      (`evidence_failure_cooldown_seconds` até `evidence_failure_cooldown_max_seconds`) e responde
+      vazio na hora, para uma fonte instável não atrasar a análise. Um sucesso zera a contagem.
+    """
+
     def __init__(self, settings: Settings):
         self.settings = settings
         self._cache: OrderedDict[tuple, tuple[float, list[Evidence]]] = OrderedDict()
-        self._lock = asyncio.Lock()
+        self._inflight: dict[tuple, asyncio.Future] = {}
+        self._failures = 0
+        self._unavailable_until = 0.0
+
+    def mark_failure(self) -> None:
+        self._failures += 1
+        cooldown = min(
+            self.settings.evidence_failure_cooldown_seconds * 2 ** (self._failures - 1),
+            self.settings.evidence_failure_cooldown_max_seconds,
+        )
+        self._unavailable_until = monotonic() + cooldown
+        logger.warning("Fonte %s em espera por %ds após falha", self.name, cooldown)
+
+    def _mark_success(self) -> None:
+        self._failures = 0
+        self._unavailable_until = 0.0
+
+    async def _fetch(self, key: tuple, query: str, limit: int) -> list[Evidence]:
+        try:
+            result = await self._search(query, limit)
+        except BaseException:
+            self.mark_failure()
+            raise
+        self._mark_success()
+        self._cache[key] = (monotonic() + self.settings.web_cache_ttl_seconds, result)
+        self._cache.move_to_end(key)
+        while len(self._cache) > self.settings.web_cache_max_entries:
+            self._cache.popitem(last=False)
+        return result
 
     async def search(self, query: str, *, limit: int = 5) -> list[Evidence]:
         query = " ".join(query.split())
@@ -75,17 +112,25 @@ class CachedSource(EvidenceSource):
             return []
         limit = min(limit, 20)
         key = (query, limit)
-        async with self._lock:
-            cached = self._cache.get(key)
-            if cached and cached[0] > monotonic():
-                self._cache.move_to_end(key)
-                return list(cached[1])
-            result = await self._search(query, limit)
-            self._cache[key] = (monotonic() + self.settings.web_cache_ttl_seconds, result)
+        cached = self._cache.get(key)
+        if cached and cached[0] > monotonic():
             self._cache.move_to_end(key)
-            while len(self._cache) > self.settings.web_cache_max_entries:
-                self._cache.popitem(last=False)
-            return list(result)
+            return list(cached[1])
+        if monotonic() < self._unavailable_until:
+            return []  # em espera: o chamador segue com as outras fontes
+        task = self._inflight.get(key)
+        if task is None:
+            task = asyncio.ensure_future(self._fetch(key, query, limit))
+            self._inflight[key] = task
+
+            def _done(finished: asyncio.Future, key: tuple = key) -> None:
+                self._inflight.pop(key, None)
+                if not finished.cancelled():
+                    finished.exception()  # evita "exception was never retrieved"
+
+            task.add_done_callback(_done)
+        # shield: se quem chamou desistir (timeout), a chamada continua para os outros e o cache.
+        return list(await asyncio.shield(task))
 
     @property
     def enabled(self) -> bool:
@@ -101,18 +146,12 @@ class SearXNGClient(CachedSource):
     def __init__(self, settings: Settings, *, transport=None):
         super().__init__(settings)
         self.transport = transport
-        self._unavailable_until = 0.0
 
     @property
     def enabled(self) -> bool:
-        if monotonic() < self._unavailable_until:
-            return False
         return self.settings.searxng_enabled and bool(self.settings.searxng_base_url)
 
     async def _search(self, query: str, limit: int) -> list[Evidence]:
-        if monotonic() < self._unavailable_until:
-            raise RuntimeError("SearXNG temporariamente em espera")
-
         params: dict[str, str] = {
             "q": query,
             "format": "json",
@@ -122,18 +161,11 @@ class SearXNGClient(CachedSource):
             params["categories"] = self.settings.searxng_categories
 
         base_url = self.settings.searxng_base_url.rstrip("/")
-        try:
-            async with httpx.AsyncClient(
-                timeout=self.settings.evidence_timeout_seconds, transport=self.transport
-            ) as client:
-                response = await client.get(f"{base_url}/search", params=params)
-        except Exception:
-            self._unavailable_until = monotonic() + 10.0
-            raise
-
-        if response.status_code != 200:
-            self._unavailable_until = monotonic() + 10.0
-            response.raise_for_status()
+        async with httpx.AsyncClient(
+            timeout=self.settings.evidence_timeout_seconds, transport=self.transport
+        ) as client:
+            response = await client.get(f"{base_url}/search", params=params)
+        response.raise_for_status()
 
         data = response.json()
         raw_results = data.get("results", [])
@@ -231,6 +263,7 @@ class WebSearchSource(EvidenceSource):
         duckduckgo=None,
         raise_on_failure: bool = False,
     ):
+        self.settings = settings
         self.raise_on_failure = raise_on_failure
         if searxng is not None:
             self.searxng = searxng
@@ -246,9 +279,16 @@ class WebSearchSource(EvidenceSource):
         sources = [s for s in (self.searxng, self.duckduckgo) if s is not None and s.enabled]
         for source in sources:
             try:
-                result = await source.search(query, limit=limit)
+                result = await asyncio.wait_for(
+                    source.search(query, limit=limit),
+                    timeout=self.settings.evidence_provider_timeout_seconds,
+                )
                 if result:
                     return result
+            except TimeoutError:
+                source.mark_failure()  # a chamada segue em segundo plano; a fonte sai de cena
+                failures.append(source.name)
+                logger.warning("Fonte %s demorou demais", source.name)
             except Exception as exc:
                 # Não registrar URL/body de exceções: podem conter credenciais e consultas.
                 failures.append(source.name)

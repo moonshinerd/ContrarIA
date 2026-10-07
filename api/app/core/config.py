@@ -65,6 +65,13 @@ class Settings(BaseSettings):
     # Só para testes ao vivo antes de existir calibração do Jev: sem ela, o
     # veredito passa sem o gate CRC em vez de virar abstenção. Nunca em produção.
     jev_allow_uncalibrated: bool = False
+    # Matéria citada pelo próprio post: entailment mínimo (máximo entre os trechos, NLI) para dar o
+    # post como consistente com a fonte, e autoridade mínima da fonte (2.0 = jornalística).
+    # Limiar de
+    # 0,7 medido em app/scripts/eval_cited_support.py: recall 0,92 e 0 falsos aceites em ~100
+    # variantes adulteradas (outra escola, cidade ou zona).
+    cited_source_entailment_min: float = Field(default=0.7, ge=0, le=1)
+    cited_source_min_authority: float = Field(default=2.0, ge=0)
 
     google_factcheck_api_key: str = ""
     # Cota real da Fact Check Tools API: 300 requisições/minuto (sem limite diário).
@@ -81,6 +88,11 @@ class Settings(BaseSettings):
     web_cache_ttl_seconds: int = Field(default=3600, ge=1)
     web_cache_max_entries: int = Field(default=1000, ge=1)
     evidence_timeout_seconds: float = Field(default=20, gt=0)
+    # Cada provedor do web_search tem seu prazo; estourado, o próximo assume e a fonte instável
+    # entra em espera (dobra a cada falha seguida, até o máximo) em vez de atrasar toda análise.
+    evidence_provider_timeout_seconds: float = Field(default=8, gt=0)
+    evidence_failure_cooldown_seconds: int = Field(default=30, ge=1)
+    evidence_failure_cooldown_max_seconds: int = Field(default=600, ge=1)
     rss_poll_seconds: int = Field(default=3600, ge=60)
     rss_recency_weight: float = Field(default=0.1, ge=0, le=1)
     rss_recency_half_life_days: float = Field(default=30, gt=0)

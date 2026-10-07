@@ -101,6 +101,9 @@ class PipelineService:
         elif is_insufficient:
             action = "MONITOR"
             justification = "Evidência insuficiente. Apenas monitoramento."
+        elif verdict.label == VerdictLabel.SOURCE_CONSISTENT:
+            action = "MONITOR"
+            justification = "Post consistente com a matéria que cita. Sem intervenção."
         elif high_engagement and is_adverse:
             action = "INTERVENE"
             justification = (
