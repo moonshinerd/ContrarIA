@@ -12,54 +12,51 @@ O ContrarIA lê posts públicos do Bluesky, consulta fontes de evidência na web
 publica um *quote post* na conta do bot e (opcionalmente) emite um rótulo pelo labeler Ozone.
 
 ```mermaid
-flowchart LR
-    classDef in fill:#0284c7,stroke:#0369a1,color:#fff
-    classDef core fill:#2563eb,stroke:#1e3a8a,color:#fff
-    classDef out fill:#16a34a,stroke:#14532d,color:#fff
-    classDef db fill:#7c3aed,stroke:#5b21b6,color:#fff
-    classDef human fill:#db2777,stroke:#9d174d,color:#fff
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '15px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
+flowchart TD
+    classDef in fill:#E0F2FE,stroke:#0284C7,stroke-width:2px,color:#0C4A6E
+    classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
+    classDef db fill:#F3E8FF,stroke:#7E22CE,stroke-width:2px,color:#581C87
+    classDef out fill:#DCFCE7,stroke:#15803D,stroke-width:2px,color:#14532D
+    classDef human fill:#FCE7F3,stroke:#BE185D,stroke-width:2px,color:#831843
 
-    subgraph ENTRADA["1. Fontes de Entrada & Contexto"]
-        direction TB
-        JS["Jetstream<br/>firehose de posts pt"]:::in
-        SP["searchPosts<br/>posts de alto alcance"]:::in
-        AV["AppView Bluesky<br/>perfil, feed do autor, thread"]:::in
-        EV["Fontes de Checagem<br/>Google Fact Check, Wiki, RSS"]:::in
+    subgraph ENTRADAS["1. Fontes de Entrada (Bluesky & Web)"]
+        direction LR
+        JS["<b>Jetstream</b><br/>firehose posts pt"]:::in
+        SP["<b>searchPosts</b><br/>posts de alto alcance"]:::in
+        AV["<b>AppView</b><br/>perfil e contexto"]:::in
+        EV["<b>Checagem & RSS</b><br/>notícias e fatos"]:::in
+        JS ~~~ SP ~~~ AV ~~~ EV
     end
 
     subgraph NUCLEO["2. Núcleo ContrarIA (Docker Compose)"]
         direction TB
-        WK["Worker Autônomo<br/>coleta, triagem, análise e rodadas"]:::core
-        API["API FastAPI :8000<br/>saúde, consulta e auditoria"]:::core
-        JEV["Jev :8100<br/>classificador local mDeBERTa NLI"]:::core
-        SX["SearXNG :8080<br/>metabuscador web self-hosted"]:::core
-        DB[("PostgreSQL + pgvector<br/>posts, decisões, logs, vetores")]:::db
-
-        WK --> JEV
-        WK --> SX
-        WK --> DB
-        API --> DB
-        API --> JEV
+        WK["<b>Worker Autônomo</b><br/>ingestão, triagem contínua e análise"]:::core
+        
+        WK -->|classificação NLI| JEV["<b>Jev :8100</b><br/>mDeBERTa NLI"]:::core
+        WK -->|busca factual| SX["<b>SearXNG :8080</b><br/>metabuscador web"]:::core
+        WK -->|grava e lê| DB[("<b>PostgreSQL :5432</b><br/>pgvector e decisões")]:::db
+        
+        API["<b>API FastAPI :8000</b><br/>saúde e auditoria"]:::core -->|consulta| DB
     end
 
-    subgraph SAIDA["3. Destinos, LLM & Moderação"]
-        direction TB
-        LLM["LiteLLM / OpenRouter<br/>redação socrática e critic"]:::out
-        QP["Bluesky PDS<br/>quote post @contraria-bot"]:::out
-        OZ["Ozone Labeler<br/>rótulos @contraria-labeler"]:::out
+    subgraph DESTINOS["3. Destinos & Moderação"]
+        direction LR
+        LLM["<b>LiteLLM / OpenRouter</b><br/>redação socrática e critic"]:::out
+        QP["<b>Bluesky PDS</b><br/>quote post @contraria-bot"]:::out
+        OZ["<b>Ozone Labeler</b><br/>rótulo @contraria-labeler"]:::out
+
+        LLM -->|publica citação| QP
     end
 
-    USER(("Pessoa<br/>avaliadora")):::human -->|GET /admin, POST /v1/analyze| API
+    USER(("<b>Pessoa</b><br/>avaliadora")):::human -->|auditoria GET /admin| API
 
-    JS -->|posts em tempo real| WK
-    SP -->|posts populares 24h| WK
-    AV -->|hidratação e engajamento| WK
-    EV -->|evidências factuais| WK
+    ENTRADAS ==>|posts em tempo real e evidências| WK
+    WK ==>|solicita redação socrática| LLM
+    WK ==>|emite rótulo outbox| OZ
 
-    WK -->|redação e validação| LLM
-    LLM -->|texto aprovado| WK
-    WK -->|publicação socrática| QP
-    WK -->|outbox com repetição| OZ
+    %% Garante ordem vertical estrita (Destinos abaixo do Núcleo)
+    DB ~~~ LLM
 ```
 
 | Serviço | Papel | Porta |
@@ -75,38 +72,46 @@ flowchart LR
 ## Fluxo de ponta a ponta
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
 flowchart TD
+    classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
+    classDef ingest fill:#E0F2FE,stroke:#0284C7,stroke-width:2px,color:#0369A1
+    classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
+    classDef store fill:#F3E8FF,stroke:#7E22CE,stroke-width:2px,color:#581C87
+    classDef guard fill:#FEF3C7,stroke:#D97706,stroke-width:2px,color:#78350F
+    classDef out fill:#DCFCE7,stroke:#15803D,stroke-width:2px,color:#14532D
+
     subgraph Coleta["1. Coleta (tarefas assíncronas do worker)"]
-        J1[JetstreamConsumer<br/>tempo real, pt + palavras-chave]
-        J2[SearchPoller<br/>searchPosts top 24h, a cada 10 min]
+        J1[JetstreamConsumer<br/>tempo real, pt + palavras-chave]:::ingest
+        J2[SearchPoller<br/>searchPosts top 24h, a cada 10 min]:::ingest
     end
-    J1 --> POSTS[(posts)]
+    J1 --> POSTS[(posts)]:::store
     J2 --> POSTS
 
-    ER[EngagementRefresher<br/>a cada 5 min, últimas 48h] --> SNAP[(post_engagement_snapshots)]
+    ER[EngagementRefresher<br/>a cada 5 min, últimas 48h]:::ingest --> SNAP[(post_engagement_snapshots)]:::store
     ER -- relevância + velocidade<br/>matriz GQ04 --> POSTS
 
-    POSTS -- triage_status = monitor / queued<br/>aging delay: entre 3 h e 48 h<br/>ordenado por priority --> LOOP{{Pool do worker<br/>concorrência configurável}}
-    GATE[IngestGate<br/>teto de 100 na fila] -. descarta quando cheia .-> J1
+    POSTS -- triage_status = monitor / queued<br/>aging delay: entre 3 h e 48 h<br/>ordenado por priority --> LOOP{{Pool do worker<br/>concorrência configurável}}:::core
+    GATE[IngestGate<br/>teto de 100 na fila]:::guard -. descarta quando cheia .-> J1
     GATE -. descarta quando cheia .-> J2
-    RSSJ[FeedIngestor<br/>RSS a cada 1 h + embeddings] --> FA[(fact_articles<br/>pgvector)]
+    RSSJ[FeedIngestor<br/>RSS a cada 1 h + embeddings]:::ingest --> FA[(fact_articles<br/>pgvector)]:::store
 
-    LOOP --> PIPE[PipelineService.analyze]
-    PIPE --> BOT[Bot score<br/>cache de 24 h]
-    BOT -.-> ACC[AccountLabelService<br/>provavel-bot em contas]
-    PIPE --> VER[JevVerificationService<br/>claims, evidências, relevância,<br/>veredito, CRC]
+    LOOP --> PIPE[PipelineService.analyze]:::core
+    PIPE --> BOT[Bot score<br/>cache de 24 h]:::core
+    BOT -.-> ACC[AccountLabelService<br/>provavel-bot em contas]:::out
+    PIPE --> VER[JevVerificationService<br/>claims, evidências, relevância,<br/>veredito, CRC]:::core
     FA -.-> VER
-    BOT --> GQ01{Matriz GQ01}
+    BOT --> GQ01{Matriz GQ01}:::core
     VER --> GQ01
-    GQ01 -- IGNORE / MONITOR --> LOG[(decisions)]
-    GQ01 -- INTERVENE_QUEUED --> Q[InterventionQueue]
-    Q -- 1 melhor por rodada de 15 min<br/>fora do silêncio 00h-07h --> INT[InterventionService<br/>travas + revisão de fontes + redação]
-    INT --> CRIT{Critic Semântico<br/>auditado via LLM}
+    GQ01 -- IGNORE / MONITOR --> LOG[(decisions)]:::store
+    GQ01 -- INTERVENE_QUEUED --> Q[InterventionQueue]:::core
+    Q -- 1 melhor por rodada de 15 min<br/>fora do silêncio 00h-07h --> INT[InterventionService<br/>travas + revisão de fontes + redação]:::core
+    INT --> CRIT{Critic Semântico<br/>auditado via LLM}:::guard
     CRIT -- vetado --> LOG
-    CRIT -- aprovado --> QP[Quote post no Bluesky]
-    CRIT -- aprovado --> OB[LabelOutbox<br/>resiliente com repetições]
-    OB --> LAB[Rótulo Ozone<br/>possivel-desinformacao]
-    INT --> IL[(intervention_logs)]
+    CRIT -- aprovado --> QP[Quote post no Bluesky]:::out
+    CRIT -- aprovado --> OB[LabelOutbox<br/>resiliente com repetições]:::core
+    OB --> LAB[Rótulo Ozone<br/>possivel-desinformacao]:::out
+    INT --> IL[(intervention_logs)]:::store
     Q -- atualiza action --> LOG
     PIPE --> LOG
 ```
@@ -130,16 +135,20 @@ Pontos que o desenho deixa explícitos:
 o `AnalysisPool`, que mantém até `WORKER_PIPELINE_CONCURRENCY` análises em andamento e preenche cada vaga assim que ela libera.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
 flowchart LR
+    classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
+    classDef ingest fill:#E0F2FE,stroke:#0284C7,stroke-width:2px,color:#0369A1
+
     subgraph Worker["python -m app.worker (um processo, um event loop)"]
-        T1[JetstreamConsumer.run<br/>WebSocket + cursor]
-        T2[SearchPoller.run<br/>600 s]
-        T3[EngagementRefresher.run<br/>300 s]
-        L[Loop principal<br/>tick 30 s]
+        T1[JetstreamConsumer.run<br/>WebSocket + cursor]:::ingest
+        T2[SearchPoller.run<br/>600 s]:::ingest
+        T3[EngagementRefresher.run<br/>300 s]:::ingest
+        L[Loop principal<br/>tick 30 s]:::core
     end
-    L --> R1[Rodada de intervenção<br/>se vencida]
-    L --> R2[FeedIngestor.run<br/>se RSS_POLL_SECONDS passou]
-    L --> R3[AnalysisPool: até N análises<br/>simultâneas]
+    L --> R1[Rodada de intervenção<br/>se vencida]:::core
+    L --> R2[FeedIngestor.run<br/>se RSS_POLL_SECONDS passou]:::ingest
+    L --> R3[AnalysisPool: até N análises<br/>simultâneas]:::core
 ```
 
 A rodada de intervenção é verificada **antes e depois de cada análise** (`run_due_intervention_round`),

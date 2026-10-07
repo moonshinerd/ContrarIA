@@ -6,16 +6,16 @@ componentes) com diagramas de sequência e de estados para o comportamento. Cada
 nomeia o código e a configuração de cada bloco.
 
 !!! info "Como ler os diagramas"
-    As cores têm o mesmo significado em todas as páginas desta seção.
+    As cores têm o mesmo significado em todas as páginas desta seção e utilizam alto contraste visual.
 
     | Cor | Significado |
     |---|---|
-    | :material-circle:{ style="color:#475569" } cinza | Serviço externo (Bluesky, fontes de checagem, LLM, GitHub, Cloudflare) |
-    | :material-circle:{ style="color:#0e7490" } azul-petróleo | Entrada de dados (coleta, ingestão) |
-    | :material-circle:{ style="color:#2563eb" } azul | Processamento do agente (triagem, verificação, decisão) |
-    | :material-circle:{ style="color:#7c3aed" } roxo | Armazenamento (tabelas do Postgres) |
-    | :material-circle:{ style="color:#d97706" } laranja | Trava, filtro ou contrapressão |
-    | :material-circle:{ style="color:#16a34a" } verde | Saída pública (quote post, rótulo) |
+    | :material-circle:{ style="color:#64748b" } cinza | Serviço externo (Bluesky, fontes de checagem, LLM, GitHub, Cloudflare) |
+    | :material-circle:{ style="color:#0284c7" } azul-celeste | Entrada de dados (coleta, ingestão) |
+    | :material-circle:{ style="color:#4f46e5" } índigo | Processamento do agente (triagem, verificação, decisão) |
+    | :material-circle:{ style="color:#7e22ce" } roxo | Armazenamento (tabelas do Postgres) |
+    | :material-circle:{ style="color:#d97706" } âmbar | Trava, filtro ou contrapressão |
+    | :material-circle:{ style="color:#15803d" } verde | Saída pública (quote post, rótulo) |
     | :material-circle:{ style="color:#db2777" } rosa | Pessoa (usuário, operador, revisor) |
 
 Para o fluxo lógico da análise veja [O Pipeline do Agente](pipeline.md); para o esquema do banco e a configuração,
@@ -29,53 +29,53 @@ O ContrarIA tem **seis fluxos de entrada de dados** (detalhados na [seção 3](#
 conteúdo público, nenhum é caixa de mensagens privada) e **duas saídas públicas** (um quote post e um rótulo). O Bluesky é, ao mesmo tempo, a fonte e o destino.
 
 ```mermaid
-flowchart LR
-    classDef ext fill:#475569,stroke:#1e293b,color:#fff
-    classDef core fill:#2563eb,stroke:#1e3a8a,color:#fff
-    classDef human fill:#db2777,stroke:#831843,color:#fff
-    classDef out fill:#16a34a,stroke:#14532d,color:#fff
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
+flowchart TD
+    classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
+    classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
+    classDef human fill:#FCE7F3,stroke:#DB2777,stroke-width:2px,color:#831843
+    classDef out fill:#DCFCE7,stroke:#15803D,stroke-width:2px,color:#14532D
 
     subgraph IN["1. Entradas (Leitura Pública)"]
-        direction TB
-        JS["Jetstream<br/>firehose de posts pt"]:::ext
-        SRCH["searchPosts<br/>posts mais populares"]:::ext
-        APPV["AppView Bluesky<br/>perfil, feed, contexto do fio"]:::ext
-        EVID["Checagens & Notícias<br/>Google, Wiki, SearXNG, RSS"]:::ext
+        direction LR
+        JS["<b>Jetstream</b><br/>firehose posts pt"]:::ext
+        SRCH["<b>searchPosts</b><br/>posts mais populares"]:::ext
+        APPV["<b>AppView Bluesky</b><br/>perfil, feed e contexto"]:::ext
+        EVID["<b>Checagens & Notícias</b><br/>Google, Wiki, SearXNG, RSS"]:::ext
+        JS ~~~ SRCH ~~~ APPV ~~~ EVID
     end
 
     subgraph SYSTEM["2. Sistema ContrarIA"]
         direction TB
-        CORE["ContrarIA Core<br/>Worker, API, Jev e Banco"]:::core
-        OB["Outbox de Rótulos<br/>persistência e repetições"]:::core
-        CORE --> OB
+        CORE["<b>ContrarIA Core</b><br/>Worker, API, Jev e Banco"]:::core
+        OB["<b>Outbox de Rótulos</b><br/>persistência e repetições"]:::core
+        CORE -->|enfileira rótulo| OB
     end
 
     subgraph OUT["3. Saídas, LLM & Destinos"]
-        direction TB
-        LLM["LiteLLM / OpenRouter<br/>redação socrática e critic"]:::ext
-        QP["Quote Post Público<br/>@contraria-bot.bsky.social"]:::out
-        OZ["Labeler Ozone<br/>@contraria-labeler.bsky.social"]:::out
-        APP["App Bluesky<br/>notificação e exibição de selos"]:::ext
+        direction LR
+        LLM["<b>LiteLLM / OpenRouter</b><br/>redação e critic"]:::ext
+        QP["<b>Quote Post Público</b><br/>@contraria-bot"]:::out
+        OZ["<b>Labeler Ozone</b><br/>@contraria-labeler"]:::out
+        APP["<b>App Bluesky</b><br/>exibição de selos"]:::ext
         QP --> APP
         OZ --> APP
     end
 
-    AUTH(("Autor do post<br/>citado")):::human
-    USER(("Assinante<br/>do labeler")):::human
-    OPS(("Operador /<br/>Revisor")):::human
+    AUTH(("<b>Autor</b><br/>do post")):::human
+    USER(("<b>Assinante</b><br/>do labeler")):::human
+    OPS(("<b>Operador</b><br/>Revisor")):::human
 
-    JS -->|"tempo real"| CORE
-    SRCH -->|"top 24 h"| CORE
-    APPV -->|"engajamento"| CORE
-    EVID -->|"evidências"| CORE
+    IN ==>|leitura pública| CORE
+    CORE <-->|redação & critic| LLM
+    CORE -->|publica citação| QP
+    OB -->|emissão confiável| OZ
 
-    CORE <-->|"redação & critic"| LLM
-    CORE -->|"publicação"| QP
-    OB -->|"emissão confiável"| OZ
+    APP -.->|notifica citação| AUTH
+    USER -->|assina selos| APP
+    OPS -->|auditoria e revisão| CORE
 
-    APP -.->|"notifica citação"| AUTH
-    USER -->|"assina selos"| APP
-    OPS -->|"auditoria e revisão"| CORE
+    CORE ~~~ LLM
 ```
 
 | Ator ou sistema | Papel | Como o ContrarIA interage |
@@ -97,13 +97,14 @@ Tudo roda em **uma VM** com Docker Compose. A VM não aceita conexões de entrad
 da Cloudflare publicado por SSH reverso ([ADR 0020](../adr/0020-acesso-vm-tunel-cloudflare.md)).
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
 flowchart TB
-    classDef ext fill:#475569,stroke:#1e293b,color:#fff
-    classDef ingest fill:#0e7490,stroke:#164e63,color:#fff
-    classDef core fill:#2563eb,stroke:#1e3a8a,color:#fff
-    classDef store fill:#7c3aed,stroke:#4c1d95,color:#fff
-    classDef guard fill:#d97706,stroke:#78350f,color:#fff
-    classDef out fill:#16a34a,stroke:#14532d,color:#fff
+    classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
+    classDef ingest fill:#E0F2FE,stroke:#0284C7,stroke-width:2px,color:#0369A1
+    classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
+    classDef store fill:#F3E8FF,stroke:#7E22CE,stroke-width:2px,color:#581C87
+    classDef guard fill:#FEF3C7,stroke:#D97706,stroke-width:2px,color:#78350F
+    classDef out fill:#DCFCE7,stroke:#15803D,stroke-width:2px,color:#14532D
 
     NET(("Internet")):::ext
     GHA["GitHub Actions<br/>token OIDC"]:::ext
@@ -178,13 +179,14 @@ O sistema tem **seis fluxos de entrada**. Três trazem **posts** (o que será an
 **contexto** (o que sustenta a análise). Só o primeiro grupo cria linhas em `posts`.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
 flowchart LR
-    classDef ext fill:#475569,stroke:#1e293b,color:#fff
-    classDef ingest fill:#0e7490,stroke:#164e63,color:#fff
-    classDef core fill:#2563eb,stroke:#1e3a8a,color:#fff
-    classDef store fill:#7c3aed,stroke:#4c1d95,color:#fff
-    classDef guard fill:#d97706,stroke:#78350f,color:#fff
-    classDef human fill:#db2777,stroke:#831843,color:#fff
+    classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
+    classDef ingest fill:#E0F2FE,stroke:#0284C7,stroke-width:2px,color:#0369A1
+    classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
+    classDef store fill:#F3E8FF,stroke:#7E22CE,stroke-width:2px,color:#581C87
+    classDef guard fill:#FEF3C7,stroke:#D97706,stroke-width:2px,color:#78350F
+    classDef human fill:#FCE7F3,stroke:#DB2777,stroke-width:2px,color:#831843
 
     subgraph POSTS["A. Entradas que trazem POSTS"]
         direction TB
@@ -245,12 +247,13 @@ entrar, porque `WORKER_QUEUE_SEARCH_RESERVE` reserva vagas para ele ([ADR 0018](
 Os **reposts não são posts novos** e não entram na fila. Eles aparecem em três lugares, cada um com um papel diferente:
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
 flowchart TB
-    classDef ext fill:#475569,stroke:#1e293b,color:#fff
-    classDef ingest fill:#0e7490,stroke:#164e63,color:#fff
-    classDef core fill:#2563eb,stroke:#1e3a8a,color:#fff
-    classDef store fill:#7c3aed,stroke:#4c1d95,color:#fff
-    classDef guard fill:#d97706,stroke:#78350f,color:#fff
+    classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
+    classDef ingest fill:#E0F2FE,stroke:#0284C7,stroke-width:2px,color:#0369A1
+    classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
+    classDef store fill:#F3E8FF,stroke:#7E22CE,stroke-width:2px,color:#581C87
+    classDef guard fill:#FEF3C7,stroke:#D97706,stroke-width:2px,color:#78350F
 
     R["Repost no Bluesky<br/>(registro app.bsky.feed.repost)"]:::ext
 
@@ -342,12 +345,13 @@ início do worker e a cada rodada de 15 min ([ADR 0022](../adr/0022-janela-de-ma
 ## 5. Análise: o que acontece dentro do `PipelineService`
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
 flowchart TD
-    classDef ext fill:#475569,stroke:#1e293b,color:#fff
-    classDef core fill:#2563eb,stroke:#1e3a8a,color:#fff
-    classDef store fill:#7c3aed,stroke:#4c1d95,color:#fff
-    classDef guard fill:#d97706,stroke:#78350f,color:#fff
-    classDef out fill:#16a34a,stroke:#14532d,color:#fff
+    classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
+    classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
+    classDef store fill:#F3E8FF,stroke:#7E22CE,stroke-width:2px,color:#581C87
+    classDef guard fill:#FEF3C7,stroke:#D97706,stroke-width:2px,color:#78350F
+    classDef out fill:#DCFCE7,stroke:#15803D,stroke-width:2px,color:#14532D
 
     P["Post elegível<br/>3 h a 48 h"]:::core --> BOT["Bot score da conta<br/>pesos em bot_weights.yaml<br/>cache de 24 h"]:::core
     BOT --> ACC["AccountLabelService<br/>sincroniza provavel-bot"]:::out
@@ -387,12 +391,13 @@ A fila vive em memória e publica **no máximo um candidato por rodada** (`INTER
 entre 0 h e 7 h (Brasília).
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
 flowchart TD
-    classDef core fill:#2563eb,stroke:#1e3a8a,color:#fff
-    classDef guard fill:#d97706,stroke:#78350f,color:#fff
-    classDef store fill:#7c3aed,stroke:#4c1d95,color:#fff
-    classDef out fill:#16a34a,stroke:#14532d,color:#fff
-    classDef ext fill:#475569,stroke:#1e293b,color:#fff
+    classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
+    classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
+    classDef store fill:#F3E8FF,stroke:#7E22CE,stroke-width:2px,color:#581C87
+    classDef guard fill:#FEF3C7,stroke:#D97706,stroke-width:2px,color:#78350F
+    classDef out fill:#DCFCE7,stroke:#15803D,stroke-width:2px,color:#14532D
 
     R(["Rodada vence<br/>a cada 15 min"]):::core --> QH{"Horário de silêncio<br/>0 h às 7 h?"}:::guard
     QH -- "sim" --> M0["Todos viram MONITOR"]:::store
@@ -481,13 +486,14 @@ Todos os rótulos saem pelo mesmo cliente, mas nascem de **três gatilhos** dife
 com o app do Bluesky de cada pessoa (*opt-in*).
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
 flowchart LR
-    classDef ext fill:#475569,stroke:#1e293b,color:#fff
-    classDef core fill:#2563eb,stroke:#1e3a8a,color:#fff
-    classDef store fill:#7c3aed,stroke:#4c1d95,color:#fff
-    classDef guard fill:#d97706,stroke:#78350f,color:#fff
-    classDef out fill:#16a34a,stroke:#14532d,color:#fff
-    classDef human fill:#db2777,stroke:#831843,color:#fff
+    classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
+    classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
+    classDef store fill:#F3E8FF,stroke:#7E22CE,stroke-width:2px,color:#581C87
+    classDef guard fill:#FEF3C7,stroke:#D97706,stroke-width:2px,color:#78350F
+    classDef out fill:#DCFCE7,stroke:#15803D,stroke-width:2px,color:#14532D
+    classDef human fill:#FCE7F3,stroke:#DB2777,stroke-width:2px,color:#831843
 
     subgraph GAT["Gatilhos (só com PIPELINE_LABELER_ENABLED)"]
         direction TB
@@ -566,12 +572,14 @@ sequenceDiagram
 ### 9.2 Observabilidade e API administrativa
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
 flowchart LR
-    classDef core fill:#2563eb,stroke:#1e3a8a,color:#fff
-    classDef store fill:#7c3aed,stroke:#4c1d95,color:#fff
-    classDef guard fill:#d97706,stroke:#78350f,color:#fff
-    classDef human fill:#db2777,stroke:#831843,color:#fff
-    classDef out fill:#16a34a,stroke:#14532d,color:#fff
+    classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
+    classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
+    classDef store fill:#F3E8FF,stroke:#7E22CE,stroke-width:2px,color:#581C87
+    classDef guard fill:#FEF3C7,stroke:#D97706,stroke-width:2px,color:#78350F
+    classDef human fill:#FCE7F3,stroke:#DB2777,stroke-width:2px,color:#831843
+    classDef out fill:#DCFCE7,stroke:#15803D,stroke-width:2px,color:#14532D
 
     WK["worker"]:::core -->|"DatabaseLogHandler<br/>em lotes"| SL[("system_logs")]:::store
     AP["api"]:::core -->|"DatabaseLogHandler"| SL
