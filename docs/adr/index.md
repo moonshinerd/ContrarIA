@@ -1,6 +1,26 @@
 # Registros de Decisão Arquitetural (ADRs)
 
-Registro formal das decisões técnicas de engenharia e arquitetura do projeto **ContrarIA**, documentando o contexto, alternativas descartadas e consequências de cada escolha.
+Um **ADR** (*Architectural Decision Record*, ou **Registro de Decisão Arquitetural**) é um documento curto em formato texto que captura uma decisão arquitetural relevante tomada no projeto, juntamente com o seu contexto, as alternativas avaliadas e suas consequências.
+
+O padrão foi popularizado por Michael Nygard (2011) e é amplamente utilizado na engenharia de software para garantir rastreabilidade histórica, permitindo que qualquer pessoa da equipe entenda **por que** uma escolha foi feita e **quais foram as concessões** (*trade-offs*) assumidas, evitando retrabalho e discussões repetidas sobre decisões já fundamentadas.
+
+!!! info "Guia de Siglas Utilizadas no Projeto"
+    Para facilitar a leitura técnica das decisões e requisitos, a tabela abaixo consolida as siglas e convenções adotadas:
+
+    | Sigla | Significado em Inglês / Técnico | Descrição no Contexto do ContrarIA |
+    |---|---|---|
+    | **ADR** | *Architectural Decision Record* | Registro formal de uma decisão técnica estrutural |
+    | **RF** | Requisito Funcional | Funcionalidade explícita que o sistema implementa |
+    | **RNF** | Requisito Não Funcional | Critério de qualidade técnica (desempenho, segurança, custos, confiabilidade) |
+    | **GQ** | *Guiding Question* (Pergunta Norteadora) | Pergunta investigativa que orienta as decisões de arquitetura e mitigação |
+    | **MVP** | *Minimum Viable Product* | Versão de escopo essencial para validação do agente autônomo |
+    | **NLI** | *Natural Language Inference* | Classificação semântica de premissa × hipótese (sustenta, contradiz ou neutro) |
+    | **LLM** | *Large Language Model* | Modelo generativo na nuvem (usado estritamente para redação e crítica socrática) |
+    | **CRC** | *Conformal Risk Control* | Teoria estatística de garantia de erro calibrada por limiares de confiança |
+    | **PDS** | *Personal Data Server* | Servidor do AT Protocol onde ficam hospedados os dados e posts da conta |
+    | **DID** | *Decentralized Identifier* | Identificador criptográfico descentralizado e permanente de uma conta no Bluesky |
+    | **XRPC** | *Extensible Remote Procedure Call* | Protocolo HTTP/REST nativo do AT Protocol usado pelo Bluesky e Ozone |
+    | **OIDC** | *OpenID Connect* | Autenticação federada por tokens temporários usada pelo GitHub Actions no deploy |
 
 ---
 

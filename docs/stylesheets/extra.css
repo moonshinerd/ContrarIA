@@ -297,15 +297,98 @@
 }
 
 /* --------------------------------------------------------------------------
-   Diagramas Mermaid
+   Diagramas Mermaid - Legibilidade, Escala e Alto Contraste
    -------------------------------------------------------------------------- */
 .mermaid {
   text-align: center;
-  margin: 1.5rem 0;
-  background-color: var(--md-default-bg-color--light);
-  padding: 1.2rem;
-  border-radius: 8px;
-  border: 1px solid var(--md-default-bg-color--lighter);
+  margin: 2rem 0;
+  background-color: #F8FAFC;
+  padding: 1.75rem 1.25rem;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+  overflow-x: auto;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+[data-md-color-scheme="slate"] .mermaid {
+  background-color: #16192E;
+  border-color: #282C4C;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+/* Tamanho e escala ampliada para diagramas não ficarem pequenos */
+.mermaid svg {
+  display: block;
+  margin: 0 auto;
+  max-width: 100% !important;
+  height: auto !important;
+}
+
+/* Tipografia e Contraste nos nós do Mermaid */
+.mermaid .node text,
+.mermaid .node .nodeLabel,
+.mermaid .node foreignObject div,
+.mermaid .node foreignObject span,
+.mermaid .node foreignObject p {
+  font-family: var(--md-text-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+  color: #0F172A !important;
+  fill: #0F172A !important;
+}
+
+.mermaid .node foreignObject b,
+.mermaid .node foreignObject strong {
+  font-size: 14.5px !important;
+  font-weight: 700 !important;
+}
+
+/* Rótulos das setas e arestas com fundo limpo, borda e contraste */
+.mermaid .edgeLabel,
+.mermaid .edgeLabel text,
+.mermaid .edgeLabel span {
+  font-family: var(--md-text-font, sans-serif) !important;
+  font-size: 12.5px !important;
+  color: #1E293B !important;
+  fill: #1E293B !important;
+  background-color: #FFFFFF !important;
+  padding: 3px 8px !important;
+  border-radius: 4px !important;
+  border: 1px solid #CBD5E1 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-md-color-scheme="slate"] .mermaid .edgeLabel,
+[data-md-color-scheme="slate"] .mermaid .edgeLabel text,
+[data-md-color-scheme="slate"] .mermaid .edgeLabel span {
+  color: #E2E8F0 !important;
+  fill: #E2E8F0 !important;
+  background-color: #1E223A !important;
+  border: 1px solid #334155 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
+}
+
+[data-md-color-scheme="slate"] .mermaid .node text,
+[data-md-color-scheme="slate"] .mermaid .node .nodeLabel,
+[data-md-color-scheme="slate"] .mermaid .node foreignObject div,
+[data-md-color-scheme="slate"] .mermaid .node foreignObject span,
+[data-md-color-scheme="slate"] .mermaid .node foreignObject p {
+  color: #F8FAFC !important;
+  fill: #F8FAFC !important;
+}
+
+/* Títulos dos Subgraphs */
+.mermaid .cluster rect {
+  stroke-width: 1.5px !important;
+  rx: 8px !important;
+  ry: 8px !important;
+}
+
+.mermaid .cluster text,
+.mermaid .cluster span {
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  letter-spacing: 0.02em !important;
 }
 
 
