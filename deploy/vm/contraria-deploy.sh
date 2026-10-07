@@ -8,6 +8,7 @@ git fetch -q origin "$BRANCH"
 git reset -q --hard "origin/$BRANCH"
 COMPOSE="docker compose -f deploy/docker-compose.prod.yml --env-file api/.env"
 $COMPOSE up -d --build --remove-orphans
+$COMPOSE restart gateway || true
 $COMPOSE exec -T api alembic upgrade head
 $COMPOSE ps
 /opt/contraria-docker-prune.sh || echo "aviso: a limpeza do Docker falhou (o deploy foi concluído)"
