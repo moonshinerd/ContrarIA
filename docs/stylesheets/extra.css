@@ -20,6 +20,11 @@
   --md-accent-fg-color:               #0284C7;
   --md-accent-fg-color--transparent:  rgba(2, 132, 199, 0.10);
   --md-typeset-a-color:               #0284C7;
+
+  /* Integração Mermaid: variáveis responsivas para alto contraste (Light Mode) */
+  --md-mermaid-edge-color:            #64748B;
+  --md-mermaid-label-bg-color:        #FFFFFF;
+  --md-mermaid-label-fg-color:        #1E293B;
 }
 
 /* Links no Modo Claro: sempre azuis e visíveis, com reforço de hover */
@@ -68,6 +73,11 @@
   /* Blocos de código com contraste nítido */
   --md-code-bg-color:                 #141728;
   --md-code-fg-color:                 #E2E8F0;
+
+  /* Integração Mermaid: variáveis responsivas para alto contraste (Dark / Slate Mode) */
+  --md-mermaid-edge-color:            #94A3B8;
+  --md-mermaid-label-bg-color:        #1E223A;
+  --md-mermaid-label-fg-color:        #E2E8F0;
 }
 
 /* Links no Modo Noturno: ciano luminoso sempre visível */
@@ -297,7 +307,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   Diagramas Mermaid - Legibilidade, Escala e Alto Contraste
+   Diagramas Mermaid - Legibilidade, Escala e Alto Contraste (Light & Dark)
    -------------------------------------------------------------------------- */
 .mermaid {
   text-align: center;
@@ -311,9 +321,9 @@
 }
 
 [data-md-color-scheme="slate"] .mermaid {
-  background-color: #16192E;
-  border-color: #282C4C;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  background-color: #121526;
+  border-color: #242947;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
 /* Tamanho e escala ampliada para diagramas não ficarem pequenos */
@@ -324,7 +334,7 @@
   height: auto !important;
 }
 
-/* Tipografia e Contraste nos nós do Mermaid */
+/* Tipografia e Contraste nos nós do Mermaid (Modo Claro) */
 .mermaid .node text,
 .mermaid .node .nodeLabel,
 .mermaid .node foreignObject div,
@@ -358,6 +368,10 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
 }
 
+.mermaid .edgeLabel rect {
+  fill: #FFFFFF !important;
+}
+
 [data-md-color-scheme="slate"] .mermaid .edgeLabel,
 [data-md-color-scheme="slate"] .mermaid .edgeLabel text,
 [data-md-color-scheme="slate"] .mermaid .edgeLabel span {
@@ -368,17 +382,37 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
 }
 
-[data-md-color-scheme="slate"] .mermaid .node text,
-[data-md-color-scheme="slate"] .mermaid .node .nodeLabel,
-[data-md-color-scheme="slate"] .mermaid .node foreignObject div,
-[data-md-color-scheme="slate"] .mermaid .node foreignObject span,
-[data-md-color-scheme="slate"] .mermaid .node foreignObject p {
-  color: #F8FAFC !important;
-  fill: #F8FAFC !important;
+[data-md-color-scheme="slate"] .mermaid .edgeLabel rect {
+  fill: #1E223A !important;
 }
 
-/* Títulos dos Subgraphs */
+/* Arestas e Setas */
+.mermaid .edgePath path {
+  stroke: #64748B !important;
+  stroke-width: 1.75px !important;
+}
+
+.mermaid .arrowheadPath,
+.mermaid marker path {
+  fill: #64748B !important;
+  stroke: #64748B !important;
+}
+
+[data-md-color-scheme="slate"] .mermaid .edgePath path {
+  stroke: #94A3B8 !important;
+  stroke-width: 1.75px !important;
+}
+
+[data-md-color-scheme="slate"] .mermaid .arrowheadPath,
+[data-md-color-scheme="slate"] .mermaid marker path {
+  fill: #94A3B8 !important;
+  stroke: #94A3B8 !important;
+}
+
+/* Subgraphs e Clusters (Modo Claro) */
 .mermaid .cluster rect {
+  fill: #F8FAFC !important;
+  stroke: #CBD5E1 !important;
   stroke-width: 1.5px !important;
   rx: 8px !important;
   ry: 8px !important;
@@ -389,6 +423,121 @@
   font-weight: 700 !important;
   font-size: 14px !important;
   letter-spacing: 0.02em !important;
+  fill: #1E293B !important;
+  color: #1E293B !important;
+}
+
+/* Subgraphs e Clusters (Modo Escuro / Slate) */
+[data-md-color-scheme="slate"] .mermaid .cluster rect {
+  fill: #1A1E36 !important;
+  stroke: #2E365A !important;
+  stroke-width: 1.5px !important;
+}
+
+[data-md-color-scheme="slate"] .mermaid .cluster text,
+[data-md-color-scheme="slate"] .mermaid .cluster span {
+  fill: #93C5FD !important;
+  color: #93C5FD !important;
+}
+
+/* ==========================================================================
+   Modo Escuro: Cores dos Nós por Categoria (Alto Contraste WCAG AAA)
+   ========================================================================== */
+/* Tipografia de alto contraste para nós de fundo escuro no modo Slate */
+[data-md-color-scheme="slate"] .mermaid .node.dark-node text,
+[data-md-color-scheme="slate"] .mermaid .node.dark-node .nodeLabel,
+[data-md-color-scheme="slate"] .mermaid .node.dark-node foreignObject div,
+[data-md-color-scheme="slate"] .mermaid .node.dark-node foreignObject span,
+[data-md-color-scheme="slate"] .mermaid .node.dark-node foreignObject p {
+  color: #F8FAFC !important;
+  fill: #F8FAFC !important;
+}
+
+/* Nós padrão/genéricos no modo escuro */
+[data-md-color-scheme="slate"] .mermaid .node rect,
+[data-md-color-scheme="slate"] .mermaid .node polygon,
+[data-md-color-scheme="slate"] .mermaid .node circle,
+[data-md-color-scheme="slate"] .mermaid .node path {
+  fill: #1E223A;
+  stroke: #475569;
+}
+
+/* Entrada / Ingestão (Azul Ciano) */
+[data-md-color-scheme="slate"] .mermaid .node.in rect,
+[data-md-color-scheme="slate"] .mermaid .node.in polygon,
+[data-md-color-scheme="slate"] .mermaid .node.in circle,
+[data-md-color-scheme="slate"] .mermaid .node.in path,
+[data-md-color-scheme="slate"] .mermaid .node.ingest rect,
+[data-md-color-scheme="slate"] .mermaid .node.ingest polygon,
+[data-md-color-scheme="slate"] .mermaid .node.ingest circle,
+[data-md-color-scheme="slate"] .mermaid .node.ingest path {
+  fill: #082F49 !important;
+  stroke: #38BDF8 !important;
+  stroke-width: 2px !important;
+}
+
+/* Núcleo / Processamento Core (Índigo) */
+[data-md-color-scheme="slate"] .mermaid .node.core rect,
+[data-md-color-scheme="slate"] .mermaid .node.core polygon,
+[data-md-color-scheme="slate"] .mermaid .node.core circle,
+[data-md-color-scheme="slate"] .mermaid .node.core path {
+  fill: #1E1B4B !important;
+  stroke: #818CF8 !important;
+  stroke-width: 2px !important;
+}
+
+/* Banco / Armazenamento (Púrpura / Roxo) */
+[data-md-color-scheme="slate"] .mermaid .node.db rect,
+[data-md-color-scheme="slate"] .mermaid .node.db polygon,
+[data-md-color-scheme="slate"] .mermaid .node.db circle,
+[data-md-color-scheme="slate"] .mermaid .node.db path,
+[data-md-color-scheme="slate"] .mermaid .node.store rect,
+[data-md-color-scheme="slate"] .mermaid .node.store polygon,
+[data-md-color-scheme="slate"] .mermaid .node.store circle,
+[data-md-color-scheme="slate"] .mermaid .node.store path {
+  fill: #2E1065 !important;
+  stroke: #C084FC !important;
+  stroke-width: 2px !important;
+}
+
+/* Saída Pública / Intervenção (Verde Esmeralda) */
+[data-md-color-scheme="slate"] .mermaid .node.out rect,
+[data-md-color-scheme="slate"] .mermaid .node.out polygon,
+[data-md-color-scheme="slate"] .mermaid .node.out circle,
+[data-md-color-scheme="slate"] .mermaid .node.out path {
+  fill: #052E16 !important;
+  stroke: #4ADE80 !important;
+  stroke-width: 2px !important;
+}
+
+/* Pessoa / Avaliador Humano (Rosa / Magenta) */
+[data-md-color-scheme="slate"] .mermaid .node.human rect,
+[data-md-color-scheme="slate"] .mermaid .node.human polygon,
+[data-md-color-scheme="slate"] .mermaid .node.human circle,
+[data-md-color-scheme="slate"] .mermaid .node.human path {
+  fill: #4C0519 !important;
+  stroke: #F472B6 !important;
+  stroke-width: 2px !important;
+}
+
+/* Trava / Filtro / Guard (Âmbar) */
+[data-md-color-scheme="slate"] .mermaid .node.guard rect,
+[data-md-color-scheme="slate"] .mermaid .node.guard polygon,
+[data-md-color-scheme="slate"] .mermaid .node.guard circle,
+[data-md-color-scheme="slate"] .mermaid .node.guard path {
+  fill: #451A03 !important;
+  stroke: #FBBF24 !important;
+  stroke-width: 2px !important;
+}
+
+/* Serviço Externo (Slate Neutro) */
+[data-md-color-scheme="slate"] .mermaid .node.ext rect,
+[data-md-color-scheme="slate"] .mermaid .node.ext polygon,
+[data-md-color-scheme="slate"] .mermaid .node.ext circle,
+[data-md-color-scheme="slate"] .mermaid .node.ext path {
+  fill: #0F172A !important;
+  stroke: #94A3B8 !important;
+  stroke-width: 2px !important;
 }
 
 

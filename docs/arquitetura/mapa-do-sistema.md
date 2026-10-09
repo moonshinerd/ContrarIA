@@ -29,7 +29,7 @@ O ContrarIA tem **seis fluxos de entrada de dados** (detalhados na [seção 3](#
 conteúdo público, nenhum é caixa de mensagens privada) e **duas saídas públicas** (um quote post e um rótulo). O Bluesky é, ao mesmo tempo, a fonte e o destino.
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'clusterBkg': 'transparent', 'clusterBorder': '#64748B', 'edgeLabelBackground': 'transparent' }}}%%
 flowchart TD
     classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
     classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
@@ -38,33 +38,33 @@ flowchart TD
 
     subgraph IN["1. Entradas (Leitura Pública)"]
         direction LR
-        JS["<b>Jetstream</b><br/>firehose posts pt"]:::ext
-        SRCH["<b>searchPosts</b><br/>posts mais populares"]:::ext
-        APPV["<b>AppView Bluesky</b><br/>perfil, feed e contexto"]:::ext
-        EVID["<b>Checagens & Notícias</b><br/>Google, Wiki, SearXNG, RSS"]:::ext
+        JS["<span style='color:#0F172A'><b>Jetstream</b><br/>firehose posts pt</span>"]:::ext
+        SRCH["<span style='color:#0F172A'><b>searchPosts</b><br/>posts mais populares</span>"]:::ext
+        APPV["<span style='color:#0F172A'><b>AppView Bluesky</b><br/>perfil, feed e contexto</span>"]:::ext
+        EVID["<span style='color:#0F172A'><b>Checagens & Notícias</b><br/>Google, Wiki, SearXNG, RSS</span>"]:::ext
         JS ~~~ SRCH ~~~ APPV ~~~ EVID
     end
 
     subgraph SYSTEM["2. Sistema ContrarIA"]
         direction TB
-        CORE["<b>ContrarIA Core</b><br/>Worker, API, Jev e Banco"]:::core
-        OB["<b>Outbox de Rótulos</b><br/>persistência e repetições"]:::core
+        CORE["<span style='color:#1E1B4B'><b>ContrarIA Core</b><br/>Worker, API, Jev e Banco</span>"]:::core
+        OB["<span style='color:#1E1B4B'><b>Outbox de Rótulos</b><br/>persistência e repetições</span>"]:::core
         CORE -->|enfileira rótulo| OB
     end
 
     subgraph OUT["3. Saídas, LLM & Destinos"]
         direction LR
-        LLM["<b>LiteLLM / OpenRouter</b><br/>redação e critic"]:::ext
-        QP["<b>Quote Post Público</b><br/>@contraria-bot"]:::out
-        OZ["<b>Labeler Ozone</b><br/>@contraria-labeler"]:::out
-        APP["<b>App Bluesky</b><br/>exibição de selos"]:::ext
+        LLM["<span style='color:#0F172A'><b>LiteLLM / OpenRouter</b><br/>redação e critic</span>"]:::ext
+        QP["<span style='color:#14532D'><b>Quote Post Público</b><br/>@contraria-bot</span>"]:::out
+        OZ["<span style='color:#14532D'><b>Labeler Ozone</b><br/>@contraria-labeler</span>"]:::out
+        APP["<span style='color:#0F172A'><b>App Bluesky</b><br/>exibição de selos</span>"]:::ext
         QP --> APP
         OZ --> APP
     end
 
-    AUTH(("<b>Autor</b><br/>do post")):::human
-    USER(("<b>Assinante</b><br/>do labeler")):::human
-    OPS(("<b>Operador</b><br/>Revisor")):::human
+    AUTH(("<span style='color:#831843'><b>Autor</b><br/>do post</span>")):::human
+    USER(("<span style='color:#831843'><b>Assinante</b><br/>do labeler</span>")):::human
+    OPS(("<span style='color:#831843'><b>Operador</b><br/>Revisor</span>")):::human
 
     IN ==>|leitura pública| CORE
     CORE <-->|redação & critic| LLM
@@ -97,7 +97,7 @@ Tudo roda em **uma VM** com Docker Compose. A VM não aceita conexões de entrad
 da Cloudflare publicado por SSH reverso ([ADR 0020](../adr/0020-acesso-vm-tunel-cloudflare.md)).
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'clusterBkg': 'transparent', 'clusterBorder': '#64748B', 'edgeLabelBackground': 'transparent' }}}%%
 flowchart TB
     classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
     classDef ingest fill:#E0F2FE,stroke:#0284C7,stroke-width:2px,color:#0369A1
@@ -106,36 +106,36 @@ flowchart TB
     classDef guard fill:#FEF3C7,stroke:#D97706,stroke-width:2px,color:#78350F
     classDef out fill:#DCFCE7,stroke:#15803D,stroke-width:2px,color:#14532D
 
-    NET(("Internet")):::ext
-    GHA["GitHub Actions<br/>token OIDC"]:::ext
-    CF["Cloudflare<br/>contraria.schmidt.monster<br/>deploy-contraria.schmidt.monster"]:::ext
+    NET(("<span style='color:#0F172A'><b>Internet</b></span>")):::ext
+    GHA["<span style='color:#0F172A'><b>GitHub Actions</b><br/>token OIDC</span>"]:::ext
+    CF["<span style='color:#0F172A'><b>Cloudflare</b><br/>contraria.schmidt.monster<br/>deploy-contraria.schmidt.monster</span>"]:::ext
     NET --> CF
     GHA --> CF
-    CF --> TUN["Túnel contraria-vm<br/>no notebook talos"]:::guard
+    CF --> TUN["<span style='color:#78350F'><b>Túnel contraria-vm</b><br/>no notebook talos</span>"]:::guard
 
     subgraph VM["VM de produção (Debian, 4 vCPU, sem porta de entrada)"]
-        FWD["ozone-forward<br/>SSH reverso, saída pela 443"]:::guard
+        FWD["<span style='color:#78350F'><b>ozone-forward</b><br/>SSH reverso, saída pela 443</span>"]:::guard
 
         subgraph EDGE["Borda"]
-            GW["gateway Nginx :3000"]:::guard
-            DH["deployhook :8081<br/>valida o JWT do GitHub"]:::guard
+            GW["<span style='color:#78350F'><b>gateway Nginx :3000</b></span>"]:::guard
+            DH["<span style='color:#78350F'><b>deployhook :8081</b><br/>valida o JWT do GitHub</span>"]:::guard
         end
 
         subgraph APP["Aplicação (mesma imagem Docker)"]
-            API["api FastAPI :8000<br/>decisions, analyze, admin"]:::core
-            WK["worker<br/>coleta, triagem, análise, rodadas"]:::core
-            JEV["jev :8100<br/>NLI mDeBERTa, uma cópia"]:::core
-            SX["searxng :8080<br/>metabuscador"]:::ingest
+            API["<span style='color:#1E1B4B'><b>api FastAPI :8000</b><br/>decisions, analyze, admin</span>"]:::core
+            WK["<span style='color:#1E1B4B'><b>worker</b><br/>coleta, triagem, análise, rodadas</span>"]:::core
+            JEV["<span style='color:#1E1B4B'><b>jev :8100</b><br/>NLI mDeBERTa, uma cópia</span>"]:::core
+            SX["<span style='color:#0369A1'><b>searxng :8080</b><br/>metabuscador</span>"]:::ingest
         end
 
         subgraph LAB["Labeler"]
-            OZ["ozone :3000"]:::out
-            OZD["ozone-daemon"]:::out
-            OZDB[("ozone-db<br/>Postgres 14")]:::store
+            OZ["<span style='color:#14532D'><b>ozone :3000</b></span>"]:::out
+            OZD["<span style='color:#14532D'><b>ozone-daemon</b></span>"]:::out
+            OZDB[("<span style='color:#581C87'><b>ozone-db</b><br/>Postgres 14</span>")]:::store
         end
 
-        DB[("db<br/>Postgres 16 + pgvector")]:::store
-        HOST["systemd no host<br/>deploy-hook.path e deploy.sh"]:::guard
+        DB[("<span style='color:#581C87'><b>db</b><br/>Postgres 16 + pgvector</span>")]:::store
+        HOST["<span style='color:#78350F'><b>systemd no host</b><br/>deploy-hook.path e deploy.sh</span>"]:::guard
     end
 
     TUN -.->|"ssh -R 3000 e 8081"| FWD
@@ -179,7 +179,7 @@ O sistema tem **seis fluxos de entrada**. Três trazem **posts** (o que será an
 **contexto** (o que sustenta a análise). Só o primeiro grupo cria linhas em `posts`.
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'clusterBkg': 'transparent', 'clusterBorder': '#64748B', 'edgeLabelBackground': 'transparent' }}}%%
 flowchart LR
     classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
     classDef ingest fill:#E0F2FE,stroke:#0284C7,stroke-width:2px,color:#0369A1
@@ -190,43 +190,43 @@ flowchart LR
 
     subgraph POSTS["A. Entradas que trazem POSTS"]
         direction TB
-        E1["E1. Jetstream<br/>WebSocket, tempo real"]:::ext
-        F1{"create + pt<br/>+ palavra-chave política"}:::guard
+        E1["<span style='color:#0F172A'><b>E1. Jetstream</b><br/>WebSocket, tempo real</span>"]:::ext
+        F1{"<span style='color:#78350F'>create + pt<br/>+ palavra-chave política</span>"}:::guard
         E1 --> F1
 
-        E2["E2. searchPosts<br/>a cada 10 min, 1 consulta<br/>por palavra, top 24 h, 25 por palavra"]:::ext
-        F2{"descarta URIs<br/>já conhecidas"}:::guard
+        E2["<span style='color:#0F172A'><b>E2. searchPosts</b><br/>a cada 10 min, 1 consulta<br/>por palavra, top 24 h, 25 por palavra</span>"]:::ext
+        F2{"<span style='color:#78350F'>descarta URIs<br/>já conhecidas</span>"}:::guard
         E2 --> F2
 
-        E3["E3. POST /v1/analyze<br/>análise sob demanda"]:::human
+        E3["<span style='color:#831843'><b>E3. POST /v1/analyze</b><br/>análise sob demanda</span>"]:::human
     end
 
-    GATE{{"IngestGate<br/>teto de 100 na fila<br/>Jetstream não usa as 70 vagas<br/>reservadas ao searchPosts"}}:::guard
+    GATE{{"<span style='color:#78350F'><b>IngestGate</b><br/>teto de 100 na fila<br/>Jetstream não usa as 70 vagas<br/>reservadas ao searchPosts</span>"}}:::guard
     F1 --> GATE
     F2 --> GATE
 
-    POSTSTB[("posts<br/>triage_status, priority<br/>source = jetstream ou search")]:::store
+    POSTSTB[("<span style='color:#581C87'><b>posts</b><br/>triage_status, priority<br/>source = jetstream ou search</span>")]:::store
     GATE -->|"cabe"| POSTSTB
-    GATE -.->|"cheia: descarta"| X1(("descartado")):::guard
-    CUR[("ingest_cursor<br/>time_us")]:::store
+    GATE -.->|"cheia: descarta"| X1(("<span style='color:#78350F'><b>descartado</b></span>")):::guard
+    CUR[("<span style='color:#581C87'><b>ingest_cursor</b><br/>time_us</span>")]:::store
     E1 -.->|"retomar após reinício"| CUR
 
     subgraph CTX["B. Entradas que trazem CONTEXTO"]
         direction TB
-        E4["E4. Engajamento e prioridade<br/>EngagementRefresher, 5 min<br/>getPosts em lote"]:::ingest
-        E5["E5. Acervo RSS de checagem<br/>FeedIngestor, 1 h<br/>embeddings MiniLM 384 d"]:::ingest
-        E6["E6. Contexto durante a análise<br/>perfil, feed do autor, fio,<br/>link citado, evidências"]:::ingest
+        E4["<span style='color:#0369A1'><b>E4. Engajamento e prioridade</b><br/>EngagementRefresher, 5 min<br/>getPosts em lote</span>"]:::ingest
+        E5["<span style='color:#0369A1'><b>E5. Acervo RSS de checagem</b><br/>FeedIngestor, 1 h<br/>embeddings MiniLM 384 d</span>"]:::ingest
+        E6["<span style='color:#0369A1'><b>E6. Contexto durante a análise</b><br/>perfil, feed do autor, fio,<br/>link citado, evidências</span>"]:::ingest
     end
 
-    E4 -->|"snapshots, velocidade,<br/>matriz GQ04"| SNAP[("post_engagement_snapshots")]:::store
+    E4 -->|"snapshots, velocidade,<br/>matriz GQ04"| SNAP[("<span style='color:#581C87'><b>post_engagement_snapshots</b></span>")]:::store
     E4 -->|"atualiza priority<br/>e triage_status"| POSTSTB
-    E5 --> FA[("fact_articles<br/>pgvector")]:::store
+    E5 --> FA[("<span style='color:#581C87'><b>fact_articles</b><br/>pgvector</span>")]:::store
 
-    POSTSTB -->|"monitor ou queued<br/>entre 3 h e 48 h de idade<br/>por priority"| POOL{{"AnalysisPool<br/>concorrência configurável"}}:::core
+    POSTSTB -->|"monitor ou queued<br/>entre 3 h e 48 h de idade<br/>por priority"| POOL{{"<span style='color:#1E1B4B'><b>AnalysisPool</b><br/>concorrência configurável</span>"}}:::core
     E3 --> POOL
     FA -.->|"busca vetorial"| E6
     E6 --> POOL
-    POOL --> PIPE["PipelineService.analyze"]:::core
+    POOL --> PIPE["<span style='color:#1E1B4B'><b>PipelineService.analyze</b></span>"]:::core
 ```
 
 | # | Entrada | Código | Cadência | Filtro ou limite | Destino |
@@ -247,7 +247,7 @@ entrar, porque `WORKER_QUEUE_SEARCH_RESERVE` reserva vagas para ele ([ADR 0018](
 Os **reposts não são posts novos** e não entram na fila. Eles aparecem em três lugares, cada um com um papel diferente:
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'clusterBkg': 'transparent', 'clusterBorder': '#64748B', 'edgeLabelBackground': 'transparent' }}}%%
 flowchart TB
     classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
     classDef ingest fill:#E0F2FE,stroke:#0284C7,stroke-width:2px,color:#0369A1
@@ -255,17 +255,17 @@ flowchart TB
     classDef store fill:#F3E8FF,stroke:#7E22CE,stroke-width:2px,color:#581C87
     classDef guard fill:#FEF3C7,stroke:#D97706,stroke-width:2px,color:#78350F
 
-    R["Repost no Bluesky<br/>(registro app.bsky.feed.repost)"]:::ext
+    R["<span style='color:#0F172A'><b>Repost no Bluesky</b><br/>(registro app.bsky.feed.repost)</span>"]:::ext
 
-    R --x|"Jetstream pede só app.bsky.feed.post<br/>o registro de repost não é coletado"| J["Coleta"]:::guard
+    R --x|"Jetstream pede só app.bsky.feed.post<br/>o registro de repost não é coletado"| J["<span style='color:#78350F'><b>Coleta</b></span>"]:::guard
 
-    R -->|"soma em repost_count do post original"| ENG["Engajamento<br/>getPosts, a cada 5 min"]:::ingest
-    ENG -->|"peso 2 na relevância<br/>e interação nova na velocidade"| PRIO[("posts.priority")]:::store
+    R -->|"soma em repost_count do post original"| ENG["<span style='color:#0369A1'><b>Engajamento</b><br/>getPosts, a cada 5 min</span>"]:::ingest
+    ENG -->|"peso 2 na relevância<br/>e interação nova na velocidade"| PRIO[("<span style='color:#581C87'><b>posts.priority</b></span>")]:::store
 
-    R -->|"aparece no feed do autor<br/>com reason = ReasonRepost"| AF["getAuthorFeed<br/>até 100 itens do autor"]:::ingest
-    AF -->|"is_repost = true"| BF["Características de bot<br/>content_repost_ratio"]:::core
-    BF --> BS["Bot score da conta<br/>cache de 24 h"]:::core
-    BS --> GQ["Matriz GQ01 e rótulo provavel-bot"]:::core
+    R -->|"aparece no feed do autor<br/>com reason = ReasonRepost"| AF["<span style='color:#0369A1'><b>getAuthorFeed</b><br/>até 100 itens do autor</span>"]:::ingest
+    AF -->|"is_repost = true"| BF["<span style='color:#1E1B4B'><b>Características de bot</b><br/>content_repost_ratio</span>"]:::core
+    BF --> BS["<span style='color:#1E1B4B'><b>Bot score da conta</b><br/>cache de 24 h</span>"]:::core
+    BS --> GQ["<span style='color:#1E1B4B'><b>Matriz GQ01 e rótulo provavel-bot</b></span>"]:::core
 ```
 
 | Onde o repost aparece | Efeito |
@@ -345,7 +345,7 @@ início do worker e a cada rodada de 15 min ([ADR 0022](../adr/0022-janela-de-ma
 ## 5. Análise: o que acontece dentro do `PipelineService`
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'clusterBkg': 'transparent', 'clusterBorder': '#64748B', 'edgeLabelBackground': 'transparent' }}}%%
 flowchart TD
     classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
     classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
@@ -353,30 +353,30 @@ flowchart TD
     classDef guard fill:#FEF3C7,stroke:#D97706,stroke-width:2px,color:#78350F
     classDef out fill:#DCFCE7,stroke:#15803D,stroke-width:2px,color:#14532D
 
-    P["Post elegível<br/>3 h a 48 h"]:::core --> BOT["Bot score da conta<br/>pesos em bot_weights.yaml<br/>cache de 24 h"]:::core
-    BOT --> ACC["AccountLabelService<br/>sincroniza provavel-bot"]:::out
-    P --> SPLIT["Frases candidatas<br/>até 6, com ancoramento factual"]:::guard
-    SPLIT -- "nenhuma" --> NOACT["Sem ação"]:::guard
-    SPLIT --> CITED["Fonte citada pelo post<br/>NLI por trechos"]:::core
-    CITED -- "sustenta e fonte reconhecida" --> SC["source_consistent<br/>sem ação"]:::guard
-    CITED -- "senão" --> EVID["Evidências por frase"]:::core
+    P["<span style='color:#1E1B4B'><b>Post elegível</b><br/>3 h a 48 h</span>"]:::core --> BOT["<span style='color:#1E1B4B'><b>Bot score da conta</b><br/>pesos em bot_weights.yaml<br/>cache de 24 h</span>"]:::core
+    BOT --> ACC["<span style='color:#14532D'><b>AccountLabelService</b><br/>sincroniza provavel-bot</span>"]:::out
+    P --> SPLIT["<span style='color:#78350F'><b>Frases candidatas</b><br/>até 6, com ancoramento factual</span>"]:::guard
+    SPLIT -- "nenhuma" --> NOACT["<span style='color:#78350F'><b>Sem ação</b></span>"]:::guard
+    SPLIT --> CITED["<span style='color:#1E1B4B'><b>Fonte citada pelo post</b><br/>NLI por trechos</span>"]:::core
+    CITED -- "sustenta e fonte reconhecida" --> SC["<span style='color:#78350F'><b>source_consistent</b><br/>sem ação</span>"]:::guard
+    CITED -- "senão" --> EVID["<span style='color:#1E1B4B'><b>Evidências por frase</b></span>"]:::core
 
     subgraph FONTES["Fontes de evidência (disjuntor por provedor)"]
         direction LR
-        FC["Google Fact Check"]:::ext
-        WP["Wikipédia"]:::ext
-        WS["SearXNG, DuckDuckGo"]:::ext
-        RS[("fact_articles<br/>busca vetorial")]:::store
+        FC["<span style='color:#0F172A'><b>Google Fact Check</b></span>"]:::ext
+        WP["<span style='color:#0F172A'><b>Wikipédia</b></span>"]:::ext
+        WS["<span style='color:#0F172A'><b>SearXNG, DuckDuckGo</b></span>"]:::ext
+        RS[("<span style='color:#581C87'><b>fact_articles</b><br/>busca vetorial</span>")]:::store
     end
     EVID --> FONTES
-    FONTES --> REL["Filtro de relevância NLI<br/>gazetteer do IBGE<br/>descarta outra cidade ou zona"]:::guard
-    REL --> VER["Veredito no Jev<br/>true, false, misleading<br/>neutro vira evidência insuficiente"]:::core
-    VER --> CRC["Gate CRC<br/>limiar calibrado"]:::guard
-    CRC -- "abaixo do limiar" --> IE["insufficient_evidence"]:::guard
-    CRC --> GQ{"Matriz GQ01"}:::core
+    FONTES --> REL["<span style='color:#78350F'><b>Filtro de relevância NLI</b><br/>gazetteer do IBGE<br/>descarta outra cidade ou zona</span>"]:::guard
+    REL --> VER["<span style='color:#1E1B4B'><b>Veredito no Jev</b><br/>true, false, misleading<br/>neutro vira evidência insuficiente</span>"]:::core
+    VER --> CRC["<span style='color:#78350F'><b>Gate CRC</b><br/>limiar calibrado</span>"]:::guard
+    CRC -- "abaixo do limiar" --> IE["<span style='color:#78350F'><b>insufficient_evidence</b></span>"]:::guard
+    CRC --> GQ{"<span style='color:#1E1B4B'><b>Matriz GQ01</b></span>"}:::core
     BOT --> GQ
-    GQ -- "IGNORE ou MONITOR" --> LOG[("decisions")]:::store
-    GQ -- "INTERVENE_QUEUED" --> Q["InterventionQueue"]:::core
+    GQ -- "IGNORE ou MONITOR" --> LOG[("<span style='color:#581C87'><b>decisions</b></span>")]:::store
+    GQ -- "INTERVENE_QUEUED" --> Q["<span style='color:#1E1B4B'><b>InterventionQueue</b></span>"]:::core
     Q --> LOG
 ```
 
@@ -391,7 +391,7 @@ A fila vive em memória e publica **no máximo um candidato por rodada** (`INTER
 entre 0 h e 7 h (Brasília).
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'clusterBkg': 'transparent', 'clusterBorder': '#64748B', 'edgeLabelBackground': 'transparent' }}}%%
 flowchart TD
     classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
     classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
@@ -399,22 +399,22 @@ flowchart TD
     classDef guard fill:#FEF3C7,stroke:#D97706,stroke-width:2px,color:#78350F
     classDef out fill:#DCFCE7,stroke:#15803D,stroke-width:2px,color:#14532D
 
-    R(["Rodada vence<br/>a cada 15 min"]):::core --> QH{"Horário de silêncio<br/>0 h às 7 h?"}:::guard
-    QH -- "sim" --> M0["Todos viram MONITOR"]:::store
-    QH -- "não" --> SORT["Ordena por confiança<br/>do veredito"]:::core
-    SORT --> NEXT{"Próximo candidato"}:::core
-    NEXT --> T1{"Travas do InterventionService<br/>confiança 0,8 ou mais<br/>não é o próprio bot nem bot<br/>1 quote por post e por autor em 24 h<br/>teto diário e pontos de escrita<br/>postgate permite citação"}:::guard
+    R(["<span style='color:#1E1B4B'><b>Rodada vence</b><br/>a cada 15 min</span>"]):::core --> QH{"<span style='color:#78350F'>Horário de silêncio<br/>0 h às 7 h?</span>"}:::guard
+    QH -- "sim" --> M0["<span style='color:#581C87'><b>Todos viram MONITOR</b></span>"]:::store
+    QH -- "não" --> SORT["<span style='color:#1E1B4B'><b>Ordena por confiança</b><br/>do veredito</span>"]:::core
+    SORT --> NEXT{"<span style='color:#1E1B4B'>Próximo candidato</span>"}:::core
+    NEXT --> T1{"<span style='color:#78350F'>Travas do InterventionService<br/>confiança 0,8 ou mais<br/>não é o próprio bot nem bot<br/>1 quote por post e por autor em 24 h<br/>teto diário e pontos de escrita<br/>postgate permite citação</span>"}:::guard
     T1 -- "barrado" --> NEXT
-    T1 -- "passou" --> SRC["Revisão das fontes<br/>5 mais relevantes<br/>e leitura da matéria"]:::core
-    SRC --> LLM["LLM redige o quote<br/>pergunta socrática"]:::ext
-    LLM --> CRIT{"Critic semântico<br/>a pergunta faz sentido com<br/>o POST, não só com a reportagem?"}:::guard
+    T1 -- "passou" --> SRC["<span style='color:#1E1B4B'><b>Revisão das fontes</b><br/>5 mais relevantes<br/>e leitura da matéria</span>"]:::core
+    SRC --> LLM["<span style='color:#0F172A'><b>LLM redige o quote</b><br/>pergunta socrática</span>"]:::ext
+    LLM --> CRIT{"<span style='color:#78350F'>Critic semântico<br/>a pergunta faz sentido com<br/>o POST, não só com a reportagem?</span>"}:::guard
     CRIT -- "veta" --> NEXT
-    CRIT -- "aprova" --> DRY{"INTERVENTION_DRY_RUN?"}:::guard
-    DRY -- "sim" --> SIM["Simula, nada publicado"]:::guard
-    DRY -- "não" --> PUB["Publica o quote post<br/>até 300 graphemes, em fio se preciso"]:::out
-    PUB --> IL[("intervention_logs")]:::store
-    PUB --> LAB["Pede o rótulo<br/>possivel-desinformacao"]:::out
-    PUB --> REST["Demais candidatos viram MONITOR<br/>preterido por outro mais confiante"]:::store
+    CRIT -- "aprova" --> DRY{"<span style='color:#78350F'>INTERVENTION_DRY_RUN?</span>"}:::guard
+    DRY -- "sim" --> SIM["<span style='color:#78350F'><b>Simula, nada publicado</b></span>"]:::guard
+    DRY -- "não" --> PUB["<span style='color:#14532D'><b>Publica o quote post</b><br/>até 300 graphemes, em fio se preciso</span>"]:::out
+    PUB --> IL[("<span style='color:#581C87'><b>intervention_logs</b></span>")]:::store
+    PUB --> LAB["<span style='color:#14532D'><b>Pede o rótulo</b><br/>possivel-desinformacao</span>"]:::out
+    PUB --> REST["<span style='color:#581C87'><b>Demais candidatos viram MONITOR</b><br/>preterido por outro mais confiante</span>"]:::store
 ```
 
 O **critic semântico** é o segundo passo de defesa contra alucinação: depois de redigido, o texto é auditado por um
@@ -486,7 +486,7 @@ Todos os rótulos saem pelo mesmo cliente, mas nascem de **três gatilhos** dife
 com o app do Bluesky de cada pessoa (*opt-in*).
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'clusterBkg': 'transparent', 'clusterBorder': '#64748B', 'edgeLabelBackground': 'transparent' }}}%%
 flowchart LR
     classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
     classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
@@ -497,30 +497,30 @@ flowchart LR
 
     subgraph GAT["Gatilhos (só com PIPELINE_LABELER_ENABLED)"]
         direction TB
-        G1["G1. Quote publicado<br/>post: possivel-desinformacao"]:::core
-        G2["G2. Bot score alto<br/>conta: provavel-bot<br/>score 0,9 ou mais e 20 posts<br/>nega abaixo de 0,8 (histerese)"]:::core
-        G3["G3. Revisão humana reverter<br/>nega possivel-desinformacao"]:::human
+        G1["<span style='color:#1E1B4B'><b>G1. Quote publicado</b><br/>post: possivel-desinformacao</span>"]:::core
+        G2["<span style='color:#1E1B4B'><b>G2. Bot score alto</b><br/>conta: provavel-bot<br/>score 0,9 ou mais e 20 posts<br/>nega abaixo de 0,8 (histerese)</span>"]:::core
+        G3["<span style='color:#831843'><b>G3. Revisão humana reverter</b><br/>nega possivel-desinformacao</span>"]:::human
     end
 
-    OB["LabelOutbox<br/>registro e repetição"]:::guard
+    OB["<span style='color:#78350F'><b>LabelOutbox</b><br/>registro e repetição</span>"]:::guard
     G1 --> OB
     G2 -->|"estado em account_assessments<br/>muda só após sucesso"| OZC
     G3 -->|"síncrono, erro vai ao revisor"| OZC
-    OB --> OZC["OzoneClient<br/>login como contraria-labeler"]:::core
-    OB --> LE[("label_events")]:::store
+    OB --> OZC["<span style='color:#1E1B4B'><b>OzoneClient</b><br/>login como contraria-labeler</span>"]:::core
+    OB --> LE[("<span style='color:#581C87'><b>label_events</b></span>")]:::store
 
-    OZC -->|"emitEvent via proxy atproto_labeler"| PDSL["PDS do labeler"]:::ext
-    PDSL -->|"encaminha ao serviço declarado no DID"| TUN["Cloudflare e túnel<br/>contraria.schmidt.monster"]:::guard
-    TUN --> GW["gateway Nginx"]:::guard --> OZ["Ozone :3000"]:::out
-    OZ --> ODB[("ozone-db")]:::store
-    OZD["ozone-daemon"]:::out --> ODB
-    OZ --> SIGN["Assina o rótulo<br/>chave atproto_label"]:::out
+    OZC -->|"emitEvent via proxy atproto_labeler"| PDSL["<span style='color:#0F172A'><b>PDS do labeler</b></span>"]:::ext
+    PDSL -->|"encaminha ao serviço declarado no DID"| TUN["<span style='color:#78350F'><b>Cloudflare e túnel</b><br/>contraria.schmidt.monster</span>"]:::guard
+    TUN --> GW["<span style='color:#78350F'><b>gateway Nginx</b></span>"]:::guard --> OZ["<span style='color:#14532D'><b>Ozone :3000</b></span>"]:::out
+    OZ --> ODB[("<span style='color:#581C87'><b>ozone-db</b></span>")]:::store
+    OZD["<span style='color:#14532D'><b>ozone-daemon</b></span>"]:::out --> ODB
+    OZ --> SIGN["<span style='color:#14532D'><b>Assina o rótulo</b><br/>chave atproto_label</span>"]:::out
 
-    SIGN --> APPV["AppView e App Bluesky"]:::ext
-    USER(("Quem assina o labeler")):::human --> APPV
-    APPV --> VIEW["Aviso informativo<br/>sem borrar o conteúdo"]:::out
+    SIGN --> APPV["<span style='color:#0F172A'><b>AppView e App Bluesky</b></span>"]:::ext
+    USER(("<span style='color:#831843'><b>Quem assina o labeler</b></span>")):::human --> APPV
+    APPV --> VIEW["<span style='color:#14532D'><b>Aviso informativo</b><br/>sem borrar o conteúdo</span>"]:::out
 
-    REP(("Denúncia de usuário")):::human -.->|"fila nativa do Ozone<br/>o pipeline não consome"| OZ
+    REP(("<span style='color:#831843'><b>Denúncia de usuário</b></span>")):::human -.->|"fila nativa do Ozone<br/>o pipeline não consome"| OZ
 ```
 
 | Rótulo | Alvo | Gatilho | Reversão |
@@ -572,7 +572,7 @@ sequenceDiagram
 ### 9.2 Observabilidade e API administrativa
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'clusterBkg': 'transparent', 'clusterBorder': '#64748B', 'edgeLabelBackground': 'transparent' }}}%%
 flowchart LR
     classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
     classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
@@ -581,17 +581,17 @@ flowchart LR
     classDef human fill:#FCE7F3,stroke:#DB2777,stroke-width:2px,color:#831843
     classDef out fill:#DCFCE7,stroke:#15803D,stroke-width:2px,color:#14532D
 
-    WK["worker"]:::core -->|"DatabaseLogHandler<br/>em lotes"| SL[("system_logs")]:::store
-    AP["api"]:::core -->|"DatabaseLogHandler"| SL
-    DK["docker logs<br/>antigos"]:::guard -->|"backfill_logs"| SL
+    WK["<span style='color:#1E1B4B'><b>worker</b></span>"]:::core -->|"DatabaseLogHandler<br/>em lotes"| SL[("<span style='color:#581C87'><b>system_logs</b></span>")]:::store
+    AP["<span style='color:#1E1B4B'><b>api</b></span>"]:::core -->|"DatabaseLogHandler"| SL
+    DK["<span style='color:#78350F'><b>docker logs</b><br/>antigos</span>"]:::guard -->|"backfill_logs"| SL
 
-    OPS(("Operador")):::human -->|"X-Admin-Api-Key"| ADM["API admin<br/>somente-leitura"]:::guard
-    ADM --> OV["GET /admin/overview<br/>posts, decisões, intervenções,<br/>LLM, bots, labels, ozone"]:::core
-    ADM --> LG["GET /admin/logs"]:::core
-    ADM --> TB["GET /admin/db/tables"]:::core
-    ADM --> Q["POST /admin/db/query<br/>SELECT e WITH"]:::core
-    OV --> LE[("label_events")]:::store
-    OV --> OZH["Health público do Ozone<br/>OZONE_HEALTH_URL"]:::out
+    OPS(("<span style='color:#831843'><b>Operador</b></span>")):::human -->|"X-Admin-Api-Key"| ADM["<span style='color:#78350F'><b>API admin</b><br/>somente-leitura</span>"]:::guard
+    ADM --> OV["<span style='color:#1E1B4B'><b>GET /admin/overview</b><br/>posts, decisões, intervenções,<br/>LLM, bots, labels, ozone</span>"]:::core
+    ADM --> LG["<span style='color:#1E1B4B'><b>GET /admin/logs</b></span>"]:::core
+    ADM --> TB["<span style='color:#1E1B4B'><b>GET /admin/db/tables</b></span>"]:::core
+    ADM --> Q["<span style='color:#1E1B4B'><b>POST /admin/db/query</b><br/>SELECT e WITH</span>"]:::core
+    OV --> LE[("<span style='color:#581C87'><b>label_events</b></span>")]:::store
+    OV --> OZH["<span style='color:#14532D'><b>Health público do Ozone</b><br/>OZONE_HEALTH_URL</span>"]:::out
     LG --> SL
     TB --> SL & LE
 ```
