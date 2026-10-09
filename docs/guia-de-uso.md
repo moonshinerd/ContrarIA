@@ -92,13 +92,13 @@ Com a adoção do modelo local discriminativo **Jev** (`mDeBERTa-v3` NLI via Tra
 | **Processador (CPU)** | 4 núcleos (x86_64 ou Apple Silicon) | 8 núcleos (x86_64 ou Apple Silicon) |
 | **Armazenamento (Disco)** | 15 GB livres (imagens Docker + modelo NLI ~500 MB + banco) | 30 GB+ livres em SSD rápido |
 
-> [!NOTE] **Telemetria de Consumo Médio em Operação Real:**
-> - `jev` (mDeBERTa-v3 NLI / Transformers): ~800 MiB a 1,2 GiB de RAM (peso de ~500 MB)
-> - `worker` (pipeline assíncrono + Jetstream + Trafilatura): ~1,2 a 1,5 GiB de RAM
-> - `api` (FastAPI / Uvicorn): ~500 a 650 MiB de RAM
-> - `searxng` (metabuscador web multi-engine): ~250 a 300 MiB de RAM
-> - `db` (PostgreSQL 16 + pgvector): ~120 a 180 MiB de RAM
-> - **Total da Pilha:** **~3,3 a 4,5 GiB de RAM**
+!!! note "Telemetria de Consumo Médio em Operação Real"
+    - `jev` (mDeBERTa-v3 NLI / Transformers): ~800 MiB a 1,2 GiB de RAM (peso de ~500 MB)
+    - `worker` (pipeline assíncrono + Jetstream + Trafilatura): ~1,2 a 1,5 GiB de RAM
+    - `api` (FastAPI / Uvicorn): ~500 a 650 MiB de RAM
+    - `searxng` (metabuscador web multi-engine): ~250 a 300 MiB de RAM
+    - `db` (PostgreSQL 16 + pgvector): ~120 a 180 MiB de RAM
+    - **Total da Pilha:** **~3,3 a 4,5 GiB de RAM**
 
 ---
 
@@ -135,8 +135,8 @@ O ContrarIA mantém uma separação rígida entre código e credenciais. Nunca c
 | `DATABASE_URL` | String de conexão SQLAlchemy | `postgresql+psycopg://contraria:contraria@db:5432/contraria` |
 | `RSS_CHECKERS_ENABLED` | Ativação do job de ingestão de feeds | `true` |
 
-> [!WARNING]
-> Nunca utilize a senha principal da sua conta Bluesky pessoal em `BLUESKY_APP_PASSWORD`. Crie sempre uma **App Password** descartável e com permissões restritas.
+!!! warning "Segurança da credencial"
+    Nunca utilize a senha principal da sua conta Bluesky pessoal em `BLUESKY_APP_PASSWORD`. Crie sempre uma **App Password** descartável e com permissões restritas.
 
 ---
 

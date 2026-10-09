@@ -12,7 +12,7 @@ O ContrarIA lê posts públicos do Bluesky, consulta fontes de evidência na web
 publica um *quote post* na conta do bot e (opcionalmente) emite um rótulo pelo labeler Ozone.
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '15px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '15px', 'fontFamily': 'inherit', 'clusterBkg': 'transparent', 'clusterBorder': '#64748B', 'edgeLabelBackground': 'transparent' }}}%%
 flowchart TD
     classDef in fill:#E0F2FE,stroke:#0284C7,stroke-width:2px,color:#0C4A6E
     classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
@@ -22,34 +22,34 @@ flowchart TD
 
     subgraph ENTRADAS["1. Fontes de Entrada (Bluesky & Web)"]
         direction LR
-        JS["<b>Jetstream</b><br/>firehose posts pt"]:::in
-        SP["<b>searchPosts</b><br/>posts de alto alcance"]:::in
-        AV["<b>AppView</b><br/>perfil e contexto"]:::in
-        EV["<b>Checagem & RSS</b><br/>notícias e fatos"]:::in
+        JS["<span style='color:#0C4A6E'><b>Jetstream</b><br/>firehose posts pt</span>"]:::in
+        SP["<span style='color:#0C4A6E'><b>searchPosts</b><br/>posts de alto alcance</span>"]:::in
+        AV["<span style='color:#0C4A6E'><b>AppView</b><br/>perfil e contexto</span>"]:::in
+        EV["<span style='color:#0C4A6E'><b>Checagem & RSS</b><br/>notícias e fatos</span>"]:::in
         JS ~~~ SP ~~~ AV ~~~ EV
     end
 
     subgraph NUCLEO["2. Núcleo ContrarIA (Docker Compose)"]
         direction TB
-        WK["<b>Worker Autônomo</b><br/>ingestão, triagem contínua e análise"]:::core
+        WK["<span style='color:#1E1B4B'><b>Worker Autônomo</b><br/>ingestão, triagem contínua e análise</span>"]:::core
         
-        WK -->|classificação NLI| JEV["<b>Jev :8100</b><br/>mDeBERTa NLI"]:::core
-        WK -->|busca factual| SX["<b>SearXNG :8080</b><br/>metabuscador web"]:::core
-        WK -->|grava e lê| DB[("<b>PostgreSQL :5432</b><br/>pgvector e decisões")]:::db
+        WK -->|classificação NLI| JEV["<span style='color:#1E1B4B'><b>Jev :8100</b><br/>mDeBERTa NLI</span>"]:::core
+        WK -->|busca factual| SX["<span style='color:#1E1B4B'><b>SearXNG :8080</b><br/>metabuscador web</span>"]:::core
+        WK -->|grava e lê| DB[("<span style='color:#581C87'><b>PostgreSQL :5432</b><br/>pgvector e decisões</span>")]:::db
         
-        API["<b>API FastAPI :8000</b><br/>saúde e auditoria"]:::core -->|consulta| DB
+        API["<span style='color:#1E1B4B'><b>API FastAPI :8000</b><br/>saúde e auditoria</span>"]:::core -->|consulta| DB
     end
 
     subgraph DESTINOS["3. Destinos & Moderação"]
         direction LR
-        LLM["<b>LiteLLM / OpenRouter</b><br/>redação socrática e critic"]:::out
-        QP["<b>Bluesky PDS</b><br/>quote post @contraria-bot"]:::out
-        OZ["<b>Ozone Labeler</b><br/>rótulo @contraria-labeler"]:::out
+        LLM["<span style='color:#14532D'><b>LiteLLM / OpenRouter</b><br/>redação socrática e critic</span>"]:::out
+        QP["<span style='color:#14532D'><b>Bluesky PDS</b><br/>quote post @contraria-bot</span>"]:::out
+        OZ["<span style='color:#14532D'><b>Ozone Labeler</b><br/>rótulo @contraria-labeler</span>"]:::out
 
         LLM -->|publica citação| QP
     end
 
-    USER(("<b>Pessoa</b><br/>avaliadora")):::human -->|auditoria GET /admin| API
+    USER(("<span style='color:#831843'><b>Pessoa</b><br/>avaliadora</span>")):::human -->|auditoria GET /admin| API
 
     ENTRADAS ==>|posts em tempo real e evidências| WK
     WK ==>|solicita redação socrática| LLM
@@ -67,12 +67,12 @@ flowchart TD
 | `searxng` | Metabuscador self-hosted usado como fonte primária de busca web | 8080 |
 | `db` | Postgres 16 com extensão `pgvector` | 5432 |
 
-`api` e `worker` usam a **mesma imagem** (`api/Dockerfile`); o `jev` também, com outro comando.
+A `api` e o `worker` usam a **mesma imagem** (`api/Dockerfile`); o `jev` também, com outro comando.
 
 ## Fluxo de ponta a ponta
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'clusterBkg': 'transparent', 'clusterBorder': '#64748B', 'edgeLabelBackground': 'transparent' }}}%%
 flowchart TD
     classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
     classDef ingest fill:#E0F2FE,stroke:#0284C7,stroke-width:2px,color:#0369A1
@@ -82,36 +82,36 @@ flowchart TD
     classDef out fill:#DCFCE7,stroke:#15803D,stroke-width:2px,color:#14532D
 
     subgraph Coleta["1. Coleta (tarefas assíncronas do worker)"]
-        J1[JetstreamConsumer<br/>tempo real, pt + palavras-chave]:::ingest
-        J2[SearchPoller<br/>searchPosts top 24h, a cada 10 min]:::ingest
+        J1["<span style='color:#0369A1'><b>JetstreamConsumer</b><br/>tempo real, pt + palavras-chave</span>"]:::ingest
+        J2["<span style='color:#0369A1'><b>SearchPoller</b><br/>searchPosts top 24h, a cada 10 min</span>"]:::ingest
     end
-    J1 --> POSTS[(posts)]:::store
+    J1 --> POSTS[("<span style='color:#581C87'><b>posts</b></span>")]:::store
     J2 --> POSTS
 
-    ER[EngagementRefresher<br/>a cada 5 min, últimas 48h]:::ingest --> SNAP[(post_engagement_snapshots)]:::store
+    ER["<span style='color:#0369A1'><b>EngagementRefresher</b><br/>a cada 5 min, últimas 48h</span>"]:::ingest --> SNAP[("<span style='color:#581C87'><b>post_engagement_snapshots</b></span>")]:::store
     ER -- relevância + velocidade<br/>matriz GQ04 --> POSTS
 
-    POSTS -- triage_status = monitor / queued<br/>aging delay: entre 3 h e 48 h<br/>ordenado por priority --> LOOP{{Pool do worker<br/>concorrência configurável}}:::core
-    GATE[IngestGate<br/>teto de 100 na fila]:::guard -. descarta quando cheia .-> J1
+    POSTS -- triage_status = monitor / queued<br/>aging delay: entre 3 h e 48 h<br/>ordenado por priority --> LOOP{{"<span style='color:#1E1B4B'><b>Pool do worker</b><br/>concorrência configurável</span>"}}:::core
+    GATE["<span style='color:#78350F'><b>IngestGate</b><br/>teto de 100 na fila</span>"]:::guard -. descarta quando cheia .-> J1
     GATE -. descarta quando cheia .-> J2
-    RSSJ[FeedIngestor<br/>RSS a cada 1 h + embeddings]:::ingest --> FA[(fact_articles<br/>pgvector)]:::store
+    RSSJ["<span style='color:#0369A1'><b>FeedIngestor</b><br/>RSS a cada 1 h + embeddings</span>"]:::ingest --> FA[("<span style='color:#581C87'><b>fact_articles</b><br/>pgvector</span>")]:::store
 
-    LOOP --> PIPE[PipelineService.analyze]:::core
-    PIPE --> BOT[Bot score<br/>cache de 24 h]:::core
-    BOT -.-> ACC[AccountLabelService<br/>provavel-bot em contas]:::out
-    PIPE --> VER[JevVerificationService<br/>claims, evidências, relevância,<br/>veredito, CRC]:::core
+    LOOP --> PIPE["<span style='color:#1E1B4B'><b>PipelineService.analyze</b></span>"]:::core
+    PIPE --> BOT["<span style='color:#1E1B4B'><b>Bot score</b><br/>cache de 24 h</span>"]:::core
+    BOT -.-> ACC["<span style='color:#14532D'><b>AccountLabelService</b><br/>provavel-bot em contas</span>"]:::out
+    PIPE --> VER["<span style='color:#1E1B4B'><b>JevVerificationService</b><br/>claims, evidências, relevância,<br/>veredito, CRC</span>"]:::core
     FA -.-> VER
-    BOT --> GQ01{Matriz GQ01}:::core
+    BOT --> GQ01{{"<span style='color:#1E1B4B'><b>Matriz GQ01</b></span>"}}:::core
     VER --> GQ01
-    GQ01 -- IGNORE / MONITOR --> LOG[(decisions)]:::store
-    GQ01 -- INTERVENE_QUEUED --> Q[InterventionQueue]:::core
-    Q -- 1 melhor por rodada de 15 min<br/>fora do silêncio 00h-07h --> INT[InterventionService<br/>travas + revisão de fontes + redação]:::core
-    INT --> CRIT{Critic Semântico<br/>auditado via LLM}:::guard
+    GQ01 -- IGNORE / MONITOR --> LOG[("<span style='color:#581C87'><b>decisions</b></span>")]:::store
+    GQ01 -- INTERVENE_QUEUED --> Q["<span style='color:#1E1B4B'><b>InterventionQueue</b></span>"]:::core
+    Q -- 1 melhor por rodada de 15 min<br/>fora do silêncio 00h-07h --> INT["<span style='color:#1E1B4B'><b>InterventionService</b><br/>travas + revisão de fontes + redação</span>"]:::core
+    INT --> CRIT{{"<span style='color:#78350F'><b>Critic Semântico</b><br/>auditado via LLM</span>"}}:::guard
     CRIT -- vetado --> LOG
-    CRIT -- aprovado --> QP[Quote post no Bluesky]:::out
-    CRIT -- aprovado --> OB[LabelOutbox<br/>resiliente com repetições]:::core
-    OB --> LAB[Rótulo Ozone<br/>possivel-desinformacao]:::out
-    INT --> IL[(intervention_logs)]:::store
+    CRIT -- aprovado --> QP["<span style='color:#14532D'><b>Quote post no Bluesky</b></span>"]:::out
+    CRIT -- aprovado --> OB["<span style='color:#1E1B4B'><b>LabelOutbox</b><br/>resiliente com repetições</span>"]:::core
+    OB --> LAB["<span style='color:#14532D'><b>Rótulo Ozone</b><br/>possivel-desinformacao</span>"]:::out
+    INT --> IL[("<span style='color:#581C87'><b>intervention_logs</b></span>")]:::store
     Q -- atualiza action --> LOG
     PIPE --> LOG
 ```
@@ -131,24 +131,24 @@ Pontos que o desenho deixa explícitos:
 
 ## Tarefas concorrentes do worker
 
-`app/worker.py` cria três tarefas `asyncio` em segundo plano e roda o loop principal na tarefa corrente. Esse loop alimenta
+O `app/worker.py` cria três tarefas `asyncio` em segundo plano e roda o loop principal na tarefa corrente. Esse loop alimenta
 o `AnalysisPool`, que mantém até `WORKER_PIPELINE_CONCURRENCY` análises em andamento e preenche cada vaga assim que ela libera.
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'clusterBkg': 'transparent', 'clusterBorder': '#64748B', 'edgeLabelBackground': 'transparent' }}}%%
 flowchart LR
     classDef core fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#1E1B4B
     classDef ingest fill:#E0F2FE,stroke:#0284C7,stroke-width:2px,color:#0369A1
 
     subgraph Worker["python -m app.worker (um processo, um event loop)"]
-        T1[JetstreamConsumer.run<br/>WebSocket + cursor]:::ingest
-        T2[SearchPoller.run<br/>600 s]:::ingest
-        T3[EngagementRefresher.run<br/>300 s]:::ingest
-        L[Loop principal<br/>tick 30 s]:::core
+        T1["<span style='color:#0369A1'><b>JetstreamConsumer.run</b><br/>WebSocket + cursor</span>"]:::ingest
+        T2["<span style='color:#0369A1'><b>SearchPoller.run</b><br/>600 s</span>"]:::ingest
+        T3["<span style='color:#0369A1'><b>EngagementRefresher.run</b><br/>300 s</span>"]:::ingest
+        L["<span style='color:#1E1B4B'><b>Loop principal</b><br/>tick 30 s</span>"]:::core
     end
-    L --> R1[Rodada de intervenção<br/>se vencida]:::core
-    L --> R2[FeedIngestor.run<br/>se RSS_POLL_SECONDS passou]:::ingest
-    L --> R3[AnalysisPool: até N análises<br/>simultâneas]:::core
+    L --> R1["<span style='color:#1E1B4B'><b>Rodada de intervenção</b><br/>se vencida</span>"]:::core
+    L --> R2["<span style='color:#0369A1'><b>FeedIngestor.run</b><br/>se RSS_POLL_SECONDS passou</span>"]:::ingest
+    L --> R3["<span style='color:#1E1B4B'><b>AnalysisPool</b>: até N análises<br/>simultâneas</span>"]:::core
 ```
 
 A rodada de intervenção é verificada **antes e depois de cada análise** (`run_due_intervention_round`),
@@ -170,7 +170,7 @@ O backend de verificação é escolhido por `VERIFICATION_BACKEND` em `build_ver
     `VERIFICATION_BACKEND=jev` definido no `.env`. Sem essa variável, o worker sobe com o backend de LLM.
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'primaryColor': '#EEF2FF', 'edgeLabelBackground': '#FFFFFF', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1' }}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'inherit', 'clusterBkg': 'transparent', 'clusterBorder': '#64748B', 'edgeLabelBackground': 'transparent' }}}%%
 flowchart TD
     classDef ext fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#0F172A
     classDef ingest fill:#E0F2FE,stroke:#0284C7,stroke-width:2px,color:#0369A1
@@ -179,28 +179,28 @@ flowchart TD
     classDef guard fill:#FEF3C7,stroke:#D97706,stroke-width:2px,color:#78350F
     classDef out fill:#DCFCE7,stroke:#15803D,stroke-width:2px,color:#14532D
 
-    P["<b>Post + contexto do fio</b>"]:::ingest --> S["<b>Frases candidatas</b><br/>até 6, sem URLs"]:::core
-    S --> K{"Frase com ancoramento<br/>factual? (heurística)"}:::guard
-    K -- "não" --> X["<b>Sem ação</b>"]:::guard
-    K -- "sim" --> CT["<b>Fonte citada pelo post</b><br/>card, facets, texto"]:::core
-    CT -- "NLI sustenta e fonte confiável" --> VT["<b>source_consistent</b><br/>sem ação"]:::guard
-    CT -- "senão" --> Q["<b>Consulta por frase</b><br/>às fontes habilitadas"]:::core
+    P["<span style='color:#0369A1'><b>Post + contexto do fio</b></span>"]:::ingest --> S["<span style='color:#1E1B4B'><b>Frases candidatas</b><br/>até 6, sem URLs</span>"]:::core
+    S --> K{"<span style='color:#78350F'>Frase com ancoramento<br/>factual? (heurística)</span>"}:::guard
+    K -- "não" --> X["<span style='color:#78350F'><b>Sem ação</b></span>"]:::guard
+    K -- "sim" --> CT["<span style='color:#1E1B4B'><b>Fonte citada pelo post</b><br/>card, facets, texto</span>"]:::core
+    CT -- "NLI sustenta e fonte confiável" --> VT["<span style='color:#78350F'><b>source_consistent</b><br/>sem ação</span>"]:::guard
+    CT -- "senão" --> Q["<span style='color:#1E1B4B'><b>Consulta por frase</b><br/>às fontes habilitadas</span>"]:::core
     
-    Q --> E1["Google Fact Check"]:::ext
-    Q --> E2["Wikipédia"]:::ext
-    Q --> E3["Busca web:<br/>SearXNG, DuckDuckGo"]:::ext
-    Q --> E4["Acervo RSS<br/>pgvector"]:::store
+    Q --> E1["<span style='color:#0F172A'><b>Google Fact Check</b></span>"]:::ext
+    Q --> E2["<span style='color:#0F172A'><b>Wikipédia</b></span>"]:::ext
+    Q --> E3["<span style='color:#0F172A'><b>Busca web:</b><br/>SearXNG, DuckDuckGo</span>"]:::ext
+    Q --> E4["<span style='color:#581C87'><b>Acervo RSS</b><br/>pgvector</span>"]:::store
     
-    E1 --> F["<b>Filtro de relevância NLI</b><br/>rejeita outra localidade ou zona<br/>(gazetteer IBGE + contexto do post)<br/>até 8 evidências, margem mínima"]:::guard
+    E1 --> F["<span style='color:#78350F'><b>Filtro de relevância NLI</b><br/>rejeita outra localidade ou zona<br/>(gazetteer IBGE + contexto do post)<br/>até 8 evidências, margem mínima</span>"]:::guard
     E2 --> F
     E3 --> F
     E4 --> F
     
-    F --> M["<b>Matérias completas</b><br/>trafilatura, até preencher contexto"]:::core
-    M --> C["<b>Classificação do veredito</b><br/>confirmam / desmentem / enganosa"]:::core
-    C --> G["<b>Gate CRC</b><br/>chave jev:repo"]:::guard
-    G -- "abaixo do limiar ou sem calibração" --> I["<b>insufficient_evidence</b>"]:::guard
-    G -- "passou" --> V["<b>true / false / misleading</b>"]:::out
+    F --> M["<span style='color:#1E1B4B'><b>Matérias completas</b><br/>trafilatura, até preencher contexto</span>"]:::core
+    M --> C["<span style='color:#1E1B4B'><b>Classificação do veredito</b><br/>confirmam / desmentem / enganosa</span>"]:::core
+    C --> G["<span style='color:#78350F'><b>Gate CRC</b><br/>chave jev:repo</span>"]:::guard
+    G -- "abaixo do limiar ou sem calibração" --> I["<span style='color:#78350F'><b>insufficient_evidence</b></span>"]:::guard
+    G -- "passou" --> V["<span style='color:#14532D'><b>true / false / misleading</b></span>"]:::out
 ```
 
 O Jev é um *cross-encoder* NLI (`MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7`) servido
