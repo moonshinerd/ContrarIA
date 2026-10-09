@@ -380,6 +380,21 @@ _IDIOM_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
+# Interjeições e desabafos ("Ah, pelo amor de Deus.") e declarações em primeira pessoa
+# ("Eu já estou pronto pra votar...") não afirmam fatos sobre o mundo; só o nome próprio
+# solto ("Deus") não basta para torná-los verificáveis.
+_NON_CLAIM_PATTERN = re.compile(
+    r"^(?:ah|oh|ai|eita|nossa|poxa|gente|meu\s+deus|pelo\s+amor\s+de\s+deus)\b"
+    r"|\bpelo\s+amor\s+de\s+deus\b"
+    r"|^(?:eu|n[óo]s|a\s+gente)\b",
+    re.IGNORECASE,
+)
+# Número solto ("daqui 4 eleições") não ancora um fato; só valores com unidade ou 3+ dígitos.
+_STRONG_METRIC_PATTERN = re.compile(r"R\$|%|\d{3,}|\bpor\s+cento\b|\bmil(?:h[õo]es)?\b|bilh[õo]es")
+_MIN_NAME_ONLY_CLAIM_WORDS = 5
+_SOFT_RELEVANCE_MARGIN = 0.4
+_MIN_SOFT_OVERLAP = 3
+
 _QUESTION_PATTERN = re.compile(
     r"^(?:[\s\-\*•—–]+\s*)?(o\s+que|quem|quando|onde|por\s*que|por\s*qu[eê]|como|qual|quais|ser[aá]\s+que|voc[eê]s?\s+lembram|voc[eê]s?\s+sabiam|lembra)\b",
     re.IGNORECASE,
@@ -761,6 +776,8 @@ def _is_verifiable_claim(fragment: str) -> bool:
     # Perguntas (retóricas ou diretas) não são asserções fáticas
     if fragment.endswith("?") or _QUESTION_PATTERN.match(fragment):
         return False
+    if _NON_CLAIM_PATTERN.search(fragment) and not _STRONG_METRIC_PATTERN.search(fragment):
+        return False
     # Expressões idiomáticas ou metafóricas isoladas ("a casa começou a cair", "caiu a ficha")
     if _IDIOM_PATTERNS.search(fragment):
         words = fragment.split()
@@ -814,7 +831,7 @@ def _is_verifiable_claim(fragment: str) -> bool:
         and p.upper() not in _CLICKBAIT_TERMS
         and p.casefold() not in _PORTUGUESE_STOPWORDS
     ]
-    if meaningful:
+    if meaningful and len(fragment.split()) >= _MIN_NAME_ONLY_CLAIM_WORDS:
         return True
     return False
 
@@ -1307,6 +1324,12 @@ class JevVerificationService:
         # político específico na cidade.
         log: list[dict] = []
         anchored: list[Evidence] = []
+        soft_urls: set[str] = set()
+        claim_entity_words = {
+            w.casefold()
+            for w in _PROPER_NOUN_TOKEN_PATTERN.findall(claim)
+            if w.casefold() not in _PORTUGUESE_STOPWORDS and w.upper() not in _CLICKBAIT_TERMS
+        }
         for evidence in evidences:
             overlap = _word_overlap(claim, evidence)
             conflict = _entity_conflict(claim, evidence, discourse)
@@ -1331,8 +1354,19 @@ class JevVerificationService:
                 # desmente a alegação, em vez de abortar prematuramente.
                 soft_overlap = _word_overlap(claim, evidence)
                 soft_authority = _source_authority_score(evidence)
-                if soft_overlap >= 2 and soft_authority >= 0.35:
+                # Exige também uma entidade/sigla da alegação na própria fonte: sem isso
+                # uma página genérica (ex.: "Governo Jair Bolsonaro") entra só por tema.
+                evidence_words = {
+                    w.casefold()
+                    for w in _WORD_PATTERN.findall(f"{evidence.title} {evidence.snippet}")
+                }
+                if (
+                    soft_overlap >= _MIN_SOFT_OVERLAP
+                    and soft_authority >= 0.35
+                    and claim_entity_words & evidence_words
+                ):
                     anchored.append(evidence)
+                    soft_urls.add(evidence.url)
                     log.append(
                         {
                             "url": evidence.url,
@@ -1394,7 +1428,8 @@ class JevVerificationService:
                 }
             )
             margin = judgment["relevante"] - judgment["irrelevante"]
-            if margin >= _RELEVANCE_MARGIN:
+            needed = _SOFT_RELEVANCE_MARGIN if evidence.url in soft_urls else _RELEVANCE_MARGIN
+            if margin >= needed:
                 scored.append((margin, evidence))
         scored.sort(
             key=lambda pair: (

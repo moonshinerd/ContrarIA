@@ -717,3 +717,46 @@ def test_candidatas_nao_cortam_nome_com_sigla():
         "no E. M. Dom Pedro I, na 3ª zona eleitoral"
     )
     assert _candidate_sentences(texto) == [texto]
+
+
+@pytest.mark.parametrize(
+    "fragment",
+    [
+        "Ah, pelo amor de Deus.",
+        "Eu e meu e-título já estamos prontos pra votar Ana Elisa presidente daqui 4 eleições",
+    ],
+)
+def test_interjection_and_first_person_are_not_verifiable_claims(fragment):
+    from app.services.jev_verification import _is_verifiable_claim
+
+    assert not _is_verifiable_claim(fragment)
+
+
+def test_first_person_with_number_stays_verifiable():
+    from app.services.jev_verification import _is_verifiable_claim
+
+    assert _is_verifiable_claim("Eu vi que o TSE registrou 156 milhões de eleitores aptos")
+
+
+@pytest.mark.asyncio
+async def test_thematic_only_source_without_claim_entity_is_dropped():
+    classifier = ScriptedClassifier({"Governo": 0.9})
+    service = JevVerificationService(
+        classifier=classifier,
+        sources=[],
+        calibration_repo=StaticCalibrations(None),
+        settings=Settings(_env_file=None),
+    )
+    evidence = Evidence(
+        source="wikipedia",
+        url="https://pt.wikipedia.org/wiki/Governo_Jair_Bolsonaro",
+        title="Governo Jair Bolsonaro",
+        snippet="Governo federal com pesquisas e levantamento de eleitores no Brasil.",
+    )
+    relevant, log = await service._filter_relevant(
+        "Levantamento mostra que o senador lidera entre evangélicos e moradores do Sul",
+        [evidence],
+    )
+    assert relevant == []
+    assert classifier.questions == []
+    assert "insuficientes" in log[0]["reason"]
