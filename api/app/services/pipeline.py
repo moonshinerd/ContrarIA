@@ -78,7 +78,7 @@ class PipelineService:
         # 2/3. Engajamento / Prioridade (simplificado)
         # Engajamento alto = ≥1000 seguidores
         high_engagement = author.followers_count >= getattr(
-            self.settings, "pipeline_min_followers_for_intervention", 1000
+            self.settings, "pipeline_min_followers_for_intervention", 500
         )
 
         # 4. Verificação

@@ -142,6 +142,25 @@ class Settings(BaseSettings):
     # Vagas da fila reservadas ao searchPosts (posts de maior alcance); o Jetstream só
     # preenche `worker_queue_max_pending - worker_queue_search_reserve`.
     worker_queue_search_reserve: int = Field(default=30, ge=0)
+    # Busca ativa guiada por checagens recentes. Ela consulta no Bluesky frases
+    # características de alegações já desmentidas, antes dos termos políticos
+    # amplos, e recebe bônus de prioridade para não se perder na fila genérica.
+    factcheck_search_enabled: bool = True
+    factcheck_search_static_queries: list[str] = [
+        "urna fraudada",
+        "eleição roubada",
+        "TSE fraudou",
+        "TSE manipulou",
+        "resultado das urnas manipulado",
+        "voto impresso fraude",
+        "STF censurou",
+        "Lula vai fechar igrejas",
+    ]
+    factcheck_search_max_articles: int = Field(default=8, ge=0, le=50)
+    factcheck_search_max_queries: int = Field(default=16, ge=1, le=100)
+    factcheck_search_max_age_days: int = Field(default=14, ge=1, le=90)
+    factcheck_search_priority_bonus: float = Field(default=25.0, ge=0.0, le=100.0)
+    factcheck_search_reserve: int = Field(default=20, ge=0, le=100)
     # Após N falhas seguidas na análise de um mesmo post, ele sai da fila ('ignored').
     worker_pipeline_max_attempts: int = Field(default=3, ge=1)
     # Idade mínima em horas para um post ser analisado (aging delay). Permite que a
@@ -157,7 +176,7 @@ class Settings(BaseSettings):
     # when quote generation is configured as dry-run.
     pipeline_labeler_enabled: bool = False
     pipeline_bot_ignore_threshold: float = Field(default=0.9, ge=0, le=1)
-    pipeline_min_followers_for_intervention: int = Field(default=1000, ge=0)
+    pipeline_min_followers_for_intervention: int = Field(default=500, ge=0)
     # Rótulo `provavel-bot` em contas: emitido quando o bot score passa do limiar e
     # negado quando cai abaixo de (limiar - histerese), para não oscilar. Só age com
     # `pipeline_labeler_enabled`.

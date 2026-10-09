@@ -1324,6 +1324,25 @@ class JevVerificationService:
             if not _has_direct_anchor_overlap(
                 claim, evidence, context_entity=context_entity, author_handle=author_handle
             ):
+                # Alegações amplas (ex.: "a eleição foi fraudada") raramente
+                # aparecem literalmente em uma única matéria. Se a fonte é
+                # jornalística/oficial e há várias palavras informativas em
+                # comum, deixe o classificador avaliar se ela confirma ou
+                # desmente a alegação, em vez de abortar prematuramente.
+                soft_overlap = _word_overlap(claim, evidence)
+                soft_authority = _source_authority_score(evidence)
+                if soft_overlap >= 2 and soft_authority >= 0.35:
+                    anchored.append(evidence)
+                    log.append(
+                        {
+                            "url": evidence.url,
+                            "relevante": 0.5,
+                            "irrelevante": 0.5,
+                            "anchor_overlap": soft_overlap,
+                            "reason": "encaminhada ao classificador por sobreposição temática + fonte confiável",
+                        }
+                    )
+                    continue
                 log.append(
                     {
                         "url": evidence.url,
@@ -1464,6 +1483,22 @@ class JevVerificationService:
         clean_query = _clean_query(query)
         search_query = clean_query
         queries = [search_query]
+
+        # Consultas curtas recuperam checagens que não repetem a frase inteira
+        # do post. Mantemos a consulta original e adicionamos combinações de
+        # termos informativos para alegações compostas/retóricas.
+        words = [
+            w for w in _WORD_PATTERN.findall(clean_query)
+            if w.casefold() not in _PORTUGUESE_STOPWORDS
+        ]
+        broad_claim_terms = {"eleição", "eleicoes", "eleições", "fraude", "fraudada", "fraudado", "urna", "voto"}
+        if len(words) >= 12 and any(w.casefold() in broad_claim_terms for w in words):
+            compact = " ".join(words[:10])
+            if compact not in queries:
+                queries.append(compact)
+            anchors = [w for w in words if len(w) >= 6][:4]
+            if len(anchors) >= 2:
+                queries.append(" ".join(anchors[:2]))
 
         # Se a frase for uma anáfora ou omitir o sujeito principal do post,
         # injeta a entidade principal na query de busca externa.

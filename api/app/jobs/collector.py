@@ -2,13 +2,16 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import websockets
 import yaml
 
 from app.clients.bluesky_client import BlueskyClient
+from app.core.config import get_settings
 from app.domain.prioritization import calculate_relevance
 from app.repositories.posts import PostRepository
 
@@ -67,6 +70,25 @@ class IngestGate:
 def _is_relevant(text: str) -> bool:
     text_lower = text.lower()
     return any(kw in text_lower for kw in POLITICAL_KEYWORDS)
+
+
+_FACTCHECK_PREFIXES = re.compile(
+    r"^(?:fact[ -]?check|checagem|é falso que|é fake que|boato:|verificação:)\s*",
+    re.IGNORECASE,
+)
+
+
+def _claim_query(article: dict[str, str], *, max_chars: int = 140) -> str | None:
+    """Transforma o título de uma checagem em uma consulta curta e específica.
+
+    Títulos de verificadores normalmente carregam a alegação. Removemos apenas
+    o rótulo editorial e preservamos a frase, em vez de inferir uma nova claim.
+    """
+    title = " ".join(article.get("title", "").split())
+    title = _FACTCHECK_PREFIXES.sub("", title).strip(" .:-–—")
+    if len(title) < 12:
+        return None
+    return title[:max_chars].rsplit(" ", 1)[0] if len(title) > max_chars else title
 
 
 class JetstreamConsumer:
@@ -172,12 +194,37 @@ class SearchPoller:
         poll_interval_seconds: int = 600,
         per_keyword_limit: int = 25,
         gate: "IngestGate | None" = None,
+        fact_articles: Any | None = None,
     ):
         self.gate = gate
         self.repo = repo
         self.bsky_client = bsky_client
         self.poll_interval = poll_interval_seconds
         self.per_keyword_limit = per_keyword_limit
+        self.fact_articles = fact_articles
+
+    def _factcheck_queries(self) -> list[str]:
+        """Consultas prioritárias, deduplicadas, derivadas de checagens recentes."""
+        settings = get_settings()
+        if not settings.factcheck_search_enabled:
+            return []
+        queries = list(settings.factcheck_search_static_queries)
+        if self.fact_articles is not None:
+            try:
+                articles = self.fact_articles.recent_for_collection(
+                    limit=settings.factcheck_search_max_articles,
+                    max_age_days=settings.factcheck_search_max_age_days,
+                )
+                queries.extend(query for article in articles if (query := _claim_query(article)))
+            except Exception as exc:
+                # A busca política genérica continua funcionando se a base RSS falhar.
+                logger.warning("Não foi possível obter checagens para busca ativa: %s", exc)
+        unique: list[str] = []
+        for query in queries:
+            normalized = " ".join(query.split())
+            if normalized and normalized.casefold() not in {item.casefold() for item in unique}:
+                unique.append(normalized)
+        return unique[: settings.factcheck_search_max_queries]
 
     async def poll_once(self) -> int:
         """Busca cada palavra-chave separadamente e grava os posts novos.
@@ -187,7 +234,14 @@ class SearchPoller:
         """
         since = datetime.now(UTC) - timedelta(days=1)
         found: dict[str, dict] = {}
-        for keyword in sorted(POLITICAL_KEYWORDS):
+        # Busca guiada vem primeiro e ganha prioridade na fila. A verificação
+        # continua idêntica: entrar aqui não significa que o post será rotulado
+        # nem respondido.
+        factcheck_queries = self._factcheck_queries()
+        query_plan = [(query, "factcheck_search") for query in factcheck_queries]
+        query_plan.extend((keyword, "search") for keyword in sorted(POLITICAL_KEYWORDS))
+        settings = get_settings()
+        for keyword, source in query_plan:
             try:
                 posts = await self.bsky_client.search_posts(
                     query=keyword,
@@ -200,27 +254,31 @@ class SearchPoller:
                 logger.error("Erro no searchPosts para %r: %s", keyword, e)
                 continue
             for p in posts:
-                found.setdefault(
-                    p.uri,
-                    {
+                priority = calculate_relevance(
+                    likes=getattr(p, "like_count", 0),
+                    reposts=getattr(p, "repost_count", 0),
+                    replies=getattr(p, "reply_count", 0),
+                    quotes=getattr(p, "quote_count", 0),
+                    velocity=0.0,
+                    followers=0,
+                )
+                if source == "factcheck_search":
+                    priority += settings.factcheck_search_priority_bonus
+                candidate = {
                         "uri": p.uri,
                         "cid": p.cid,
                         "author_did": p.author_did,
                         "text": p.text,
                         "langs": p.langs,
                         "created_at": p.created_at,
-                        "source": "search",
+                        "source": source,
                         "triage_status": "monitor",
-                        "priority": calculate_relevance(
-                            likes=getattr(p, "like_count", 0),
-                            reposts=getattr(p, "repost_count", 0),
-                            replies=getattr(p, "reply_count", 0),
-                            quotes=getattr(p, "quote_count", 0),
-                            velocity=0.0,
-                            followers=0,
-                        ),
-                    },
-                )
+                        "priority": priority,
+                    }
+                # Um resultado vindo da busca guiada prevalece sobre a genérica.
+                existing = found.get(p.uri)
+                if existing is None or candidate["priority"] > existing["priority"]:
+                    found[p.uri] = candidate
         # O searchPosts devolve a cada ciclo muitos posts populares que já temos: só os novos
         # contam (e só eles ocupam vaga da fila).
         known = self.repo.existing_uris(list(found))
@@ -230,7 +288,19 @@ class SearchPoller:
         to_insert.sort(key=lambda post: post["priority"], reverse=True)
         max_pending = self.gate.max_pending if self.gate is not None else 0
         if max_pending > 0:
-            to_insert = to_insert[:max_pending]
+            # Reserva explícita para republicações de alegações checadas. Sem
+            # isso, uma onda de posts políticos muito populares poderia ocupar
+            # todas as vagas antes que a busca guiada fosse considerada.
+            reserve = min(settings.factcheck_search_reserve, max_pending)
+            guided = [post for post in to_insert if post["source"] == "factcheck_search"]
+            ordinary = [post for post in to_insert if post["source"] != "factcheck_search"]
+            selected_guided = guided[:reserve]
+            selected_ordinary = ordinary[: max_pending - len(selected_guided)]
+            to_insert = sorted(
+                selected_guided + selected_ordinary,
+                key=lambda post: post["priority"],
+                reverse=True,
+            )
         if to_insert:
             self.repo.upsert_posts(to_insert)
         if max_pending > 0:
@@ -246,10 +316,12 @@ class SearchPoller:
         elif self.gate is not None and to_insert:
             self.gate.consume(len(to_insert))
         logger.info(
-            "searchPosts: %d novos inseridos de %d encontrados (%d já conhecidos).",
+            "searchPosts: %d novos inseridos de %d encontrados "
+            "(%d já conhecidos; %d consultas guiadas).",
             len(to_insert),
             len(found),
             len(known),
+            len(factcheck_queries),
         )
         return len(to_insert)
 
