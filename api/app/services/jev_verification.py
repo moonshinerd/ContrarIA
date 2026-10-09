@@ -1339,7 +1339,10 @@ class JevVerificationService:
                             "relevante": 0.5,
                             "irrelevante": 0.5,
                             "anchor_overlap": soft_overlap,
-                            "reason": "encaminhada ao classificador por sobreposição temática + fonte confiável",
+                            "reason": (
+                                "encaminhada ao classificador por sobreposição temática "
+                                "+ fonte confiável"
+                            ),
                         }
                     )
                     continue
@@ -1491,7 +1494,9 @@ class JevVerificationService:
             w for w in _WORD_PATTERN.findall(clean_query)
             if w.casefold() not in _PORTUGUESE_STOPWORDS
         ]
-        broad_claim_terms = {"eleição", "eleicoes", "eleições", "fraude", "fraudada", "fraudado", "urna", "voto"}
+        broad_claim_terms = {
+            "eleição", "eleicoes", "eleições", "fraude", "fraudada", "fraudado", "urna", "voto"
+        }
         if len(words) >= 12 and any(w.casefold() in broad_claim_terms for w in words):
             compact = " ".join(words[:10])
             if compact not in queries:
