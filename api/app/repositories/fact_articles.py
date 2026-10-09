@@ -59,8 +59,7 @@ class FactArticleRepository:
         )
         with Session(self.engine) as session:
             return [
-                {"title": row.title, "summary": row.summary}
-                for row in session.execute(statement)
+                {"title": row.title, "summary": row.summary} for row in session.execute(statement)
             ]
 
     def search(self, vector, *, sources, limit, weight, half_life, min_similarity):

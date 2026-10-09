@@ -1491,11 +1491,19 @@ class JevVerificationService:
         # do post. Mantemos a consulta original e adicionamos combinações de
         # termos informativos para alegações compostas/retóricas.
         words = [
-            w for w in _WORD_PATTERN.findall(clean_query)
+            w
+            for w in _WORD_PATTERN.findall(clean_query)
             if w.casefold() not in _PORTUGUESE_STOPWORDS
         ]
         broad_claim_terms = {
-            "eleição", "eleicoes", "eleições", "fraude", "fraudada", "fraudado", "urna", "voto"
+            "eleição",
+            "eleicoes",
+            "eleições",
+            "fraude",
+            "fraudada",
+            "fraudado",
+            "urna",
+            "voto",
         }
         if len(words) >= 12 and any(w.casefold() in broad_claim_terms for w in words):
             compact = " ".join(words[:10])

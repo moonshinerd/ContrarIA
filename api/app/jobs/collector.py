@@ -265,16 +265,16 @@ class SearchPoller:
                 if source == "factcheck_search":
                     priority += settings.factcheck_search_priority_bonus
                 candidate = {
-                        "uri": p.uri,
-                        "cid": p.cid,
-                        "author_did": p.author_did,
-                        "text": p.text,
-                        "langs": p.langs,
-                        "created_at": p.created_at,
-                        "source": source,
-                        "triage_status": "monitor",
-                        "priority": priority,
-                    }
+                    "uri": p.uri,
+                    "cid": p.cid,
+                    "author_did": p.author_did,
+                    "text": p.text,
+                    "langs": p.langs,
+                    "created_at": p.created_at,
+                    "source": source,
+                    "triage_status": "monitor",
+                    "priority": priority,
+                }
                 # Um resultado vindo da busca guiada prevalece sobre a genérica.
                 existing = found.get(p.uri)
                 if existing is None or candidate["priority"] > existing["priority"]:
