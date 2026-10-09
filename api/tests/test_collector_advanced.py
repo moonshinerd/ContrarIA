@@ -195,7 +195,7 @@ async def test_search_poller_busca_uma_palavra_por_vez_e_deduplica():
 
     # Sem "OR": o searchPosts do Bluesky o trata como termo obrigatório.
     assert all(" OR " not in q for q in queries)
-    assert set(queries) == set(POLITICAL_KEYWORDS)
+    assert set(POLITICAL_KEYWORDS).issubset(queries)
     assert total == 2
     saved = repo.upsert_posts.call_args.args[0]
     assert {p["uri"] for p in saved} == {"at://a", "at://b"}
@@ -277,3 +277,124 @@ async def test_search_poller_ignora_posts_que_ja_existem_no_banco():
     bsky_client.search_posts = fake_search
     assert await SearchPoller(repo, bsky_client).poll_once() == 1
     assert [p["uri"] for p in repo.upsert_posts.call_args.args[0]] == ["at://novo"]
+
+
+def test_claim_query_remove_rotulo_de_checagem_e_preserva_a_alegacao():
+    from app.jobs.collector import _claim_query
+
+    assert _claim_query({"title": "É falso que TSE anulou votos no Nordeste"}) == (
+        "TSE anulou votos no Nordeste"
+    )
+    assert _claim_query({"title": "Checagem: boato"}) is None
+
+
+@pytest.mark.asyncio
+async def test_search_poller_prioriza_posts_encontrados_por_checagens(monkeypatch):
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    import app.jobs.collector as collector
+
+    class FactArticles:
+        def recent_for_collection(self, *, limit, max_age_days):
+            assert (limit, max_age_days) == (2, 7)
+            return [{"title": "É falso que urnas foram fraudadas", "summary": ""}]
+
+    settings = SimpleNamespace(
+        factcheck_search_enabled=True,
+        factcheck_search_static_queries=["TSE manipulou"],
+        factcheck_search_max_articles=2,
+        factcheck_search_max_age_days=7,
+        factcheck_search_max_queries=5,
+        factcheck_search_priority_bonus=25.0,
+    )
+    monkeypatch.setattr(collector, "get_settings", lambda: settings)
+
+    def post(uri, likes=0):
+        return SimpleNamespace(
+            uri=uri,
+            cid="c",
+            author_did="d",
+            text="urna fraudada",
+            langs=["pt"],
+            created_at=datetime.now(UTC),
+            like_count=likes,
+            repost_count=0,
+            reply_count=0,
+            quote_count=0,
+        )
+
+    repo = MagicMock()
+    repo.existing_uris.return_value = set()
+    bsky_client = MagicMock()
+    queries = []
+
+    async def fake_search(query, **kwargs):
+        queries.append(query)
+        if query == "urnas foram fraudadas":
+            return [post("at://guiado")]
+        if query == "eleição":
+            return [post("at://generico", likes=10_000)]
+        return []
+
+    bsky_client.search_posts = fake_search
+    await SearchPoller(repo, bsky_client, fact_articles=FactArticles()).poll_once()
+
+    assert queries[:2] == ["TSE manipulou", "urnas foram fraudadas"]
+    saved = {item["uri"]: item for item in repo.upsert_posts.call_args.args[0]}
+    assert saved["at://guiado"]["source"] == "factcheck_search"
+    assert saved["at://guiado"]["priority"] >= 25
+    assert saved["at://generico"]["source"] == "search"
+    bsky_client.quote_post.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_search_poller_reserva_vaga_para_busca_guiada_com_fila_cheia(monkeypatch):
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    import app.jobs.collector as collector
+
+    settings = SimpleNamespace(
+        factcheck_search_enabled=True,
+        factcheck_search_static_queries=["urna fraudada"],
+        factcheck_search_max_articles=0,
+        factcheck_search_max_age_days=7,
+        factcheck_search_max_queries=5,
+        factcheck_search_priority_bonus=25.0,
+        factcheck_search_reserve=1,
+    )
+    monkeypatch.setattr(collector, "get_settings", lambda: settings)
+
+    def post(uri, likes):
+        return SimpleNamespace(
+            uri=uri,
+            cid="c",
+            author_did="d",
+            text="texto",
+            langs=["pt"],
+            created_at=datetime.now(UTC),
+            like_count=likes,
+            repost_count=0,
+            reply_count=0,
+            quote_count=0,
+        )
+
+    repo = MagicMock()
+    repo.existing_uris.return_value = set()
+    bsky_client = MagicMock()
+
+    async def fake_search(query, **kwargs):
+        if query == "urna fraudada":
+            return [post("at://guiado", 1)]
+        if query == "eleição":
+            return [post("at://viral", 100_000)]
+        return []
+
+    bsky_client.search_posts = fake_search
+    gate = collector.IngestGate(repo, max_pending=1)
+    await collector.SearchPoller(repo, bsky_client, gate=gate).poll_once()
+
+    saved = repo.upsert_posts.call_args.args[0]
+    assert len(saved) == 1
+    assert saved[0]["uri"] == "at://guiado"

@@ -58,8 +58,8 @@ sigmoide e guardados em cache por 24 horas. Uma nota alta é um indício, não p
 
 1. **Separar frases candidatas:** o worker divide o post e, quando disponível, o contexto do fio. Uma heurística determinística (sem LLM nem Jev) mantém só as frases com ancoramento factual (número, título político, sigla institucional, predicado fático ou nome próprio) e descarta perguntas, expressões idiomáticas e hashtags de campanha; sem frases candidatas, a análise encerra sem ação. Essa heurística ainda não tem validação quantitativa.
 2. **Ler a fonte que o próprio post cita:** o link do card, dos facets ou do texto é lido primeiro. O NLI compara a alegação com o título e com janelas de duas frases da matéria e fica com o maior entailment (abordagem SummaC/AlignScore). Se passa do limiar e a fonte é jornalística, de checagem ou oficial, o post é dado como `source_consistent` (consistente com a matéria que cita; a veracidade da matéria não foi avaliada) e não há intervenção. Se a fonte é desconhecida ou não sustenta a alegação, ela entra como mais uma evidência ([ADR 0019](../adr/0019-fonte-citada-pelo-post-e-entidade.md)).
-3. **Buscar evidências:** cada alegação factual consulta as fontes habilitadas — agências de checagem, Wikipédia, busca web e acervo RSS. A busca web utiliza primariamente a instância self-hosted do SearXNG (com fallback para o DuckDuckGo; o Tavily usado no MVP foi removido, ver [ADR 0016](../adr/0016-remocao-do-tavily.md)) e extração estruturada de conteúdo com Trafilatura, evitando dependência de créditos e ruídos de raspagem HTML. As fontes externas contam com disjuntor de proteção e cooldown ([ADR 0021](../adr/0021-resiliencia-das-fontes-de-evidencia.md)). A consulta usa a frase específica, sem URLs, para evitar resultados apenas tematicamente relacionados.
-4. **Filtrar relevância:** o Jev compara alegação e trecho de fonte e só conserva evidência que trate dos mesmos fatos, pessoas, números ou eventos, e descarta a que fala de outra localidade (município e UF, pelo gazetteer do IBGE, usando o texto do post inteiro como contexto) ou de outra zona eleitoral (homônimos). Ele mede essa decisão por probabilidades de tokens, sem depender de JSON gerado.
+3. **Buscar evidências:** cada alegação factual consulta as fontes habilitadas — agências de checagem, Wikipédia, busca web e acervo RSS. A busca web utiliza primariamente a instância self-hosted do SearXNG (com fallback para o DuckDuckGo; o Tavily usado no MVP foi removido, ver [ADR 0016](../adr/0016-remocao-do-tavily.md)) e extração estruturada de conteúdo com Trafilatura, evitando dependência de créditos e ruídos de raspagem HTML. As fontes externas contam com disjuntor de proteção e cooldown ([ADR 0021](../adr/0021-resiliencia-das-fontes-de-evidencia.md)). Para alegações longas ou compostas, além da frase específica sem URLs, o sistema gera consultas menores com os principais termos e subalegações.
+4. **Filtrar relevância:** o Jev compara alegação e trecho de fonte. O filtro determinístico ainda bloqueia entidades conflitantes e coincidências genéricas, mas fontes confiáveis com sobreposição temática suficiente seguem para o classificador local, que decide se confirmam ou desmentem o caso. Isso evita transformar a ausência de uma frase literal em `insufficient_evidence` automático.
 5. **Classificar o veredito:** com as fontes relevantes, o Jev escolhe entre "confirmam a alegação", "desmentem a alegação", "confirmam o fato, mas desmentem a conclusão ou o exagero" e "as evidências são insuficientes ou não tratam da alegação". Isso produz, respectivamente, `true`, `false`, `misleading` ou `insufficient_evidence`.
 6. **Aplicar o controle de risco:** o Conformal Risk Control (CRC) usa um limiar aprendido com exemplos rotulados para **esse modelo Jev**, com tolerância de 5% para a perda de falsos positivos na calibração. Não é uma regra fixa de confiança nem garantia de acerto em todos os casos. Sem calibração ou abaixo do limiar, a decisão é `insufficient_evidence` e não há intervenção.
 
@@ -77,15 +77,19 @@ backend alternativo (`VERIFICATION_BACKEND=llm`).
 
 Depois da verificação, a **matriz GQ01** (no `PipelineService`) escolhe a ação, nesta ordem:
 
-1. **`IGNORE`:** bot score acima de 0,9 e conta com menos de 1.000 seguidores. Evita amplificar contas automatizadas pequenas.
+1. **`IGNORE`:** bot score acima de 0,9 e conta com menos de 500 seguidores. Evita amplificar contas automatizadas pequenas.
 2. **`MONITOR`:** veredito `insufficient_evidence`.
-3. **`INTERVENE_QUEUED`:** conta com 1.000 seguidores ou mais e veredito `false` ou `misleading`.
+3. **`INTERVENE_QUEUED`:** conta com 500 seguidores ou mais e veredito `false` ou `misleading`.
 4. **`MONITOR`:** qualquer outro caso, inclusive intervenção desabilitada por *feature flag*.
 
 O candidato **não é publicado na hora**. Ele entra na `InterventionQueue` e, a cada rodada de 15 minutos, só o de
 **maior confiança** é publicado; os demais são fechados como `MONITOR`. Entre 0h e 7h (Brasília) não há rodada de
 publicação, para que a conta não opere 24 horas seguidas. A fila vive na memória: se o worker reinicia, os pendentes
 são fechados como `MONITOR`.
+
+Em desenvolvimento e na primeira validação de produção, mantenha `INTERVENTION_DRY_RUN=true`: a decisão e a ação
+calculada são registradas, mas o quote não é enviado ao Bluesky. Só `false` habilita a publicação depois das demais
+travas.
 
 O candidato escolhido passa pelas travas do `InterventionService`: confiança mínima de 0,8, anti-loop (nunca citar o
 próprio bot nem contas com rótulo `bot`), um quote por post e um por autor a cada 24 horas, teto diário de quotes,

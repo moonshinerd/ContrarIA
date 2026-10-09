@@ -13,7 +13,7 @@ class Post(Base):
     text = Column(String, nullable=False)
     langs = Column(JSON().with_variant(ARRAY(String), "postgresql"), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False)
-    source = Column(String, nullable=False)  # 'jetstream' | 'search'
+    source = Column(String, nullable=False)  # 'jetstream' | 'search' | 'factcheck_search'
     first_seen_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     triage_status = Column(String, nullable=True)  # 'monitor' | 'queued' | 'discarded'

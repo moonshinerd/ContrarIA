@@ -110,7 +110,13 @@ async def main() -> None:
         search_reserve=settings.worker_queue_search_reserve,
     )
     jetstream = JetstreamConsumer(post_repo, gate=gate)
-    poller = SearchPoller(post_repo, bsky_client, poll_interval_seconds=600, gate=gate)
+    poller = SearchPoller(
+        post_repo,
+        bsky_client,
+        poll_interval_seconds=600,
+        gate=gate,
+        fact_articles=FactArticleRepository(engine),
+    )
     llm = LiteLLMModel(settings)
     ozone = OzoneClient(settings=settings)
     intervention = InterventionService(InterventionRepository(engine), bsky_client, llm)

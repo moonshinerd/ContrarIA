@@ -1,6 +1,6 @@
 """Persistência idempotente e ranking semântico com bônus limitado de recência."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import case, func, select
 from sqlalchemy.dialects.postgresql import insert
@@ -40,6 +40,27 @@ class FactArticleRepository:
     def count(self) -> int:
         with Session(self.engine) as session:
             return session.scalar(select(func.count()).select_from(FactArticle))
+
+    def recent_for_collection(self, *, limit: int, max_age_days: int) -> list[dict[str, str]]:
+        """Devolve metadados recentes para orientar a busca, sem carregar embeddings.
+
+        A coleta não assume que uma checagem prova todo post parecido: ela apenas
+        encontra candidatos para o pipeline normal, que continua exigindo evidência
+        relevante antes de qualquer intervenção.
+        """
+        if limit <= 0:
+            return []
+        cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
+        statement = (
+            select(FactArticle.title, FactArticle.summary)
+            .where(FactArticle.published_at.is_(None) | (FactArticle.published_at >= cutoff))
+            .order_by(FactArticle.published_at.desc().nullslast(), FactArticle.url)
+            .limit(limit)
+        )
+        with Session(self.engine) as session:
+            return [
+                {"title": row.title, "summary": row.summary} for row in session.execute(statement)
+            ]
 
     def search(self, vector, *, sources, limit, weight, half_life, min_similarity):
         similarity = 1 - FactArticle.embedding.cosine_distance(vector)
