@@ -125,8 +125,13 @@ O ContrarIA mantém uma separação rígida entre código e credenciais. Nunca c
 | `JEV_MODEL_REPO` | Repositório HuggingFace do modelo NLI Cross-Encoder | `MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7` |
 | `JEV_SERVER_URL` | Endereço interno do serviço compartilhado | `http://jev:8100` no Docker Compose |
 | `JEV_ALLOW_UNCALIBRATED` | Libera decisão sem CRC | Mantenha `false` em produção |
-| `LLM_MODEL_NAME` | Modelo que redige o quote post após decisão elegível | Ex.: `openrouter/openai/gpt-5-mini` |
-| `LLM_CONTEXT_WINDOW_TOKENS` | Fallback de janela quando LiteLLM não conhece o modelo | `400000` para GPT-5 mini |
+| `LLM_MODEL_NAME` | Modelo que redige o quote post e audita a coerência (Critic) | `openrouter/openai/gpt-6-luna` (padrão desde 14/10/2026; US$ 0,10/M entrada, US$ 0,50/M saída) |
+| `DAILY_LLM_BUDGET_USD` | Teto diário de gasto com LLM | `1.0`; o custo vem do próprio OpenRouter e é gravado em `llm_usage` |
+| `CLAIM_HARVEST_ENABLED` | Liga o coletor de alegações checadas ([ADR 0027](adr/0027-coletor-de-alegacoes-checadas.md)) | `true` (padrão); `false` desliga |
+| `CLAIM_HARVEST_MINUTES` / `_LOOKBACK_HOURS` / `_MIN_COVERAGE` / `_MAX_PER_CLAIM` | Frequência, janela de busca (168 h), cobertura mínima ponderada (0,5) e máximo de posts por alegação (3) | Padrões do `.env.example` |
+| `INTERVENTION_QUIET_HOURS_ENABLED` | Faixa de silêncio 0h-7h (Brasília) | `false` (padrão; [ADR 0024](adr/0024-remove-piso-de-seguidores-e-faixa-de-silencio.md)) |
+| `PIPELINE_MIN_FOLLOWERS_FOR_INTERVENTION` | Piso de seguidores para intervir | `0` (padrão); `500` reativa a barreira |
+| `LLM_CONTEXT_WINDOW_TOKENS` | Fallback de janela quando LiteLLM não conhece o modelo | `400000` (gpt-6-luna tem ~1 M; o valor é o teto usado) |
 | `LLM_SOURCE_REVIEW_INPUT_BUDGET_TOKENS` | Máximo de tokens estimados de cada lote de leitura | `320000`, preservando margem para instruções e saída; o limite real vem do LiteLLM |
 | `LLM_SOURCE_REVIEW_MAX_CHARS` | Teto somado de caracteres extraídos das cinco fontes | `2500000`; acima dele o bot se abstém, sem truncar |
 | `LLM_SOURCE_REVIEW_MAX_BATCHES` | Máximo de lotes integrais por intervenção | `3`; impede custo e latência descontrolados |

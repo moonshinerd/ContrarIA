@@ -257,7 +257,8 @@ flowchart LR
         C5[docs: mkdocs build --strict]
     end
     CI --> M[Merge na main]
-    M --> D[deploy.yml<br/>SSH na VPS: git pull,<br/>compose up --build, alembic upgrade head]
+    M --> D[deploy.yml<br/>token OIDC → deployhook na VM:<br/>git reset origin/main, compose up --build, alembic upgrade head]
+    R[deploy-retry.yml<br/>a cada 15 min: refaz o Deploy<br/>se a main não foi publicada<br/>e o túnel voltou] -.-> D
     M --> P[docs.yml<br/>GitHub Pages]
 ```
 

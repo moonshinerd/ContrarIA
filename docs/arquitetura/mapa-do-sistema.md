@@ -25,7 +25,7 @@ Para o fluxo lógico da análise veja [O Pipeline do Agente](pipeline.md); para 
 
 ## 1. Contexto: o sistema e quem fala com ele
 
-O ContrarIA tem **seis fluxos de entrada de dados** (detalhados na [seção 3](#3-pipelines-de-entrada); todos leem
+O ContrarIA tem **sete fluxos de entrada de dados** (detalhados na [seção 3](#3-pipelines-de-entrada); todos leem
 conteúdo público, nenhum é caixa de mensagens privada) e **duas saídas públicas** (um quote post e um rótulo). O Bluesky é, ao mesmo tempo, a fonte e o destino.
 
 ```mermaid
@@ -175,7 +175,7 @@ flowchart TB
 
 ## 3. Pipelines de entrada
 
-O sistema tem **seis fluxos de entrada**. Três trazem **posts** (o que será analisado); os outros três trazem
+O sistema tem **sete fluxos de entrada**. Quatro trazem **posts** (o que será analisado); os outros três trazem
 **contexto** (o que sustenta a análise). Só o primeiro grupo cria linhas em `posts`.
 
 ```mermaid
@@ -199,6 +199,8 @@ flowchart LR
         E2 --> F2
 
         E3["<span style='color:#831843'><b>E3. POST /v1/analyze</b><br/>análise sob demanda</span>"]:::human
+
+        E7["<span style='color:#0F172A'><b>E7. Coletor de alegações checadas</b><br/>a cada 1 h, termos raros de cada alegação<br/>falsa checada, 1 candidato por rodada</span>"]:::ext
     end
 
     GATE{{"<span style='color:#78350F'><b>IngestGate</b><br/>teto de 100 na fila<br/>Jetstream não usa as 70 vagas<br/>reservadas ao searchPosts</span>"}}:::guard
@@ -224,6 +226,7 @@ flowchart LR
 
     POSTSTB -->|"monitor ou queued<br/>entre 3 h e 48 h de idade<br/>por priority"| POOL{{"<span style='color:#1E1B4B'><b>AnalysisPool</b><br/>concorrência configurável</span>"}}:::core
     E3 --> POOL
+    E7 -->|"veredito da agência<br/>+ checagem como fonte"| PIPE
     FA -.->|"busca vetorial"| E6
     E6 --> POOL
     POOL --> PIPE["<span style='color:#1E1B4B'><b>PipelineService.analyze</b></span>"]:::core
@@ -234,6 +237,7 @@ flowchart LR
 | E1 | Jetstream | `JetstreamConsumer` em `jobs/collector.py` | Contínua | Só `create` de `app.bsky.feed.post`, idioma `pt*`, texto com palavra-chave de `domain/topics/politica.yaml` | `posts` (`source=jetstream`) |
 | E2 | `searchPosts` | `SearchPoller` | 600 s | Uma consulta por palavra-chave (a API não tem `OR`), `sort=top`, últimas 24 h, 25 por palavra; só URIs novas | `posts` (`source=search`), com `priority` pela popularidade |
 | E3 | Análise sob demanda | `POST /v1/analyze` em `routers/v1/decisions.py` | Sob demanda | Não passa pela fila de análise, pelo aging nem pela fila de intervenção: se o veredito pedir, a intervenção sai na hora | `decisions` |
+| E7 | Coletor de alegações checadas | `ClaimHarvester` em `jobs/claim_harvester.py` | 3.600 s (tarefa própria); 1 candidato por rodada de 15 min | Alegações falsas/enganosas dos últimos 30 dias (Google Fact Check e RSS); busca os 2 termos mais raros (IDF) com `latest` e `top` nos últimos 7 dias; descarta desmentidos, contradições (NLI) e cobertura ponderada < 0,5; máx. 3 por alegação ([ADR 0027](../adr/0027-coletor-de-alegacoes-checadas.md)) | `posts` (`source=claim_harvest`) e `decisions` (com `claim_harvest` no log) |
 | E4 | Engajamento | `EngagementRefresher` em `jobs/refresh_engagement.py` | 300 s | Posts das últimas 48 h, até 1.000 por ciclo; poda a fila a `WORKER_QUEUE_MAX_PENDING` | `post_engagement_snapshots`, `posts.priority`, `posts.triage_status` |
 | E5 | Feeds RSS | `FeedIngestor` em `jobs/ingest_fact_articles.py` | 3.600 s | Só agências em `RSS_ENABLED_SOURCES` | `fact_articles` (com embedding) |
 | E6 | Contexto da análise | `BlueskyClient`, `ArticleClient`, `evidence/*` | A cada análise | Resiliência por provedor ([ADR 0021](../adr/0021-resiliencia-das-fontes-de-evidencia.md)) | Memória do worker e `decisions.sources` |
@@ -545,6 +549,7 @@ sequenceDiagram
     participant GH as GitHub (PR e main)
     participant CI as CI (5 checks)
     participant DEP as deploy.yml
+    participant RT as deploy-retry.yml (vigia)
     participant CF as Cloudflare e túnel
     participant HOOK as deployhook
     participant HOST as systemd na VM
@@ -567,6 +572,8 @@ sequenceDiagram
         HOOK-->>DEP: running ou ok ou failed
     end
     DEP-->>GH: conclusão do workflow
+    Note over RT,DEP: túnel fora: o Deploy falha (530) e nada o repete.<br/>A cada 15 min o vigia confere a main, o /health do endpoint<br/>e dispara workflow_dispatch (até 3 tentativas por commit)
+    RT->>DEP: workflow_dispatch quando o túnel volta
 ```
 
 ### 9.2 Observabilidade e API administrativa

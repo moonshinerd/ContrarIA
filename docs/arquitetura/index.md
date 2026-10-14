@@ -87,6 +87,9 @@ flowchart TD
     end
     J1 --> POSTS[("<span style='color:#581C87'><b>posts</b></span>")]:::store
     J2 --> POSTS
+    HV["<span style='color:#0369A1'><b>ClaimHarvester</b><br/>a cada 1 h: alegações checadas<br/>→ termos raros → searchPosts<br/>1 candidato por rodada</span>"]:::ingest
+    FC["<span style='color:#0F172A'><b>Google Fact Check</b><br/>+ acervo RSS</span>"]:::ext --> HV
+    HV -- "veredito da agência<br/>+ checagem como fonte" --> PIPE
 
     ER["<span style='color:#0369A1'><b>EngagementRefresher</b><br/>a cada 5 min, últimas 48h</span>"]:::ingest --> SNAP[("<span style='color:#581C87'><b>post_engagement_snapshots</b></span>")]:::store
     ER -- relevância + velocidade<br/>matriz GQ04 --> POSTS
@@ -118,6 +121,10 @@ flowchart TD
 
 Pontos que o desenho deixa explícitos:
 
+- **O coletor de alegações checadas inverte o funil** ([ADR 0027](../adr/0027-coletor-de-alegacoes-checadas.md)): em vez
+  de procurar checagem para posts populares, parte das checagens de agências e busca no Bluesky quem as repete
+  (inclusive respostas em threads). Os candidatos pulam a verificação do Jev, entram com o veredito da agência e vão para
+  a mesma fila de intervenção, onde a revisão das fontes e o Critic Semântico decidem.
 - **A coleta não analisa.** Ela só grava posts. Quem escolhe o que será analisado é a triagem
   (relevância, velocidade, matriz GQ04), executada pelo `EngagementRefresher`.
 - **A verificação cara roda em um pool de análises simultâneas** (`WORKER_PIPELINE_CONCURRENCY`), respeitando a
@@ -131,7 +138,7 @@ Pontos que o desenho deixa explícitos:
 
 ## Tarefas concorrentes do worker
 
-O `app/worker.py` cria três tarefas `asyncio` em segundo plano e roda o loop principal na tarefa corrente. Esse loop alimenta
+O `app/worker.py` cria quatro tarefas `asyncio` em segundo plano e roda o loop principal na tarefa corrente. Esse loop alimenta
 o `AnalysisPool`, que mantém até `WORKER_PIPELINE_CONCURRENCY` análises em andamento e preenche cada vaga assim que ela libera.
 
 ```mermaid
@@ -144,11 +151,13 @@ flowchart LR
         T1["<span style='color:#0369A1'><b>JetstreamConsumer.run</b><br/>WebSocket + cursor</span>"]:::ingest
         T2["<span style='color:#0369A1'><b>SearchPoller.run</b><br/>600 s</span>"]:::ingest
         T3["<span style='color:#0369A1'><b>EngagementRefresher.run</b><br/>300 s</span>"]:::ingest
+        T4["<span style='color:#0369A1'><b>ClaimHarvester.run_forever</b><br/>3.600 s (centenas de buscas)</span>"]:::ingest
         L["<span style='color:#1E1B4B'><b>Loop principal</b><br/>tick 30 s</span>"]:::core
     end
     L --> R1["<span style='color:#1E1B4B'><b>Rodada de intervenção</b><br/>se vencida</span>"]:::core
     L --> R2["<span style='color:#0369A1'><b>FeedIngestor.run</b><br/>se RSS_POLL_SECONDS passou</span>"]:::ingest
     L --> R3["<span style='color:#1E1B4B'><b>AnalysisPool</b>: até N análises<br/>simultâneas</span>"]:::core
+    L --> R4["<span style='color:#1E1B4B'><b>release_one</b><br/>1 candidato do coletor por rodada,<br/>com a fila de intervenção vazia</span>"]:::core
 ```
 
 A rodada de intervenção é verificada **antes e depois de cada análise** (`run_due_intervention_round`),
@@ -203,6 +212,11 @@ flowchart TD
     G -- "passou" --> V["<span style='color:#14532D'><b>true / false / misleading</b></span>"]:::out
 ```
 
+**Veredito adverso (`false`/`misleading`) em 14/10/2026** ([ADR 0026](../adr/0026-reverte-exigencia-de-casamento.md)):
+precisa de ao menos uma evidência relevante de checagem, imprensa ou fonte oficial; Wikipédia, o link do próprio post e o
+acervo RSS não bastam (`weak_sources_only` no log). O acervo RSS só acusa pelo **casamento exato** com a alegação checada
+(`claim_match` no log). Posts que já desmentem ("É falso que…", "❌", link da checagem) nunca casam.
+
 O Jev é um *cross-encoder* NLI (`MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7`) servido
 por `app/jev_server.py` com três rotas: `/classify` (escolha entre opções por probabilidade),
 `/count_tokens` e `/nli` (premissa × hipótese). Não gera texto livre, então não existe "JSON quebrado".
@@ -219,7 +233,7 @@ Cada fonte implementa a porta `EvidenceSource` e se registra por nome em `EVIDEN
 | `wikipedia` | `WikipediaClient` | `User-Agent` identificável; summaries em paralelo (máx. 5) |
 | `web_search` | `WebSearchSource` | Encadeia SearXNG → DuckDuckGo; filtra redes sociais e UGC; cache TTL |
 | `searxng` / `duckduckgo` | `CachedSource` | Cada motor também pode ser usado isoladamente |
-| `rss_checkers` | `RSSCheckersSource` | Busca vetorial em `fact_articles` (MiniLM multilíngue, 384 dimensões), com peso de recência |
+| `rss_checkers` | `RSSCheckersSource` | Busca vetorial em `fact_articles` (MiniLM multilíngue, 384 dimensões), com peso de recência; é fonte do Jev desde 14/10/2026, mas só acusa por casamento exato com a alegação checada |
 
 Falhas de rede, cota ou chave viram log e lista vazia, nunca exceção. SearXNG e DuckDuckGo têm um disjuntor: depois de uma falha a fonte sai de cena por um tempo crescente (30 s até 10 min) e as outras seguem sem esperar ([ADR 0021](../adr/0021-resiliencia-das-fontes-de-evidencia.md)). Resultados com falha não entram no cache.
 O Tavily, usado no MVP, foi removido em outubro de 2026 ([ADR 0016](../adr/0016-remocao-do-tavily.md)). Ver também [ADR 0005](../adr/0005-multiplas-fontes-evidencia.md) e [ADR 0014](../adr/0014-busca-web-searxng-trafilatura.md).
@@ -228,15 +242,18 @@ O Tavily, usado no MVP, foi removido em outubro de 2026 ([ADR 0016](../adr/0016-
 
 O `InterventionService` só publica se **todas** as travas passarem:
 
-1. Veredito `false` ou `misleading` com confiança ≥ 0,8.
+1. Veredito `false` ou `misleading` com confiança ≥ 0,8. Exceção: o candidato do coletor de alegações checadas
+   (`agent_outputs.claim_harvest`) não tem confiança do Jev; quem decide é a revisão das fontes e o Critic Semântico.
 2. O post não é do próprio bot e o autor não tem rótulo `bot`.
 3. Um quote por post e um por autor a cada 24 h.
 4. Teto diário de quotes (`DAILY_MAX_INTERVENTIONS`) e orçamento diário de pontos de escrita.
 5. O post não desabilita citações (`postgate`).
 6. O texto passa por revisão das fontes e é limitado a 300 graphemes, em fio quando necessário.
 
-Contas analisadas com bot score acima de 0,9 recebem o rótulo `provavel-bot` do Ozone, mesmo sem quote ([ADR 0017](../adr/0017-rotulagem-de-contas-ao-vivo.md)). Além disso, `INTERVENTION_DRY_RUN` (padrão `true`) impede publicação real e `PIPELINE_LABELER_ENABLED`
-(padrão `false`) mantém o rótulo Ozone como ação opt-in. Ver [ADR 0002](../adr/0002-quote-post.md)
+Contas analisadas com bot score acima de 0,9 recebem o rótulo `provavel-bot` do Ozone, mesmo sem quote ([ADR 0017](../adr/0017-rotulagem-de-contas-ao-vivo.md)). Além disso, `INTERVENTION_DRY_RUN` (padrão do código `true`) impede publicação real e `PIPELINE_LABELER_ENABLED`
+(padrão `false`) mantém o rótulo Ozone como ação opt-in. **Em produção ambos estão no `.env` da VM** e, em 14/10/2026, o
+dry-run estava `false` e o rótulo `true`: o bot publica de verdade. Desde essa data o piso de seguidores é 0 e a faixa de
+silêncio vem desligada ([ADR 0024](../adr/0024-remove-piso-de-seguidores-e-faixa-de-silencio.md)). Ver [ADR 0002](../adr/0002-quote-post.md)
 e [ADR 0003](../adr/0003-labeler-ozone.md).
 
 ## Organização do código

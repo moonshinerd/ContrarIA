@@ -89,6 +89,13 @@ Não há chave nem segredo guardado: o workflow se autentica com o **token OIDC 
 |---|---|---|
 | Ambiente `production` | `DEPLOY_URL` | variável (`https://deploy-contraria.schmidt.monster`) |
 
+**Deploy pendente (vigia).** Se o túnel estiver fora quando a `main` muda, o Deploy falha (HTTP 530) e nada o repetia. O
+workflow `.github/workflows/deploy-retry.yml` ("Deploy pendente") roda a cada 15 min e dispara o **Deploy**
+(`workflow_dispatch`) quando: a última execução do Deploy na `main` não terminou com sucesso, o `/health` do endpoint
+responde `200` e houve menos de 3 tentativas por dispatch para o commit. Com o Deploy em andamento ou já bem-sucedido,
+não faz nada. Para desligar: Actions → "Deploy pendente" → *Disable workflow*. O vigia não usa o ambiente `production`
+(por isso o endereço tem valor padrão público quando `DEPLOY_URL` não chega ao job).
+
 **Deploy manual de uma branch** (por exemplo, para testar antes do merge), na rede local ou VPN:
 
 ```bash
@@ -291,7 +298,9 @@ compartilhadas fora de um canal seguro.
 |---|---|---|
 | Ozone e deploy fora do ar, VM saudável | talos desligado ou sem rede | Religar o talos; `ozone-forward` reconecta sozinho |
 | Deploy do Actions falha com 401 | Token recusado (repositório, branch, workflow ou environment diferentes) | Ver `docker logs deploy-deployhook-1` (o motivo fica só no log) |
-| Deploy do Actions falha com 403 ou 5xx | Cloudflare bloqueando o runner, ou talos fora | Testar `curl https://deploy-contraria.schmidt.monster/health` |
+| Deploy do Actions falha com 403 ou 5xx (530) | Cloudflare bloqueando o runner, ou talos fora | Testar `curl https://deploy-contraria.schmidt.monster/health`; com o túnel de volta o vigia "Deploy pendente" refaz o deploy em até ~15 min, ou `gh workflow run deploy.yml --ref main` |
+| `contraria.schmidt.monster` não responde só de alguns lugares | DNS devolve IPs `188.114.x` que a rede local não alcança | `curl --resolve contraria.schmidt.monster:443:104.21.35.166 ...` |
+| Sem respostas publicadas | Coletor sem candidatos, vetos do Critic ou `INTERVENTION_DRY_RUN=true` | Logs do worker: `Coletor de alegações checadas: {...}` e `Intervenção vetada pelo auditor semântico`; `/admin/overview` mostra `config_summary` |
 | Deploy fica em `running` | Build longo ou falha no script | `cat /var/lib/contraria-deploy/last-deploy.log` na VM |
 | Jetstream reconectando de tempos em tempos | Instabilidade da rede na saída | Esperado; o cursor retoma de onde parou |
 | `worker` reiniciando | Falta de memória | Conferir `docker inspect ... OOMKilled` e o limite do serviço |
