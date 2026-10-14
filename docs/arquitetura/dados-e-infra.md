@@ -136,7 +136,7 @@ erDiagram
 | `system_logs` | `DatabaseLogHandler`, `backfill_logs` | Logs estruturados assíncronos da API e do Worker para monitoramento |
 | `fact_articles` | `FeedIngestor` | Acervo RSS das agências com embedding para busca vetorial |
 | `crc_calibration` | `ensure_calibration_seeded`, `research/experiments/calibrate_crc.py` | Limiar CRC por chave de modelo |
-| `llm_usage` | `LiteLLMModel` | Controle do orçamento diário de LLM (`DAILY_LLM_BUDGET_USD`) |
+| `llm_usage` | `LiteLLMModel` | Controle do orçamento diário de LLM (`DAILY_LLM_BUDGET_USD`). O custo de cada chamada vem do próprio OpenRouter (`usage.cost`); se faltar, usa o preço de `/api/v1/models` vezes os tokens. Até 14/10/2026 o custo era sempre 0 e nada era gravado, então a trava não atuava |
 
 ## API HTTP
 
@@ -160,7 +160,7 @@ Os grupos principais:
 |---|---|
 | Bluesky | `BLUESKY_HANDLE`, `BLUESKY_APP_PASSWORD`, `BLUESKY_SESSION_PATH`, contexto do fio (`THREAD_CONTEXT_MAX_POSTS=4`) |
 | Verificação | `VERIFICATION_BACKEND` (código: `llm`; operação: `jev`), `JEV_MODEL_REPO`, `JEV_SERVER_URL`, `CRC_ALPHA=0.05`, `JEV_ALLOW_UNCALIBRATED=false` |
-| LLM (redação e backend `llm`) | `LLM_MODEL_NAME`, `LLM_API_KEY` / `OPENROUTER_API_KEY`, `DAILY_LLM_BUDGET_USD=1.0` |
+| LLM (redação e backend `llm`) | `LLM_MODEL_NAME=openrouter/openai/gpt-6-luna` (US$ 0,10/M entrada e US$ 0,50/M saída; o `gpt-5-mini` custa US$ 0,25 e US$ 2,00), `LLM_API_KEY` / `OPENROUTER_API_KEY`, `DAILY_LLM_BUDGET_USD=1.0` |
 | Evidências | `GOOGLE_FACTCHECK_API_KEY`, `SEARXNG_*`, `RSS_CHECKERS_ENABLED`, `RSS_ENABLED_SOURCES`, `RSS_POLL_SECONDS=3600` |
 | Triagem e Aging | `TRIAGE_THRESHOLD_RELEVANCE`, `TRIAGE_THRESHOLD_BOT`, `TRIAGE_THRESHOLD_FALSEHOOD`, `POST_MIN_AGE_HOURS=3.0`, `POST_MAX_AGE_HOURS=48.0`, `WORKER_TICK_SECONDS=30` |
 | Resiliência das fontes | `EVIDENCE_PROVIDER_TIMEOUT_SECONDS=8`, `EVIDENCE_FAILURE_COOLDOWN_SECONDS=30`, `EVIDENCE_FAILURE_COOLDOWN_MAX_SECONDS=600` |

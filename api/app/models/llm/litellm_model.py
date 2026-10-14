@@ -4,9 +4,11 @@ Implementa LLMPort com suporte a modo JSON, retries com backoff, timeout,
 configuração de modelos por papel e trava de orçamento diário (RNF05).
 """
 
+import asyncio
 import json
 import logging
 import os
+import sys
 from datetime import date
 from typing import Any
 
@@ -14,6 +16,7 @@ import litellm
 
 from app.core.config import Settings, get_settings
 from app.models.llm.base import LLMPort, ToolHandler
+from app.models.llm.openrouter_pricing import estimate_cost, openrouter_prices
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +121,9 @@ class UsageTracker:
         self._records.clear()
 
 
-default_usage_tracker = UsageTracker()
+# Em produção o gasto vai para `llm_usage` (a trava diária vale entre processos e reinícios);
+# sob pytest fica em memória para os testes não inflarem o orçamento do banco de dev.
+default_usage_tracker = UsageTracker(persist="pytest" not in sys.modules)
 
 
 class LiteLLMModel(LLMPort):
@@ -264,6 +269,25 @@ class LiteLLMModel(LLMPort):
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
         return ""
 
+    async def _cost(self, model: str, response: Any, tokens_in: int, tokens_out: int) -> float:
+        """Custo da chamada: o informado pelo OpenRouter, o do litellm ou a tabela do OpenRouter."""
+        reported = getattr(getattr(response, "usage", None), "cost", None)
+        if isinstance(reported, (int, float)) and not isinstance(reported, bool):
+            return float(reported)
+        try:
+            cost = litellm.completion_cost(completion_response=response)
+        except Exception:
+            cost = None
+        if isinstance(cost, (int, float)) and cost > 0:
+            return float(cost)
+        if model.startswith("openrouter/") and (tokens_in or tokens_out):
+            prices = await asyncio.to_thread(openrouter_prices)
+            estimated = estimate_cost(model, tokens_in, tokens_out, prices)
+            if estimated is not None:
+                return estimated
+            logger.warning("Custo desconhecido para %s: a trava de orçamento não o conta", model)
+        return 0.0
+
     def _check_budget(self) -> None:
         current_spent = self.tracker.get_daily_cost(date.today())
         if current_spent >= self.settings.daily_llm_budget_usd:
@@ -275,6 +299,11 @@ class LiteLLMModel(LLMPort):
     async def _acompletion(
         self, model: str, messages: list[dict[str, Any]], purpose: str, **kwargs: Any
     ):
+        if model.startswith("openrouter/"):
+            # Pede ao OpenRouter o custo real da chamada em `usage.cost`.
+            extra_body = dict(kwargs.pop("extra_body", None) or {})
+            extra_body["usage"] = {"include": True}
+            kwargs["extra_body"] = extra_body
         response = await litellm.acompletion(
             model=model,
             messages=messages,
@@ -283,18 +312,13 @@ class LiteLLMModel(LLMPort):
             **self._resolve_api_params(model),
             **kwargs,
         )
-        try:
-            cost = litellm.completion_cost(completion_response=response)
-        except Exception:
-            cost = 0.0
-        if cost is None:
-            cost = 0.0
-
         tokens_in = 0
         tokens_out = 0
-        if hasattr(response, "usage") and response.usage:
-            tokens_in = getattr(response.usage, "prompt_tokens", 0) or 0
-            tokens_out = getattr(response.usage, "completion_tokens", 0) or 0
+        usage = getattr(response, "usage", None)
+        if usage:
+            tokens_in = _as_int(getattr(usage, "prompt_tokens", 0))
+            tokens_out = _as_int(getattr(usage, "completion_tokens", 0))
+        cost = await self._cost(model, response, tokens_in, tokens_out)
 
         self.tracker.record(
             usage_date=date.today(),
@@ -305,3 +329,7 @@ class LiteLLMModel(LLMPort):
             cost_usd=cost,
         )
         return response
+
+
+def _as_int(value: Any) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0

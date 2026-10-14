@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     thread_context_max_posts: int = Field(default=4, ge=0, le=20)
     thread_context_max_chars: int = Field(default=3000, ge=0, le=12000)
 
-    llm_model_name: str = "openrouter/google/gemini-2.5-flash"
+    llm_model_name: str = "openrouter/openai/gpt-6-luna"
     llm_api_key: str = ""
     openrouter_api_key: str = ""
     llm_api_base_url: str = ""
