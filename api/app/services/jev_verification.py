@@ -1327,18 +1327,20 @@ class JevVerificationService:
                     agent_outputs=agent_outputs,
                 )
 
-        if label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING):
-            # Sem checagem que case com a alegação do post, a leitura genérica da evidência
-            # não basta para acusar: nas decisões de 05 a 14/10 isso gerou só falso positivo.
-            agent_outputs[f"{prefix}.adverse_without_claim_match"] = json.dumps(
+        if label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING) and not any(
+            e.source != "post_link" and _source_authority_score(e) >= _MIN_ADVERSE_SOURCE_AUTHORITY
+            for e in relevant
+        ):
+            # Wikipédia e o link do próprio post não bastam para acusar (ADR 0026).
+            agent_outputs[f"{prefix}.weak_sources_only"] = json.dumps(
                 [e.url for e in relevant], ensure_ascii=False
             )
             return Verdict(
                 claim=claim,
                 label=VerdictLabel.INSUFFICIENT_EVIDENCE,
                 confidence=0.0,
-                rationale="Abstenção (Jev): nenhuma checagem de agência trata desta alegação "
-                "específica; veredito adverso exige o casamento com uma checagem.",
+                rationale="Abstenção (Jev): veredito adverso sem fonte de checagem, imprensa ou "
+                "oficial; só Wikipédia ou o link do próprio post.",
                 evidences=relevant,
                 agent_outputs=agent_outputs,
             )
