@@ -161,6 +161,9 @@ async def main() -> None:
         engine, bsky_client, queue_max_pending=settings.worker_queue_max_pending
     )
     refresher_task = asyncio.create_task(refresher.run())
+    harvest_task = (
+        asyncio.create_task(harvester.run_forever()) if settings.claim_harvest_enabled else None
+    )
 
     pool = AnalysisPool(
         post_repo,
@@ -179,7 +182,6 @@ async def main() -> None:
         settings.post_max_age_hours,
     )
     next_ingestion = 0.0
-    next_harvest = 0.0
     round_seconds = settings.intervention_round_minutes * 60
     next_round = monotonic() + round_seconds
     flush_seconds = settings.label_retry_interval_seconds
@@ -206,12 +208,6 @@ async def main() -> None:
                         )
                 except Exception as exc:
                     logger.error("Falha ao expirar posts antigos na rodada: %s", exc)
-            if settings.claim_harvest_enabled and monotonic() >= next_harvest:
-                try:
-                    await harvester.run()
-                except Exception as exc:
-                    logger.error("Falha no coletor de alegações checadas (%s)", type(exc).__name__)
-                next_harvest = monotonic() + settings.claim_harvest_minutes * 60
             if settings.rss_checkers_enabled and monotonic() >= next_ingestion:
                 try:
                     report = await ingestor.run()
@@ -225,6 +221,8 @@ async def main() -> None:
         jetstream_task.cancel()
         poller_task.cancel()
         refresher_task.cancel()
+        if harvest_task is not None:
+            harvest_task.cancel()
         engine.dispose()
 
 

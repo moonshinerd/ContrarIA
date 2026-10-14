@@ -196,3 +196,26 @@ async def test_at_most_n_candidates_per_claim():
     harvester, _, _, _ = _harvester(posts)
     await harvester.run()
     assert len(harvester.backlog) == harvester.settings.claim_harvest_max_per_claim
+
+
+@pytest.mark.anyio
+async def test_run_forever_survives_a_failing_round(monkeypatch):
+    import asyncio
+
+    harvester, _, _, _ = _harvester([])
+    calls = {"n": 0}
+
+    async def flaky():
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("bluesky fora")
+        raise asyncio.CancelledError
+
+    async def no_sleep(_):
+        return None
+
+    monkeypatch.setattr(harvester, "run", flaky)
+    monkeypatch.setattr(asyncio, "sleep", no_sleep)
+    with pytest.raises(asyncio.CancelledError):
+        await harvester.run_forever()
+    assert calls["n"] == 2

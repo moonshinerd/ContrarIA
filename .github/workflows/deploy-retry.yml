@@ -1,0 +1,62 @@
+name: Deploy pendente
+
+# O deploy só roda em push/dispatch e precisa do túnel da VM (ADR 0020). Se o túnel estiver fora
+# quando a main muda, o deploy falha e nada o repete. Este vigia, a cada 15 min, dispara o
+# workflow "Deploy" (workflow_dispatch, evento aceito pelo deployhook) quando:
+# - a última execução do Deploy na main não terminou com sucesso no commit atual da main;
+# - o endpoint de deploy responde (túnel de volta);
+# - ainda não houve 3 tentativas para este commit (falha de código não vira repetição infinita).
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: deploy-retry
+  cancel-in-progress: false
+
+jobs:
+  retry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Disparar deploy pendente
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DEPLOY_URL: ${{ vars.DEPLOY_URL }}
+        run: |
+          set -euo pipefail
+          head=$(gh api "repos/$GH_REPO/commits/main" --jq .sha)
+          last=$(gh run list --workflow deploy.yml --branch main --limit 1 \
+            --json status,conclusion,headSha --jq '.[0] // {}')
+          status=$(echo "$last" | jq -r '.status // ""')
+          conclusion=$(echo "$last" | jq -r '.conclusion // ""')
+          last_sha=$(echo "$last" | jq -r '.headSha // ""')
+          echo "main=$head último=$last_sha status=$status conclusão=$conclusion"
+
+          if [ "$status" != "completed" ] && [ -n "$status" ]; then
+            echo "Deploy em andamento; nada a fazer."; exit 0
+          fi
+          if [ "$conclusion" = "success" ]; then
+            echo "Último deploy concluído com sucesso; nada a fazer."; exit 0
+          fi
+
+          attempts=$(gh run list --workflow deploy.yml --branch main --event workflow_dispatch \
+            --limit 20 --json headSha --jq "[.[] | select(.headSha == \"$head\")] | length")
+          if [ "$attempts" -ge 3 ]; then
+            echo "Já houve $attempts tentativas para $head; precisa de olhar humano."; exit 0
+          fi
+
+          code=$(curl -s -o /dev/null -w '%{http_code}' -m 15 "$DEPLOY_URL/health" || true)
+          if [ "$code" != "200" ]; then
+            echo "Endpoint de deploy indisponível (HTTP $code); tenta de novo no próximo agendamento."
+            exit 0
+          fi
+
+          echo "Disparando o Deploy para $head."
+          gh workflow run deploy.yml --ref main
