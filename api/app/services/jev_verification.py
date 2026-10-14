@@ -1328,10 +1328,12 @@ class JevVerificationService:
                 )
 
         if label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING) and not any(
-            e.source != "post_link" and _source_authority_score(e) >= _MIN_ADVERSE_SOURCE_AUTHORITY
+            e.source not in ("post_link", "rss_checkers")
+            and _source_authority_score(e) >= _MIN_ADVERSE_SOURCE_AUTHORITY
             for e in relevant
         ):
-            # Wikipédia e o link do próprio post não bastam para acusar (ADR 0026).
+            # Wikipédia, o link do próprio post e o acervo RSS (que só acusa pelo casamento exato
+            # com a alegação checada) não bastam para acusar (ADR 0026).
             agent_outputs[f"{prefix}.weak_sources_only"] = json.dumps(
                 [e.url for e in relevant], ensure_ascii=False
             )
