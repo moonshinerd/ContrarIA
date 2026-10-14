@@ -43,6 +43,14 @@ from app.clients.evidence.web_search import is_valid_evidence_url
 from app.core.config import Settings, get_settings
 from app.domain import geo
 from app.domain.entities import Evidence, Post, Verdict, VerdictLabel
+from app.domain.factcheck_claims import (
+    RatingKind,
+    checked_claim,
+    claim_coverage,
+    distinctive_tokens,
+    informative_tokens,
+    looks_like_debunk,
+)
 from app.domain.sentences import split_sentences
 from app.models.classifiers.jev import (
     PROMPT_OVERHEAD_TOKENS,
@@ -397,6 +405,11 @@ _MIN_NAME_ONLY_CLAIM_WORDS = 5
 _MIN_ADVERSE_SOURCE_AUTHORITY = 2.0
 # Vantagem mínima de "factual" sobre "opinião": 0,503 x 0,497 é empate, não alegação.
 _FACTUAL_MARGIN = 0.1
+# Casamento post x alegação checada: o post precisa dizer o que a agência desmentiu.
+_CLAIM_MATCH_MIN_ENTAILMENT = 0.7
+# O post precisa conter ao menos metade do conteúdo da alegação checada (por radical).
+_CLAIM_MATCH_MIN_COVERAGE = 0.5
+_CLAIM_MATCH_MIN_SHARED_TOKENS = 2
 _TERMINAL_PUNCTUATION = (".", "!", "?", ":", ";", "…")
 _SOFT_RELEVANCE_MARGIN = 0.4
 _MIN_SOFT_OVERLAP = 3
@@ -1247,6 +1260,35 @@ class JevVerificationService:
                 agent_outputs=agent_outputs,
             )
 
+        matched = await self._match_checked_claim(claim, evidences)
+        if matched is not None:
+            source, checked, kind, entailment = matched
+            agent_outputs[f"{prefix}.claim_match"] = json.dumps(
+                {
+                    "url": source.url,
+                    "rating": source.rating,
+                    "checked_claim": checked,
+                    "entailment": round(entailment, 3),
+                },
+                ensure_ascii=False,
+            )
+            if kind in (RatingKind.FALSE, RatingKind.MISLEADING):
+                label = VerdictLabel.FALSE if kind == RatingKind.FALSE else VerdictLabel.MISLEADING
+                label, confidence, rationale = self._apply_calibration(label, entailment, 1)
+                if label != VerdictLabel.INSUFFICIENT_EVIDENCE:
+                    rationale = (
+                        f"O post repete alegação já checada ({source.rating or kind.value}): "
+                        f'"{checked}". {rationale}'
+                    )
+                return Verdict(
+                    claim=claim,
+                    label=label,
+                    confidence=confidence,
+                    rationale=rationale,
+                    evidences=[source],
+                    agent_outputs=agent_outputs,
+                )
+
         relevant, relevance_log = await self._filter_relevant(
             claim,
             evidences,
@@ -1285,19 +1327,18 @@ class JevVerificationService:
                     agent_outputs=agent_outputs,
                 )
 
-        if label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING) and not any(
-            e.source != "post_link" and _source_authority_score(e) >= _MIN_ADVERSE_SOURCE_AUTHORITY
-            for e in relevant
-        ):
-            agent_outputs[f"{prefix}.weak_sources_only"] = json.dumps(
+        if label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING):
+            # Sem checagem que case com a alegação do post, a leitura genérica da evidência
+            # não basta para acusar: nas decisões de 05 a 14/10 isso gerou só falso positivo.
+            agent_outputs[f"{prefix}.adverse_without_claim_match"] = json.dumps(
                 [e.url for e in relevant], ensure_ascii=False
             )
             return Verdict(
                 claim=claim,
                 label=VerdictLabel.INSUFFICIENT_EVIDENCE,
                 confidence=0.0,
-                rationale="Abstenção (Jev): veredito adverso sem fonte de checagem, imprensa ou "
-                "oficial; só Wikipédia ou o link do próprio post.",
+                rationale="Abstenção (Jev): nenhuma checagem de agência trata desta alegação "
+                "específica; veredito adverso exige o casamento com uma checagem.",
                 evidences=relevant,
                 agent_outputs=agent_outputs,
             )
@@ -1311,6 +1352,45 @@ class JevVerificationService:
             evidences=relevant,
             agent_outputs=agent_outputs,
         )
+
+    async def _match_checked_claim(
+        self, claim: str, evidences: list[Evidence]
+    ) -> "tuple[Evidence, str, RatingKind, float] | None":
+        """Acha a checagem cuja alegação o post repete (mesmos nomes/números e NLI forte).
+
+        O gate lexical vem antes do NLI: sem nomes e números em comum, o mesmo tema geral
+        (eleição, urna, Lula) seria tomado por "a mesma alegação".
+        """
+        # Post que já desmente ("É falso que X", "boato") cita a alegação sem afirmá-la.
+        if looks_like_debunk(claim):
+            return None
+        claim_tokens = set(informative_tokens(claim))
+        candidates: list[tuple[Evidence, str, RatingKind]] = []
+        for evidence in evidences:
+            found = checked_claim(evidence)
+            if found is None:
+                continue
+            checked, kind = found
+            shared = claim_tokens & set(informative_tokens(checked))
+            distinct = set(distinctive_tokens(checked))
+            if len(shared) < _CLAIM_MATCH_MIN_SHARED_TOKENS:
+                continue
+            if claim_coverage(claim, checked) < _CLAIM_MATCH_MIN_COVERAGE:
+                continue
+            if distinct and not (distinct & {t.casefold() for t in shared}):
+                continue
+            candidates.append((evidence, checked, kind))
+        if not candidates:
+            return None
+        results = await self.classifier.predict_nli_batch(
+            [(claim, checked) for _, checked, _ in candidates]
+        )
+        best: tuple[Evidence, str, RatingKind, float] | None = None
+        for (evidence, checked, kind), nli in zip(candidates, results, strict=True):
+            entailment = nli.get("entailment", 0.0)
+            if entailment >= _CLAIM_MATCH_MIN_ENTAILMENT and (best is None or entailment > best[3]):
+                best = (evidence, checked, kind, entailment)
+        return best
 
     async def _cited_evidence(self, post: Post) -> "list[CitedSource]":
         """Lê as matérias linkadas pelo post (card de link, facets ou texto)."""

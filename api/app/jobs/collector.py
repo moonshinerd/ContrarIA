@@ -12,6 +12,8 @@ import yaml
 
 from app.clients.bluesky_client import BlueskyClient
 from app.core.config import get_settings
+from app.domain.entities import Evidence
+from app.domain.factcheck_claims import checked_claim, claim_keywords
 from app.domain.prioritization import calculate_relevance
 from app.repositories.posts import PostRepository
 
@@ -84,6 +86,12 @@ def _claim_query(article: dict[str, str], *, max_chars: int = 140) -> str | None
     Títulos de verificadores normalmente carregam a alegação. Removemos apenas
     o rótulo editorial e preservamos a frase, em vez de inferir uma nova claim.
     """
+    # O searchPosts exige todos os termos: o título inteiro quase nunca casa com um post.
+    # Quando a alegação é explícita ("É falso que X"), busca só os termos específicos de X.
+    evidence = Evidence(source="rss_checkers", url="", title=article.get("title", ""), snippet="")
+    explicit = checked_claim(evidence)
+    if explicit and (keywords := claim_keywords(explicit[0])):
+        return keywords
     title = " ".join(article.get("title", "").split())
     title = _FACTCHECK_PREFIXES.sub("", title).strip(" .:-–—")
     if len(title) < 12:

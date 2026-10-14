@@ -777,14 +777,23 @@ def test_factual_margin_rejects_coin_flip_classification():
     assert 0.5032 - 0.4968 < _FACTUAL_MARGIN
 
 
-@pytest.mark.parametrize(
-    ("url", "source", "expected_label"),
-    [
-        ("https://pt.wikipedia.org/wiki/Leonel_Radde", "wikipedia", "insufficient_evidence"),
-        ("https://www.aosfatos.org/x", "google_factcheck", "false"),
-    ],
-)
-async def test_adverse_verdict_requires_strong_source(url, source, expected_label, monkeypatch):
+class ClaimMatchClassifier(ScriptedClassifier):
+    """ScriptedClassifier com NLI fixo; registra os pares avaliados."""
+
+    def __init__(self, entailment: float) -> None:
+        super().__init__({"Radde": 0.9, "urna": 0.9})
+        self.entailment = entailment
+        self.pairs: list[tuple[str, str]] = []
+
+    async def predict_nli_batch(self, pairs):
+        self.pairs.extend(pairs)
+        return [
+            {"entailment": self.entailment, "neutral": 1 - self.entailment, "contradiction": 0.0}
+            for _ in pairs
+        ]
+
+
+def _service_with(evidence: Evidence, entailment: float, monkeypatch):
     from app.services import jev_verification
 
     async def no_article(_url: str):
@@ -792,19 +801,72 @@ async def test_adverse_verdict_requires_strong_source(url, source, expected_labe
 
     monkeypatch.setattr(jev_verification, "_fetch_article_text", no_article)
     service = build_service(None, jev_allow_uncalibrated=True)
-    service.classifier = ScriptedClassifier({"Radde": 0.9})
-    evidence = Evidence(
-        source=source, url=url, title="Radde deputado", snippet="Leonel Radde deputado estadual"
-    )
+    service.classifier = ClaimMatchClassifier(entailment)
 
     async def fake_search(*_a, **_k):
         return [evidence], {}, "q"
 
     service._search = fake_search
-    verdict = await service._verify_claim(
-        "Leonel Radde deputado estadual pelo RS",
-        {},
-        prefix="jev.c01",
-        post_date=date(2026, 10, 13),
+    return service
+
+
+URNA_CHECK = Evidence(
+    source="google_factcheck",
+    url="https://www.aosfatos.org/noticias/urna-fraudada-df/",
+    title="Não é verdade que policiais encontraram urna fraudada no DF",
+    snippet=(
+        "Checagem por Aos Fatos: PMs descobriram uma urna eletrônica fraudada no Distrito Federal"
+    ),
+    rating="falso",
+)
+
+
+async def _verify(service, claim: str):
+    return await service._verify_claim(claim, {}, prefix="jev.c01", post_date=date(2026, 10, 13))
+
+
+async def test_post_that_repeats_a_checked_false_claim_is_false(monkeypatch):
+    service = _service_with(URNA_CHECK, 0.9, monkeypatch)
+    verdict = await _verify(
+        service, "Policiais descobriram uma urna eletrônica fraudada no Distrito Federal"
     )
-    assert verdict.label.value == expected_label
+    assert verdict.label == VerdictLabel.FALSE
+    assert verdict.confidence == pytest.approx(0.9)
+    assert verdict.evidences[0].url == URNA_CHECK.url
+    assert "já checada" in verdict.rationale
+
+
+async def test_same_topic_but_low_entailment_does_not_accuse(monkeypatch):
+    service = _service_with(URNA_CHECK, 0.2, monkeypatch)
+    verdict = await _verify(
+        service, "A urna eletrônica fraudada no Distrito Federal é um escândalo"
+    )
+    assert verdict.label != VerdictLabel.FALSE
+
+
+async def test_lexical_gate_skips_nli_for_unrelated_claims(monkeypatch):
+    service = _service_with(URNA_CHECK, 0.99, monkeypatch)
+    await _verify(service, "Flávio Bolsonaro quer reduzir verbas de Educação e Saúde")
+    assert service.classifier.pairs == []
+
+
+async def test_generic_adverse_verdict_without_claim_match_abstains(monkeypatch):
+    wiki = Evidence(
+        source="wikipedia",
+        url="https://pt.wikipedia.org/wiki/Leonel_Radde",
+        title="Radde deputado",
+        snippet="Leonel Radde deputado estadual",
+    )
+    service = _service_with(wiki, 0.0, monkeypatch)
+    verdict = await _verify(service, "Leonel Radde deputado estadual pelo RS")
+    assert verdict.label == VerdictLabel.INSUFFICIENT_EVIDENCE
+    assert "casamento" in verdict.rationale
+
+
+async def test_post_that_already_debunks_the_claim_is_not_matched(monkeypatch):
+    service = _service_with(URNA_CHECK, 0.99, monkeypatch)
+    await _verify(
+        service,
+        "É falso que policiais descobriram uma urna eletrônica fraudada no Distrito Federal",
+    )
+    assert service.classifier.pairs == []

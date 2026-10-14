@@ -110,7 +110,7 @@ class Settings(BaseSettings):
     rss_feed_urls: dict[str, str] = {}
 
     # Self-RAG (#23): #20 por padrão; fontes da #21 entram pela lista quando desejado.
-    self_rag_enabled_sources: list[str] = ["google_factcheck", "wikipedia"]
+    self_rag_enabled_sources: list[str] = ["google_factcheck", "rss_checkers", "wikipedia"]
     self_rag_max_questions: int = Field(default=10, ge=1, le=100)
     self_rag_max_evidence_per_source: int = Field(default=3, ge=1, le=20)
     self_rag_max_llm_calls: int = Field(default=30, ge=1, le=300)
@@ -158,8 +158,8 @@ class Settings(BaseSettings):
         "STF censurou",
         "Lula vai fechar igrejas",
     ]
-    factcheck_search_max_articles: int = Field(default=8, ge=0, le=50)
-    factcheck_search_max_queries: int = Field(default=16, ge=1, le=100)
+    factcheck_search_max_articles: int = Field(default=30, ge=0, le=50)
+    factcheck_search_max_queries: int = Field(default=40, ge=1, le=100)
     factcheck_search_max_age_days: int = Field(default=14, ge=1, le=90)
     factcheck_search_priority_bonus: float = Field(default=25.0, ge=0.0, le=100.0)
     factcheck_search_reserve: int = Field(default=20, ge=0, le=100)

@@ -125,9 +125,11 @@ A decisão, inclusive monitoramento ou abstenção, deve ser registrada com os d
 
 ### Guardas do veredito adverso (14/10/2026)
 
-- **Fonte independente:** `false` ou `misleading` só valem se ao menos uma evidência relevante vier de checagem, imprensa
-  ou fonte oficial (autoridade ≥ 2). Só Wikipédia, ou o link do próprio post, vira `insufficient_evidence` (`weak_sources_only`
-  no log).
+- **Checagem casada ([ADR 0025](../adr/0025-veredito-adverso-so-com-checagem-casada.md)):** `false` ou `misleading` só saem
+  quando o post repete a alegação que uma agência (Google Fact Check ou acervo RSS) marcou como falsa ou enganosa. O post
+  precisa compartilhar nomes e números da alegação, cobrir ao menos metade do conteúdo dela e ter entailment NLI ≥ 0,7.
+  Posts que já desmentem ("É falso que…") não casam. Sem casamento, o resultado é `insufficient_evidence`
+  (`adverse_without_claim_match` no log); com casamento, o log traz `claim_match` (URL, nota, alegação e entailment).
 - **Linhas quebradas:** uma linha sem pontuação final seguida de linha que começa com negação, conectivo ou minúscula é
   unida à anterior, para que "AS URNAS ELETRÔNICAS / NÃO TEM FRAUDE" não perca o "NÃO". Sequências como `???` viram uma
   pontuação só e não transformam a frase em pergunta.
