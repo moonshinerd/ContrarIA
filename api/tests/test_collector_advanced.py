@@ -282,8 +282,13 @@ async def test_search_poller_ignora_posts_que_ja_existem_no_banco():
 def test_claim_query_remove_rotulo_de_checagem_e_preserva_a_alegacao():
     from app.jobs.collector import _claim_query
 
+    # Alegação explícita: só os termos específicos (o searchPosts exige todos os termos).
     assert _claim_query({"title": "É falso que TSE anulou votos no Nordeste"}) == (
-        "TSE anulou votos no Nordeste"
+        "tse nordeste anulou votos"
+    )
+    # Sem alegação explícita, mantém o título sem o rótulo editorial.
+    assert _claim_query({"title": "Checagem: Lula e a nova regra do Pix"}) == (
+        "Lula e a nova regra do Pix"
     )
     assert _claim_query({"title": "Checagem: boato"}) is None
 
