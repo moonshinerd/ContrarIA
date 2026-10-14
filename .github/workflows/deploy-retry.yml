@@ -28,7 +28,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          DEPLOY_URL: ${{ vars.DEPLOY_URL }}
+          # DEPLOY_URL é variável do ambiente `production`, que este job não usa (usá-lo criaria um
+          # registro de deployment a cada 15 min); o endereço é público (ADR 0020).
+          DEPLOY_URL: ${{ vars.DEPLOY_URL || 'https://deploy-contraria.schmidt.monster' }}
         run: |
           set -euo pipefail
           head=$(gh api "repos/$GH_REPO/commits/main" --jq .sha)
