@@ -45,4 +45,7 @@ alcança o IP privado da VM.
   (necessário para o labeler) e o endpoint de deploy, que recusa tudo que não seja um token do GitHub deste repositório.
   Uma lista de IPs do GitHub Actions foi descartada: são 7.036 faixas, compartilhadas por qualquer conta do GitHub,
   e a VM não enxerga o IP de origem por causa do túnel.
+- **Deploy repetido (14/10/2026):** com o talos fora, o Deploy falha e não é repetido. O workflow `deploy-retry.yml`
+  ("Deploy pendente") dispara o `workflow_dispatch` a cada 15 min quando a `main` ainda não foi publicada e o endpoint
+  responde, com no máximo 3 tentativas por commit (ver [Operação na VM](../arquitetura/operacao-vm.md#deploy)).
 - Segredos de deploy ficam só no ambiente `production` do GitHub e no `api/.env` da VM (permissão 600, fora do git).

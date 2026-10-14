@@ -86,6 +86,14 @@ Os `-e BLUESKY_*=` vazios são necessários: o `env_file` injeta as credenciais 
 - Os clientes aceitam `transport=` para testes com `httpx.MockTransport`. As fixtures em `api/tests/fixtures/evidence/` são respostas reais gravadas; para regravar, chame a API real e salve o JSON sem a chave.
 - Wikipédia: `User-Agent` identificável é exigido pela política da Wikimedia; o summary de cada resultado é buscado em paralelo, com no máximo 5 requisições simultâneas.
 
+## Coletor de alegações checadas e deploy
+
+- `app/jobs/claim_harvester.py` (ADR 0027) parte das checagens falsas/enganosas recentes (Google Fact Check e RSS), busca no Bluesky os termos mais raros de cada alegação e manda 1 candidato por rodada para o pipeline com o veredito da agência (`agent_outputs.claim_harvest`). Roda em tarefa própria do worker (`CLAIM_HARVEST_ENABLED`).
+- Veredito `false`/`misleading` precisa de fonte de checagem, imprensa ou oficial; Wikipédia, link do próprio post e acervo RSS não bastam (o RSS só acusa por casamento exato). Posts que já desmentem nunca casam (`looks_like_debunk`).
+- O custo de LLM vem do OpenRouter (`usage.cost`) e vai para `llm_usage`; modelo padrão `openrouter/openai/gpt-6-luna`. **Não rode testes que chamem o OpenRouter sem pedir.**
+- Produção: `INTERVENTION_DRY_RUN` e o resto vêm do `.env` da VM (em 14/10 o dry-run estava `false`); confira em `/admin/overview` (`config_summary`). Daqui, `contraria.schmidt.monster` pode exigir `curl --resolve contraria.schmidt.monster:443:104.21.35.166`.
+- O túnel `contraria-vm` roda no notebook talos; fora dele o Deploy falha e o workflow `deploy-retry.yml` o refaz sozinho quando volta.
+
 ## Issues e Project
 
 - Toda tarefa é sub-issue de um épico e tem dupla (dois assignees), labels `area/*`, `prioridade/P0-P3`, `dupla/*`, milestone `MVP – Showcase (26/09)` e campos `Status`, `Área`, `Prioridade`, `Dupla`, `Início` e `Entrega` no Project.
