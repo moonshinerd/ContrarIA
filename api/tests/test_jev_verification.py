@@ -836,12 +836,16 @@ async def test_post_that_repeats_a_checked_false_claim_is_false(monkeypatch):
     assert "já checada" in verdict.rationale
 
 
-async def test_same_topic_but_low_entailment_does_not_accuse(monkeypatch):
+async def test_same_topic_but_low_entailment_is_not_a_claim_match(monkeypatch):
     service = _service_with(URNA_CHECK, 0.2, monkeypatch)
-    verdict = await _verify(
-        service, "A urna eletrônica fraudada no Distrito Federal é um escândalo"
+    agent_outputs: dict[str, str] = {}
+    await service._verify_claim(
+        "A urna eletrônica fraudada no Distrito Federal é um escândalo",
+        agent_outputs,
+        prefix="jev.c01",
+        post_date=date(2026, 10, 13),
     )
-    assert verdict.label != VerdictLabel.FALSE
+    assert "jev.c01.claim_match" not in agent_outputs
 
 
 async def test_lexical_gate_skips_nli_for_unrelated_claims(monkeypatch):
@@ -860,7 +864,20 @@ async def test_generic_adverse_verdict_without_claim_match_abstains(monkeypatch)
     service = _service_with(wiki, 0.0, monkeypatch)
     verdict = await _verify(service, "Leonel Radde deputado estadual pelo RS")
     assert verdict.label == VerdictLabel.INSUFFICIENT_EVIDENCE
-    assert "casamento" in verdict.rationale
+    assert "Wikipédia" in verdict.rationale
+
+
+async def test_generic_adverse_verdict_with_strong_source_is_allowed(monkeypatch):
+    strong = Evidence(
+        source="google_factcheck",
+        url="https://www.aosfatos.org/noticias/radde/",
+        title="Radde deputado",
+        snippet="Checagem por Aos Fatos: Leonel Radde deputado estadual",
+        rating="falso",
+    )
+    service = _service_with(strong, 0.0, monkeypatch)
+    verdict = await _verify(service, "Leonel Radde deputado estadual pelo RS")
+    assert verdict.label == VerdictLabel.FALSE
 
 
 async def test_post_that_already_debunks_the_claim_is_not_matched(monkeypatch):

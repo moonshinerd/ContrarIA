@@ -1,6 +1,6 @@
 # 0025 — Veredito adverso só com checagem que casa com a alegação
 
-- **Status:** Aceita (altera o [ADR 0024](0024-remove-piso-de-seguidores-e-faixa-de-silencio.md) no que diz respeito à fonte do veredito adverso)
+- **Status:** Item 1 revertido pelo [ADR 0026](0026-reverte-exigencia-de-casamento.md); demais itens mantidos (altera o [ADR 0024](0024-remove-piso-de-seguidores-e-faixa-de-silencio.md) no que diz respeito à fonte do veredito adverso)
 - **Data:** 14/10/2026
 - **Requisitos / GQs:** RF05, RF06, RNF01, GQ01
 
