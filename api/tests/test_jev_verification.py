@@ -887,3 +887,15 @@ async def test_post_that_already_debunks_the_claim_is_not_matched(monkeypatch):
         "É falso que policiais descobriram uma urna eletrônica fraudada no Distrito Federal",
     )
     assert service.classifier.pairs == []
+
+
+async def test_rss_archive_alone_does_not_support_a_generic_accusation(monkeypatch):
+    rss = Evidence(
+        source="rss_checkers",
+        url="https://www.boatos.org/politica/radde.html",
+        title="Radde deputado",
+        snippet="Leonel Radde deputado estadual",
+    )
+    service = _service_with(rss, 0.0, monkeypatch)
+    verdict = await _verify(service, "Leonel Radde deputado estadual pelo RS")
+    assert verdict.label == VerdictLabel.INSUFFICIENT_EVIDENCE

@@ -17,6 +17,12 @@ aumentar a chance de intervenção.
   busca ativa por termos específicos da alegação (30 artigos, 40 consultas), o acervo RSS como fonte do Jev, a junção de
   linhas quebradas e a margem de 0,1 entre "factual" e "opinião".
 
+- **Correção posterior (14/10/2026):** o acervo RSS (`rss_checkers`) deixou de contar como fonte forte na regra genérica.
+  Num teste com posts de produção, qualquer artigo do acervo sustentava acusações a posts sem relação. O acervo só acusa
+  pelo casamento exato com a alegação checada.
+- **Não implementado:** resposta de contexto quando só o tema casa. Dos 36 pares post×checagem com 3 ou mais termos em
+  comum nos 700 posts de produção, nenhum era um casamento de tema verdadeiro (mesmo com 50% de cobertura da alegação).
+
 ## Consequências
 - Mais posts chegam a veredito adverso do que com o ADR 0025.
 - Risco aceito: um veredito adverso pode vir de uma checagem sobre **outro fato do mesmo tema**. Na análise de 05 a 14/10,

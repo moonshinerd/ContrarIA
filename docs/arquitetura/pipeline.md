@@ -127,7 +127,9 @@ A decisão, inclusive monitoramento ou abstenção, deve ser registrada com os d
 
 - **Fonte independente ([ADR 0026](../adr/0026-reverte-exigencia-de-casamento.md)):** `false` ou `misleading` só valem se ao
   menos uma evidência relevante vier de checagem, imprensa ou fonte oficial (autoridade ≥ 2). Só Wikipédia, ou o link do
-  próprio post, vira `insufficient_evidence` (`weak_sources_only` no log).
+  próprio post, vira `insufficient_evidence` (`weak_sources_only` no log). O acervo RSS também não conta como fonte forte aqui: ele só
+  acusa pelo casamento exato com a alegação checada (abaixo). Em teste com posts de produção, qualquer artigo do acervo
+  sustentava acusações a posts sem relação ("Excelente, presidente Lula!").
 - **Casamento com checagem (caminho adicional):** se o post repete a alegação que uma agência marcou como falsa ou
   enganosa (termos específicos em comum, cobertura de metade da alegação e entailment NLI ≥ 0,7), o veredito sai direto da
   nota da agência (`claim_match` no log). Posts que já desmentem ("É falso que…") não casam.
