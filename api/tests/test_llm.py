@@ -243,3 +243,64 @@ async def test_complete_with_tools_runs_tools_until_limit_then_forces_answer():
         "matéria 2",
         "Limite de consultas atingido; responda com o que já leu.",
     ]
+
+
+def _priced_response(cost=None, tokens_in=1000, tokens_out=200):
+    response = MagicMock()
+    response.choices[0].message.content = "ok"
+    response.usage.prompt_tokens = tokens_in
+    response.usage.completion_tokens = tokens_out
+    response.usage.cost = cost
+    return response
+
+
+@pytest.mark.anyio
+async def test_openrouter_reported_cost_is_used_and_requested():
+    tracker = UsageTracker()
+    model = LiteLLMModel(
+        settings=Settings(llm_model_name="openrouter/openai/gpt-6-luna"), tracker=tracker
+    )
+    with (
+        patch("litellm.acompletion", new_callable=AsyncMock) as mock_acompletion,
+        patch("litellm.completion_cost", side_effect=Exception("not mapped")),
+    ):
+        mock_acompletion.return_value = _priced_response(cost=0.0042)
+        await model.complete(system="s", user="u")
+    assert mock_acompletion.call_args.kwargs["extra_body"] == {"usage": {"include": True}}
+    assert tracker.get_daily_cost(date.today()) == pytest.approx(0.0042)
+
+
+@pytest.mark.anyio
+async def test_openrouter_price_table_is_the_fallback(monkeypatch):
+    from app.models.llm import litellm_model
+
+    monkeypatch.setattr(
+        litellm_model, "openrouter_prices", lambda: {"openai/gpt-6-luna": (1e-7, 5e-7)}
+    )
+    tracker = UsageTracker()
+    model = LiteLLMModel(
+        settings=Settings(llm_model_name="openrouter/openai/gpt-6-luna"), tracker=tracker
+    )
+    with (
+        patch("litellm.acompletion", new_callable=AsyncMock) as mock_acompletion,
+        patch("litellm.completion_cost", side_effect=Exception("not mapped")),
+    ):
+        mock_acompletion.return_value = _priced_response(cost=None)
+        await model.complete(system="s", user="u")
+    # 1000 * 0,10/M + 200 * 0,50/M
+    assert tracker.get_daily_cost(date.today()) == pytest.approx(0.0002)
+
+
+def test_openrouter_prices_keeps_last_table_when_fetch_fails():
+    from app.models.llm import openrouter_pricing as pricing
+
+    pricing._cache.update(at=float("-inf"), prices={})
+    assert pricing.openrouter_prices(fetch=lambda: {"a/b": (1.0, 2.0)}) == {"a/b": (1.0, 2.0)}
+    pricing._cache["at"] = float("-inf")
+
+    def boom():
+        raise RuntimeError("sem rede")
+
+    assert pricing.openrouter_prices(fetch=boom) == {"a/b": (1.0, 2.0)}
+    assert pricing.estimate_cost("openrouter/a/b", 2, 3, {"a/b": (1.0, 2.0)}) == 8.0
+    assert pricing.estimate_cost("openrouter/x/y", 2, 3, {"a/b": (1.0, 2.0)}) is None
