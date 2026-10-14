@@ -399,7 +399,7 @@ flowchart TD
     classDef guard fill:#FEF3C7,stroke:#D97706,stroke-width:2px,color:#78350F
     classDef out fill:#DCFCE7,stroke:#15803D,stroke-width:2px,color:#14532D
 
-    R(["<span style='color:#1E1B4B'><b>Rodada vence</b><br/>a cada 15 min</span>"]):::core --> QH{"<span style='color:#78350F'>Horário de silêncio<br/>0 h às 7 h?</span>"}:::guard
+    R(["<span style='color:#1E1B4B'><b>Rodada vence</b><br/>a cada 15 min</span>"]):::core --> QH{"<span style='color:#78350F'>Silêncio ligado e<br/>entre 0 h e 7 h?</span>"}:::guard
     QH -- "sim" --> M0["<span style='color:#581C87'><b>Todos viram MONITOR</b></span>"]:::store
     QH -- "não" --> SORT["<span style='color:#1E1B4B'><b>Ordena por confiança</b><br/>do veredito</span>"]:::core
     SORT --> NEXT{"<span style='color:#1E1B4B'>Próximo candidato</span>"}:::core
@@ -623,7 +623,7 @@ flowchart LR
 | Reserva do `searchPosts` | `WORKER_QUEUE_SEARCH_RESERVE` (70 em produção) | O firehose não ocupa as vagas dos posts mais populares |
 | Aging | 3 h a 48 h | Maturação da notícia e descarte do que esfriou |
 | Concorrência de análises | `WORKER_PIPELINE_CONCURRENCY` (1 na VM) | O `jev` serializa a inferência |
-| Rodada de intervenção | 1 quote por 15 min, silêncio 0 h–7 h | Respeita a diretriz de bots do Bluesky contra volume de interações não solicitadas |
+| Rodada de intervenção | 1 quote por 15 min; silêncio 0 h–7 h opcional (desligado) | Respeita a diretriz de bots do Bluesky contra volume de interações não solicitadas |
 | Teto diário | `DAILY_MAX_INTERVENTIONS`, pontos de escrita | Limita o impacto público |
 | Orçamento de LLM | `DAILY_LLM_BUDGET_USD` | O LLM só redige e audita o quote |
 | Repetição de rótulos | 60 s dobrando até 1 h, 8 tentativas | Tolera quedas do túnel sem perder o rótulo |

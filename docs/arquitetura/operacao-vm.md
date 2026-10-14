@@ -233,8 +233,9 @@ Desde 05/10/2026 a aplicação roda **de verdade** na VM, sem modo seco (`INTERV
   de um quote publicado, e `provavel-bot` na conta com `bot_score` ≥ 0,9 e pelo menos 20 posts. Um rótulo sempre vem do
   DID do labeler, nunca do perfil principal.
 - **Travas que continuam valendo:** no máximo `DAILY_MAX_INTERVENTIONS=20` quotes por dia, orçamento de LLM de
-  `DAILY_LLM_BUDGET_USD=1.0` por dia, rodadas a cada 15 min, silêncio das 0h às 7h, só autores com 500 seguidores ou
-  mais (`PIPELINE_MIN_FOLLOWERS_FOR_INTERVENTION`) e o limite de pontos de escrita da API do Bluesky.
+  `DAILY_LLM_BUDGET_USD=1.0` por dia, rodadas a cada 15 min e o limite de pontos de escrita da API do Bluesky. Desde 14/10/2026 o piso de seguidores
+  (`PIPELINE_MIN_FOLLOWERS_FOR_INTERVENTION`, antes 500) e a faixa de silêncio das 0h às 7h
+  (`INTERVENTION_QUIET_HOURS_ENABLED`) estão desligados; veja o [ADR 0024](../adr/0024-remove-piso-de-seguidores-e-faixa-de-silencio.md) para reativar.
 - A validação de qualidade ainda está em andamento: a amostra de 200 posts anotados (issues #62, #64 e #65) serve para
   medir o sistema, e a produção não espera por ela. Acompanhe os primeiros quotes e rótulos.
 

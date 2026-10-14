@@ -105,7 +105,7 @@ flowchart TD
     VER --> GQ01
     GQ01 -- IGNORE / MONITOR --> LOG[("<span style='color:#581C87'><b>decisions</b></span>")]:::store
     GQ01 -- INTERVENE_QUEUED --> Q["<span style='color:#1E1B4B'><b>InterventionQueue</b></span>"]:::core
-    Q -- 1 melhor por rodada de 15 min<br/>fora do silêncio 00h-07h --> INT["<span style='color:#1E1B4B'><b>InterventionService</b><br/>travas + revisão de fontes + redação</span>"]:::core
+    Q -- 1 melhor por rodada de 15 min<br/>silêncio 00h-07h opcional (desligado) --> INT["<span style='color:#1E1B4B'><b>InterventionService</b><br/>travas + revisão de fontes + redação</span>"]:::core
     INT --> CRIT{{"<span style='color:#78350F'><b>Critic Semântico</b><br/>auditado via LLM</span>"}}:::guard
     CRIT -- vetado --> LOG
     CRIT -- aprovado --> QP["<span style='color:#14532D'><b>Quote post no Bluesky</b></span>"]:::out
@@ -125,7 +125,7 @@ Pontos que o desenho deixa explícitos:
 - **A fila tem teto** (`WORKER_QUEUE_MAX_PENDING`, padrão 100): cheia, a coleta descarta os posts novos, e parte
   das vagas é reservada ao `searchPosts` ([ADR 0018](../adr/0018-concorrencia-e-contrapressao-do-worker.md)).
 - **Intervir é sempre assíncrono e raro.** O pipeline só enfileira o candidato; a fila publica no
-  máximo um por rodada, nenhum no horário de silêncio (0h-7h), e o texto é auditado pelo **Critic Semântico** antes do quote.
+  máximo um por rodada, faixa de silêncio (0h-7h) opcional e desligada, e o texto é auditado pelo **Critic Semântico** antes do quote.
 - **Rótulos são emitidos via outbox resiliente**, garantindo que instabilidades temporárias de rede ou do túnel do Ozone não causem perda silenciosa de rótulos.
 - **Toda análise termina em `decisions`**, inclusive abstenção e monitoramento.
 

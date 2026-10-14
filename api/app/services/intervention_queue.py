@@ -80,6 +80,8 @@ class InterventionQueue:
         return len(self._candidates)
 
     def in_quiet_hours(self, now: datetime | None = None) -> bool:
+        if not self.settings.intervention_quiet_hours_enabled:
+            return False
         hour = (now or datetime.now(UTC)).astimezone(_BRASILIA).hour
         start = self.settings.intervention_quiet_start_hour
         end = self.settings.intervention_quiet_end_hour

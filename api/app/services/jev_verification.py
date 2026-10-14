@@ -392,6 +392,12 @@ _NON_CLAIM_PATTERN = re.compile(
 # Número solto ("daqui 4 eleições") não ancora um fato; só valores com unidade ou 3+ dígitos.
 _STRONG_METRIC_PATTERN = re.compile(r"R\$|%|\d{3,}|\bpor\s+cento\b|\bmil(?:h[õo]es)?\b|bilh[õo]es")
 _MIN_NAME_ONLY_CLAIM_WORDS = 5
+# Veredito adverso (false/misleading) só vale com fonte independente de peso: checagem,
+# imprensa ou oficial. Wikipédia e o link do próprio post não bastam.
+_MIN_ADVERSE_SOURCE_AUTHORITY = 2.0
+# Vantagem mínima de "factual" sobre "opinião": 0,503 x 0,497 é empate, não alegação.
+_FACTUAL_MARGIN = 0.1
+_TERMINAL_PUNCTUATION = (".", "!", "?", ":", ";", "…")
 _SOFT_RELEVANCE_MARGIN = 0.4
 _MIN_SOFT_OVERLAP = 3
 
@@ -980,6 +986,37 @@ def _title_from_url(url: str) -> str:
     return title if len(title) >= 20 else ""
 
 
+_CONTINUATION_START = re.compile(
+    r"^(?i:n[ãa]o|nem|nunca|jamais|sem|nada|ningu[ée]m|mas|e|ou|que|porque|pois|"
+    r"nenhum|nenhuma)\b|^[a-zà-ÿ]"
+)
+
+
+def _join_wrapped_lines(post_text: str) -> list[str]:
+    """Junta linhas quebradas no meio da frase ("...AS URNAS ELETRÔNICAS" / "NÃO TEM FRAUDE.").
+
+    Sem isso a negação vai para outra linha e a frase verificada passa a afirmar o oposto.
+    Só junta quando a linha anterior não termina em pontuação e a seguinte começa com
+    negação, conectivo ou minúscula; títulos e rótulos em linhas próprias continuam separados.
+    """
+    lines = [raw.strip() for raw in post_text.splitlines()]
+    joined: list[str] = []
+    for line in lines:
+        previous = joined[-1] if joined else ""
+        if (
+            line
+            and previous
+            and not previous.startswith("#")
+            and not line.startswith("#")
+            and not previous.endswith(_TERMINAL_PUNCTUATION)
+            and _CONTINUATION_START.match(line)
+        ):
+            joined[-1] = f"{previous} {line}"
+        else:
+            joined.append(line)
+    return joined
+
+
 def _candidate_sentences(post_text: str) -> list[str]:
     """Quebra o post em frases candidatas (linha e depois ponto-final).
 
@@ -988,7 +1025,7 @@ def _candidate_sentences(post_text: str) -> list[str]:
     fato específico embutido em várias linhas de opinião/retórica.
     """
     fragments: list[str] = []
-    for line in post_text.splitlines():
+    for line in _join_wrapped_lines(post_text):
         line = line.strip()
         # Hashtags isoladas expressam campanha/posição, não uma alegação a
         # ser verificada. Antes elas chegavam ao Jev como uma frase factual.
@@ -1001,7 +1038,8 @@ def _candidate_sentences(post_text: str) -> list[str]:
     seen: set[str] = set()
     candidates: list[str] = []
     for fragment in fragments:
-        cleaned = _clean_query(fragment)
+        # "NÃO TEM FRAUDE.???" é ênfase, não pergunta: colapsa a sequência na 1ª pontuação.
+        cleaned = _clean_query(re.sub(r"([.!?])[.!?]+", r"\1", fragment))
         if (
             len(cleaned) < _MIN_SENTENCE_LEN
             or cleaned in seen
@@ -1115,7 +1153,7 @@ class JevVerificationService:
                 ["factual", "opiniao"],
             )
             classification_log.append({"text": sentence, **judgment})
-            if judgment["factual"] > judgment["opiniao"]:
+            if judgment["factual"] - judgment["opiniao"] >= _FACTUAL_MARGIN:
                 factual_claims.append(sentence)
         agent_outputs["jev.claim_classification"] = json.dumps(
             classification_log, ensure_ascii=False
@@ -1246,6 +1284,23 @@ class JevVerificationService:
                     evidences=relevant,
                     agent_outputs=agent_outputs,
                 )
+
+        if label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING) and not any(
+            e.source != "post_link" and _source_authority_score(e) >= _MIN_ADVERSE_SOURCE_AUTHORITY
+            for e in relevant
+        ):
+            agent_outputs[f"{prefix}.weak_sources_only"] = json.dumps(
+                [e.url for e in relevant], ensure_ascii=False
+            )
+            return Verdict(
+                claim=claim,
+                label=VerdictLabel.INSUFFICIENT_EVIDENCE,
+                confidence=0.0,
+                rationale="Abstenção (Jev): veredito adverso sem fonte de checagem, imprensa ou "
+                "oficial; só Wikipédia ou o link do próprio post.",
+                evidences=relevant,
+                agent_outputs=agent_outputs,
+            )
 
         label, confidence, rationale = self._apply_calibration(label, confidence, len(relevant))
         return Verdict(
