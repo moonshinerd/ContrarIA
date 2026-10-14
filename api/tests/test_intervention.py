@@ -536,3 +536,26 @@ async def test_intervention_not_published_without_actionable_agent_verdict(
 
     assert result is None
     mock_bsky.quote_post.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_claim_harvest_candidate_is_not_blocked_by_the_jev_confidence_floor(
+    mock_repo, mock_bsky, mock_llm
+):
+    # O piso de 0,8 vale para a confiança do Jev; o candidato do coletor de alegações checadas
+    # vai para a revisão das fontes e o auditor semântico, que decidem.
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    post = Post(
+        uri="at://p1", cid="c1", author_did="did:1", text="fake", created_at=datetime.now(UTC)
+    )
+    author = Account(did="did:1", handle="user")
+    low = Verdict(claim="c", label=VerdictLabel.FALSE, confidence=0.4, rationale="r")
+    harvested = Verdict(
+        claim="c",
+        label=VerdictLabel.FALSE,
+        confidence=0.4,
+        rationale="r",
+        agent_outputs={"claim_harvest": "{}"},
+    )
+    assert await service._should_intervene(post, author, low) is False
+    assert await service._should_intervene(post, author, harvested) is True

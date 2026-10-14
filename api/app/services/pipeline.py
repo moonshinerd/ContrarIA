@@ -12,7 +12,7 @@ from app.clients.bluesky_client import BlueskyClient
 from app.clients.ozone_client import OzoneClient
 from app.core.config import Settings
 from app.db.orm.decisions import DecisionLog
-from app.domain.entities import Post, VerdictLabel
+from app.domain.entities import Post, Verdict, VerdictLabel
 from app.services.account_labeling import AccountLabelService
 from app.services.bot_scoring import BotScoringService
 from app.services.intervention import InterventionService
@@ -57,8 +57,13 @@ class PipelineService:
         # Com outbox, o rótulo do post fica registrado e é repetido se o Ozone falhar.
         self.label_outbox = label_outbox
 
-    async def analyze(self, post: Post) -> DecisionLog:  # noqa: C901
-        """Processa um post sob demanda (POST /analyze ou pelo worker)."""
+    async def analyze(  # noqa: C901
+        self, post: Post, *, verdict: Verdict | None = None
+    ) -> DecisionLog:
+        """Processa um post sob demanda (POST /analyze ou pelo worker).
+
+        `verdict` já decidido (coletor de alegações checadas) pula a verificação do Jev.
+        """
         logger.info("Analisando post: %s", post.uri)
 
         # 1. Bot score
@@ -87,7 +92,8 @@ class PipelineService:
             raise RuntimeError("Pipeline de verificação está desabilitado")
         await self._attach_links(post)
         thread_context = await self._thread_context(post)
-        verdict = await self.verification.verify(post, parent_text=thread_context)
+        if verdict is None:
+            verdict = await self.verification.verify(post, parent_text=thread_context)
         is_adverse = verdict.label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING)
         is_insufficient = verdict.label == VerdictLabel.INSUFFICIENT_EVIDENCE
 

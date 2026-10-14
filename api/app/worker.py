@@ -15,8 +15,10 @@ from app.clients.bluesky_client import BlueskyClient
 from app.clients.ozone_client import OzoneClient
 from app.core.config import get_settings
 from app.core.logging import configure_logging, enable_database_logging
+from app.jobs.claim_harvester import ClaimHarvester
 from app.jobs.collector import IngestGate, JetstreamConsumer, SearchPoller
 from app.jobs.ingest_fact_articles import FeedIngestor
+from app.models.classifiers.jev import get_jev_classifier
 from app.models.llm.litellm_model import LiteLLMModel
 from app.repositories.crc_calibration import CRCCalibrationRepository
 from app.repositories.fact_articles import FactArticleRepository
@@ -140,6 +142,15 @@ async def main() -> None:
         label_outbox=outbox,
     )
 
+    harvester = ClaimHarvester(
+        settings,
+        bsky_client,
+        post_repo,
+        pipeline,
+        fact_articles=FactArticleRepository(engine),
+        classifier=get_jev_classifier(settings),
+    )
+
     # Inicia as tasks em background
     jetstream_task = asyncio.create_task(jetstream.run())
     poller_task = asyncio.create_task(poller.run())
@@ -168,6 +179,7 @@ async def main() -> None:
         settings.post_max_age_hours,
     )
     next_ingestion = 0.0
+    next_harvest = 0.0
     round_seconds = settings.intervention_round_minutes * 60
     next_round = monotonic() + round_seconds
     flush_seconds = settings.label_retry_interval_seconds
@@ -176,6 +188,12 @@ async def main() -> None:
         while True:
             next_flush = await run_due_label_flush(outbox, next_flush, flush_seconds)
             previous_round = next_round
+            if settings.claim_harvest_enabled and monotonic() >= next_round and not len(queue):
+                # Um candidato do coletor por rodada: a fila só publica o melhor de cada uma.
+                try:
+                    await harvester.release_one()
+                except Exception as exc:
+                    logger.error("Falha ao analisar candidato do coletor (%s)", type(exc).__name__)
             next_round = await run_due_intervention_round(queue, next_round, round_seconds)
             if next_round != previous_round and settings.post_max_age_hours > 0:
                 try:
@@ -188,6 +206,12 @@ async def main() -> None:
                         )
                 except Exception as exc:
                     logger.error("Falha ao expirar posts antigos na rodada: %s", exc)
+            if settings.claim_harvest_enabled and monotonic() >= next_harvest:
+                try:
+                    await harvester.run()
+                except Exception as exc:
+                    logger.error("Falha no coletor de alegações checadas (%s)", type(exc).__name__)
+                next_harvest = monotonic() + settings.claim_harvest_minutes * 60
             if settings.rss_checkers_enabled and monotonic() >= next_ingestion:
                 try:
                     report = await ingestor.run()

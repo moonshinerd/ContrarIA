@@ -6,6 +6,7 @@ títulos no formato "É falso que X". Títulos que já afirmam o contrário da a
 ("Lula não chorou...") não servem: inferir a alegação original seria adivinhar.
 """
 
+import math
 import re
 from enum import StrEnum
 
@@ -44,7 +45,10 @@ _STOPWORDS = frozenset(
     "nao sobre entre depois antes quando onde porque pois ser foi são sao tem têm ter vai "
     "vão vao está estao estão disse diz sido caso após ainda também tambem muito muita "
     "novo nova mesmo mesma outro outra todo toda todos todas qual quais cada nesta neste "
-    "desde até ate sem sob ao aos à às de do da em no na um e o a os as ou se já".split()
+    "desde até ate sem sob ao aos à às de do da em no na um e o a os as ou se já "
+    "aqui agora hoje ontem amanhã ainda sempre nunca nada tudo todo isso aquilo então "
+    "assim bem muito pouco mais menos vamos vai vou sendo seria será fazer feito "
+    "você vocês voce voces gente".split()
 )
 _TOKEN = re.compile(r"\d+(?:[.,]\d+)*%?º?|[\wÀ-ÿ$]+", re.UNICODE)
 _ACRONYM = re.compile(r"^[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ]{2,6}$")
@@ -54,14 +58,24 @@ _PROPER = re.compile(r"^[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõú�
 _DEBUNK_MARKERS = re.compile(
     r"\b(?:[eé]\s+(?:#?fake|fals[oa])|n[aã]o\s+[eé]\s+verdade|fake\s*news|fato\s+ou\s+fake|"
     r"mentira|boato|desmentid|desmente|checagem|checamos|fact[\s-]?check|"
-    r"n[aã]o\s+(?:foi|houve|existe|aconteceu)|voto\s+sem\s+fake)\b|#fake\b",
+    r"n[aã]o\s+(?:foi|houve|existe|aconteceu)|voto\s+sem\s+fake|bsfato|posts?\s+falsos?|"
+    r"gerada\s+por\s+intelig[eê]ncia\s+artificial|usad[oa]\s+para\s+alegar|fora\s+de\s+contexto)\b"
+    r"|#fake\b|^no\s+ar\.",
+    re.IGNORECASE,
+)
+
+
+_CHECKER_LINKS = re.compile(
+    r"aosfatos\.org|estadao-verifica|lupa\.uol|agencialupa|fato-ou-fake|boatos\.org|"
+    r"projetocomprova|checamos\.afp|noticias\.uol\.com\.br/confere",
     re.IGNORECASE,
 )
 
 
 def looks_like_debunk(text: str) -> bool:
-    """O texto já desmente ou comenta uma alegação (não a afirma): "É falso que...", "boato"."""
-    return bool(_DEBUNK_MARKERS.search(text))
+    """O texto já desmente ou comenta uma alegação (não a afirma): "É falso que...", "boato",
+    "❌ Fulano não disse...", ou um link para a própria checagem."""
+    return bool(_DEBUNK_MARKERS.search(text) or "❌" in text or _CHECKER_LINKS.search(text))
 
 
 def rating_kind(rating: str | None) -> RatingKind | None:
@@ -133,3 +147,82 @@ def claim_coverage(post_sentence: str, checked: str) -> float:
         return 0.0
     have = {t[:5] for t in informative_tokens(post_sentence)}
     return sum(1 for t in wanted if t[:5] in have) / len(wanted)
+
+
+# Palavras que aparecem em quase toda alegação eleitoral e não a distinguem de outras.
+_GENERIC_QUERY_TERMS = frozenset(
+    "vídeo video mostra foto imagem diz disse afirma presidente governo eleição eleições "
+    "eleitoral turno segundo primeiro campanha candidato publicou noticiou post posts durante "
+    "após antes brasil brasileiro brasileiros urgente agora".split()
+)
+
+
+def rare_query_terms(claim: str, document_frequency: dict[str, int], limit: int = 2) -> list[str]:
+    """Termos mais raros da alegação no corpus de posts: o que a distingue no searchPosts.
+
+    Nomes comuns ("Lula", "Flávio") trazem milhares de posts sem relação; termos raros
+    ("milho", "pelinho", "padroeira") trazem quem repete aquela alegação específica.
+    """
+    terms: list[str] = []
+    for token in informative_tokens(claim):
+        # Números ("54,98%", "61%") são o termo mais distintivo de muitas alegações.
+        term = token.rstrip("%º")
+        if term not in _GENERIC_QUERY_TERMS and term not in terms and len(term) >= 2:
+            terms.append(term)
+    terms.sort(key=lambda t: (document_frequency.get(t, 0), -len(t)))
+    return terms[:limit]
+
+
+def _content_tokens(text: str) -> list[str]:
+    """Palavras informativas mais números de qualquer tamanho ("61%" vira "61")."""
+    tokens = list(informative_tokens(text))
+    for token in _TOKEN.findall(text):
+        number = token.rstrip("%º")
+        if number[:1].isdigit() and number not in tokens:
+            tokens.append(number)
+    return tokens
+
+
+def weighted_coverage(
+    post: str, checked: str, document_frequency: dict[str, int], corpus_size: int
+) -> float:
+    """Cobertura da alegação ponderada pela raridade (IDF) de cada palavra.
+
+    Na cobertura simples, "Flávio Bolsonaro ganhou" cobre 60% de "Flávio Bolsonaro ganhou no
+    1º turno com 54,98%" sem dizer nada dela; aqui os nomes comuns quase não pesam.
+    """
+    wanted = _content_tokens(checked)
+    if len(wanted) < 2:
+        return 0.0
+    have = {t[:5] for t in _content_tokens(post)}
+
+    def idf(token: str) -> float:
+        return math.log((corpus_size + 1) / (document_frequency.get(token, 0) + 1))
+
+    total = sum(idf(t) for t in wanted)
+    if total <= 0:
+        return 0.0
+    return sum(idf(t) for t in wanted if t[:5] in have) / total
+
+
+_PUBLISHER_BY_HOST = {
+    "aosfatos.org": "Aos Fatos",
+    "lupa.uol.com.br": "Lupa",
+    "agencialupa.org": "Lupa",
+    "g1.globo.com": "g1 Fato ou Fake",
+    "estadao.com.br": "Estadão Verifica",
+    "noticias.uol.com.br": "UOL Confere",
+    "boatos.org": "Boatos.org",
+    "projetocomprova.com.br": "Comprova",
+    "checamos.afp.com": "AFP Checamos",
+}
+_SNIPPET_PUBLISHER = re.compile(r"^Checagem por ([^:]+):", re.IGNORECASE)
+
+
+def publisher_name(evidence: Evidence) -> str:
+    """Nome da agência que fez a checagem (do snippet do Google ou do domínio da URL)."""
+    match = _SNIPPET_PUBLISHER.match((evidence.snippet or "").strip())
+    if match:
+        return match.group(1).strip()
+    host = re.sub(r"^https?://(?:www\.)?([^/]+).*$", r"\1", evidence.url or "")
+    return _PUBLISHER_BY_HOST.get(host, host or "uma agência de checagem")

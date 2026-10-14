@@ -54,6 +54,13 @@ class PostRepository:
         with Session(self.engine) as session:
             return session.scalar(select(func.count()).select_from(Post).where(_is_pending())) or 0
 
+    def recent_texts(self, limit: int) -> list[str]:
+        """Textos dos posts mais recentes (corpus para escolher termos raros de busca)."""
+        with Session(self.engine) as session:
+            return list(
+                session.scalars(select(Post.text).order_by(Post.first_seen_at.desc()).limit(limit))
+            )
+
     def existing_uris(self, uris: list[str]) -> set[str]:
         """URIs que já estão no banco (qualquer status), para não contá-las como posts novos."""
         if not uris:
