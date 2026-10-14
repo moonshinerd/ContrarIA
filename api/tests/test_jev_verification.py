@@ -760,3 +760,51 @@ async def test_thematic_only_source_without_claim_entity_is_dropped():
     assert relevant == []
     assert classifier.questions == []
     assert "insuficientes" in log[0]["reason"]
+
+
+def test_line_break_does_not_cut_the_negation():
+    from app.services.jev_verification import _candidate_sentences
+
+    post = "FICOU PROVADO QUE AS URNAS ELETRÔNICAS\nNÃO TEM FRAUDE.??????????"
+    candidates = _candidate_sentences(post)
+    assert candidates
+    assert all("NÃO TEM FRAUDE" in c for c in candidates)
+
+
+def test_factual_margin_rejects_coin_flip_classification():
+    from app.services.jev_verification import _FACTUAL_MARGIN
+
+    assert 0.5032 - 0.4968 < _FACTUAL_MARGIN
+
+
+@pytest.mark.parametrize(
+    ("url", "source", "expected_label"),
+    [
+        ("https://pt.wikipedia.org/wiki/Leonel_Radde", "wikipedia", "insufficient_evidence"),
+        ("https://www.aosfatos.org/x", "google_factcheck", "false"),
+    ],
+)
+async def test_adverse_verdict_requires_strong_source(url, source, expected_label, monkeypatch):
+    from app.services import jev_verification
+
+    async def no_article(_url: str):
+        return None
+
+    monkeypatch.setattr(jev_verification, "_fetch_article_text", no_article)
+    service = build_service(None, jev_allow_uncalibrated=True)
+    service.classifier = ScriptedClassifier({"Radde": 0.9})
+    evidence = Evidence(
+        source=source, url=url, title="Radde deputado", snippet="Leonel Radde deputado estadual"
+    )
+
+    async def fake_search(*_a, **_k):
+        return [evidence], {}, "q"
+
+    service._search = fake_search
+    verdict = await service._verify_claim(
+        "Leonel Radde deputado estadual pelo RS",
+        {},
+        prefix="jev.c01",
+        post_date=date(2026, 10, 13),
+    )
+    assert verdict.label.value == expected_label

@@ -77,14 +77,13 @@ backend alternativo (`VERIFICATION_BACKEND=llm`).
 
 Depois da verificação, a **matriz GQ01** (no `PipelineService`) escolhe a ação, nesta ordem:
 
-1. **`IGNORE`:** bot score acima de 0,9 e conta com menos de 500 seguidores. Evita amplificar contas automatizadas pequenas.
+1. **`IGNORE`:** bot score acima de 0,9 e conta abaixo do piso de seguidores (`PIPELINE_MIN_FOLLOWERS_FOR_INTERVENTION`). O piso é **0** desde 14/10/2026 ([ADR 0024](../adr/0024-remove-piso-de-seguidores-e-faixa-de-silencio.md)), então esta regra não dispara; para reativar, defina por exemplo `500`.
 2. **`MONITOR`:** veredito `insufficient_evidence`.
-3. **`INTERVENE_QUEUED`:** conta com 500 seguidores ou mais e veredito `false` ou `misleading`.
+3. **`INTERVENE_QUEUED`:** veredito `false` ou `misleading` e autor com seguidores no mínimo igual ao piso (hoje 0, ou seja, qualquer autor).
 4. **`MONITOR`:** qualquer outro caso, inclusive intervenção desabilitada por *feature flag*.
 
 O candidato **não é publicado na hora**. Ele entra na `InterventionQueue` e, a cada rodada de 15 minutos, só o de
-**maior confiança** é publicado; os demais são fechados como `MONITOR`. Entre 0h e 7h (Brasília) não há rodada de
-publicação, para que a conta não opere 24 horas seguidas. A fila vive na memória: se o worker reinicia, os pendentes
+**maior confiança** é publicado; os demais são fechados como `MONITOR`. A faixa de silêncio de 0h às 7h (Brasília) existe, mas está **desligada** desde 14/10/2026 (`INTERVENTION_QUIET_HOURS_ENABLED=false`); com `true` não há rodada de publicação nesse horário. A fila vive na memória: se o worker reinicia, os pendentes
 são fechados como `MONITOR`.
 
 Em desenvolvimento e na primeira validação de produção, mantenha `INTERVENTION_DRY_RUN=true`: a decisão e a ação
@@ -123,3 +122,13 @@ A decisão, inclusive monitoramento ou abstenção, deve ser registrada com os d
 É o registro que permite ao avaliador conferir como a conclusão foi construída.
 
 **Referências:** [RF13 e RNF06](../requisitos.md), [visão geral da arquitetura](index.md) e [modelo de dados](dados-e-infra.md).
+
+### Guardas do veredito adverso (14/10/2026)
+
+- **Fonte independente:** `false` ou `misleading` só valem se ao menos uma evidência relevante vier de checagem, imprensa
+  ou fonte oficial (autoridade ≥ 2). Só Wikipédia, ou o link do próprio post, vira `insufficient_evidence` (`weak_sources_only`
+  no log).
+- **Linhas quebradas:** uma linha sem pontuação final seguida de linha que começa com negação, conectivo ou minúscula é
+  unida à anterior, para que "AS URNAS ELETRÔNICAS / NÃO TEM FRAUDE" não perca o "NÃO". Sequências como `???` viram uma
+  pontuação só e não transformam a frase em pergunta.
+- **Margem factual vs opinião:** a frase só segue se `factual` superar `opiniao` em pelo menos 0,1.

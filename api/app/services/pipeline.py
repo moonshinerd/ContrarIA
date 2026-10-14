@@ -76,9 +76,9 @@ class PipelineService:
                 logger.exception("Falha ao sincronizar rótulo da conta %s", post.author_did)
 
         # 2/3. Engajamento / Prioridade (simplificado)
-        # Engajamento alto = ≥1000 seguidores
+        # Piso de seguidores para intervir (0 = sem barreira desde 14/10/2026, ADR 0024)
         high_engagement = author.followers_count >= getattr(
-            self.settings, "pipeline_min_followers_for_intervention", 500
+            self.settings, "pipeline_min_followers_for_intervention", 0
         )
 
         # 4. Verificação

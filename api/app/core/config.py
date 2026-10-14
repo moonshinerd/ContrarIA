@@ -125,6 +125,8 @@ class Settings(BaseSettings):
     intervention_round_minutes: int = 15
     # Pausa diária (horário de Brasília, UTC-3): sem ela, a conta nunca fica 4h
     # parada, sinal usado para marcar bots de resposta automática.
+    # Desligada em 14/10/2026 (ADR 0024): reative com INTERVENTION_QUIET_HOURS_ENABLED=true.
+    intervention_quiet_hours_enabled: bool = False
     intervention_quiet_start_hour: int = 0
     intervention_quiet_end_hour: int = 7
     worker_tick_seconds: int = 30
@@ -176,7 +178,7 @@ class Settings(BaseSettings):
     # when quote generation is configured as dry-run.
     pipeline_labeler_enabled: bool = False
     pipeline_bot_ignore_threshold: float = Field(default=0.9, ge=0, le=1)
-    pipeline_min_followers_for_intervention: int = Field(default=500, ge=0)
+    pipeline_min_followers_for_intervention: int = Field(default=0, ge=0)
     # Rótulo `provavel-bot` em contas: emitido quando o bot score passa do limiar e
     # negado quando cai abaixo de (limiar - histerese), para não oscilar. Só age com
     # `pipeline_labeler_enabled`.

@@ -103,6 +103,7 @@ nav:
       - "0021 – Resiliência das Fontes": adr/0021-resiliencia-das-fontes-de-evidencia.md
       - "0022 – Maturação e Critic Semântico": adr/0022-janela-de-maturacao-e-critic-semantico.md
       - "0023 – Outbox de Rótulos": adr/0023-outbox-de-rotulos-do-ozone.md
+      - "0024 – Sem piso de seguidores e silêncio": adr/0024-remove-piso-de-seguidores-e-faixa-de-silencio.md
   - Resultados e Benchmarks: resultados/benchmark.md
   - Glossário: glossario.md
   - Atas:

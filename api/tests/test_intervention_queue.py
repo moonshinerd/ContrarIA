@@ -11,14 +11,15 @@ from app.domain.entities import Account, Post, Verdict, VerdictLabel
 from app.services.intervention_queue import InterventionCandidate, InterventionQueue
 
 
-def make_queue(execute_results):
+def make_queue(execute_results, quiet_hours=True):
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     session = Session(engine)
     intervention = MagicMock()
     intervention.execute_intervention = AsyncMock(side_effect=execute_results)
     ozone = AsyncMock()
-    queue = InterventionQueue(Settings(_env_file=None), session, intervention, ozone)
+    settings = Settings(_env_file=None, intervention_quiet_hours_enabled=quiet_hours)
+    queue = InterventionQueue(settings, session, intervention, ozone)
     return queue, session, intervention
 
 
@@ -141,3 +142,8 @@ async def test_label_failure_after_published_quote_is_kept_for_retry():
         "pending",
     )
     assert "502" in event.last_error
+
+
+def test_quiet_hours_disabled_by_default():
+    queue = InterventionQueue(Settings(_env_file=None), None, MagicMock(), AsyncMock())
+    assert not queue.in_quiet_hours(datetime(2026, 9, 28, 6, 0, tzinfo=UTC))  # 3h BRT
