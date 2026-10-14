@@ -137,3 +137,13 @@ A decisão, inclusive monitoramento ou abstenção, deve ser registrada com os d
   unida à anterior, para que "AS URNAS ELETRÔNICAS / NÃO TEM FRAUDE" não perca o "NÃO". Sequências como `???` viram uma
   pontuação só e não transformam a frase em pergunta.
 - **Margem factual vs opinião:** a frase só segue se `factual` superar `opiniao` em pelo menos 0,1.
+
+## Coletor de alegações checadas
+
+Além do fluxo acima, o worker parte das checagens de agências e busca no Bluesky quem as repete
+([ADR 0027](../adr/0027-coletor-de-alegacoes-checadas.md)). A cada hora ele pega as alegações falsas ou enganosas dos
+últimos 30 dias (Google Fact Check e acervo RSS), busca os dois termos mais raros de cada uma e filtra desmentidos,
+contradições (NLI do Jev) e posts que cobrem menos da metade da alegação (ponderada por IDF). Um candidato por rodada
+entra no pipeline com a checagem como fonte e o veredito da agência; a revisão das fontes e o auditor semântico decidem
+se publica. O log da decisão traz `claim_harvest` (URL, nota, alegação checada e cobertura).
+

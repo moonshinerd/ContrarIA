@@ -245,7 +245,9 @@ class InterventionService:
         if verdict.label not in (VerdictLabel.FALSE, VerdictLabel.MISLEADING):
             return False
 
-        if verdict.confidence < 0.8:
+        # O candidato do coletor de alegações checadas não tem confiança do Jev: a revisão das
+        # fontes e o auditor semântico (LLM) decidem se o post repete mesmo a alegação.
+        if verdict.confidence < 0.8 and "claim_harvest" not in verdict.agent_outputs:
             logger.info(
                 "Confiança do veredito muito baixa para intervenção (%f)", verdict.confidence
             )

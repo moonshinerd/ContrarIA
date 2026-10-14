@@ -120,6 +120,49 @@ class Settings(BaseSettings):
     daily_write_points_budget: int = 150
     intervention_write_points: int = 3
     intervention_dry_run: bool = True
+    # Coletor de alegações checadas (ADR 0027): parte das checagens recentes de agências e
+    # busca no Bluesky quem as repete, inclusive em respostas de threads.
+    claim_harvest_enabled: bool = True
+    claim_harvest_minutes: int = Field(default=60, ge=5)
+    claim_harvest_queries: list[str] = [
+        "Lula",
+        "Flávio Bolsonaro",
+        "Bolsonaro",
+        "TSE",
+        "urna",
+        "eleição",
+        "STF",
+        "Moraes",
+        "Haddad",
+        "Tarcísio",
+        "PT",
+        "PL",
+        "Janja",
+        "Michelle",
+        "Nunes Marques",
+        "Bolsa Família",
+        "Farmácia Popular",
+        "6x1",
+        "Pix",
+        "imposto",
+        "golpe",
+        "pesquisa",
+        "voto",
+        "segundo turno",
+        "Exército",
+        "Janones",
+        "Nikolas",
+    ]
+    claim_harvest_max_age_days: int = Field(default=30, ge=1, le=180)
+    claim_harvest_lookback_hours: int = Field(default=168, ge=1, le=336)
+    claim_harvest_max_claims: int = Field(default=150, ge=1, le=500)
+    claim_harvest_posts_per_claim: int = Field(default=25, ge=1, le=100)
+    claim_harvest_min_coverage: float = Field(default=0.5, ge=0.0, le=1.0)
+    claim_harvest_backlog_hours: int = Field(default=24, ge=1, le=168)
+    # Alegações curtas ("pai do tigrinho") casam com muitos posts sem relação: só os melhores.
+    claim_harvest_max_per_claim: int = Field(default=3, ge=1, le=25)
+    # Post que contradiz a alegação falsa (diz o certo) não é candidato.
+    claim_harvest_max_contradiction: float = Field(default=0.5, ge=0.0, le=1.0)
     # Worker: a cada N minutos publica só o candidato mais confiante da rodada
     # (diretriz de bots do Bluesky contra volume de interações não solicitadas).
     intervention_round_minutes: int = 15

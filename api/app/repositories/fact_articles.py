@@ -52,14 +52,15 @@ class FactArticleRepository:
             return []
         cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
         statement = (
-            select(FactArticle.title, FactArticle.summary)
+            select(FactArticle.title, FactArticle.summary, FactArticle.url)
             .where(FactArticle.published_at.is_(None) | (FactArticle.published_at >= cutoff))
             .order_by(FactArticle.published_at.desc().nullslast(), FactArticle.url)
             .limit(limit)
         )
         with Session(self.engine) as session:
             return [
-                {"title": row.title, "summary": row.summary} for row in session.execute(statement)
+                {"title": row.title, "summary": row.summary, "url": row.url}
+                for row in session.execute(statement)
             ]
 
     def search(self, vector, *, sources, limit, weight, half_life, min_similarity):
