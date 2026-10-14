@@ -194,6 +194,17 @@ class ClaimHarvester:
             if nli.get("contradiction", 0.0) < limit
         ]
 
+    async def run_forever(self) -> None:
+        """Coleta periódica fora do loop principal: são centenas de buscas por rodada."""
+        while True:
+            try:
+                await self.run()
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.error("Falha no coletor de alegações checadas (%s)", type(exc).__name__)
+            await asyncio.sleep(self.settings.claim_harvest_minutes * 60)
+
     def _expire(self) -> None:
         cutoff = datetime.now(UTC) - timedelta(hours=self.settings.claim_harvest_backlog_hours)
         self.backlog = [c for c in self.backlog if c.found_at >= cutoff]
