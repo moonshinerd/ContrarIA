@@ -92,14 +92,41 @@ travas.
 
 O candidato escolhido passa pelas travas do `InterventionService`: confiança mínima de 0,8, anti-loop (nunca citar o
 próprio bot nem contas com rótulo `bot`), um quote por post e um por autor a cada 24 horas, teto diário de quotes,
-orçamento de pontos de escrita e `postgate` que desabilite citações. Passando, o LLM revisa as cinco fontes mais
-relevantes e redige o **quote post no perfil do bot**, em até 300 caracteres (em fio, se preciso). Para humanos
-prováveis o tom é empático e socrático; para bots prováveis, clínico. Não há reply nem menção direta ao autor.
+orçamento de pontos de escrita e `postgate` que desabilite citações.
 
-**Auditoria por Critic Semântico:** Antes da publicação, o texto redigido é auditado por um Critic Semântico LLM
-dedicado (`ENABLE_SEMANTIC_CRITIC=true`, prompt `semantic_critic_v1.txt`). O Critic veta categoricamente intervenções
-que imputem ao autor personagens, declarações ou leis ausentes no post original, garantindo que o bot responda ao post
-e não apenas ao conteúdo da matéria de checagem ([ADR 0022](../adr/0022-janela-de-maturacao-e-critic-semantico.md)).
+### Context Gate e Pacote de Contexto (`PostContextBundle`)
+
+Antes de gerar a resposta, o sistema monta um feixe de contexto estruturado ([ADR 0028](../adr/0028-context-gate-e-critic-v2.md)):
+
+* **Histórico do Fio (`thread_context`):** Busca os ancestrais imediatos e continuações do mesmo autor via `BlueskyClient.get_thread_context()`.
+* **Citação Embutida (`quote post embed`):** Extrai do registro AT Protocol (`thread.post.embed`, cobrindo `app.bsky.embed.record` e `recordWithMedia`) o autor e o texto do post citado (`quote_author`, `quote_text`, `quote_uri`), evitando interpretar ironias sobre o post citado como se fossem a opinião do autor.
+* **Matérias Compartilhadas (`shared_link_text`):** Quando o post inclui links externos, o conteúdo textual da matéria é hidratado via `fetch_article_text` para que o bot entenda a que notícia o usuário está se referindo.
+
+Esse pacote (`PostContextBundle`) é injetado no redator socrático (`quote_post_v2.txt`), na verificação de alucinação de entidades e no Critic Semântico V2.
+
+### Tipologia de Intervenção e Sensibilidade a Atos de Fala
+
+Nem toda publicação com veredito adverso justifica um quote post público. O sistema categoriza as interações em quatro tipos:
+
+| Tipo | Condição | Ação | Justificativa |
+|---|---|---|---|
+| **`DIRECT_FACT_CHECK`** | Post afirma expressamente fato desmentido por checagem da agência. | **INTERVENE** | Intervenção socrática clássica com link da checagem. |
+| **`CONTEXTUAL_FACT_CHECK`** | Post noticia evento real onde circularam mídias manipuladas ou distorções no quote embed. | **INTERVENE** | Pergunta socrática contextual abordando a relação entre post e citação, sem acusação direta. |
+| **`UNSUPPORTED_ASSOCIATION`** | Post trata de evento real, mas a checagem foca em detalhes numéricos ou declarações ausentes no post. | **ABSTAIN** | Veto obrigatório: evita imputar ao autor desinformações que ele não afirmou. |
+| **`SPEECH_ACT_HUMOR`** | Meme, piada, sátira, desabafo genérico ou risadas expressas ("KKKK"). | **ABSTAIN** | Veto obrigatório: robô não responde a humor ou desabafos coloquiais. |
+
+### Critic Semântico V2 (Fail-Closed)
+
+Antes da publicação, o texto redigido é auditado pelo Critic Semântico V2 (`ENABLE_SEMANTIC_CRITIC=true`, prompt `semantic_critic_v2.txt`, [ADR 0028](../adr/0028-context-gate-e-critic-v2.md)):
+
+* **Aprovação Estritamente Explícita:** A intervenção só é publicada se o LLM responder com a linha `DECISAO: APROVADA` (e sem a presença de `REPROVADA`).
+* **Modo Fail-Closed:** Se a chamada ao LLM falhar, sofrer timeout, retornar vazia ou devolver uma resposta fora do formato estruturado, a intervenção é **automaticamente cancelada** (`return False, reason`), registrando abstenção em `decisions`.
+* **Veto a Desconexões Semânticas:** O Critic veta peremptoriamente textos que imputem ao autor personagens, declarações, leis ou acusações ausentes no post e no contexto do fio.
+* **Veto a Humor e Sátira:** Detectando ato de fala humorístico ou meme no contexto, o Critic emite `DECISAO: REPROVADA`.
+
+### Parser Estrito de Fontes
+
+O método `_parse_agent_output()` analisa a saída gerada pelo redator. Ao contrário de versões anteriores que aplicavam um fallback silencioso para a primeira fonte da lista (`sources[0].url`), o parser atual é estrito: se o modelo não citar expressamente uma URL válida que coincida com as fontes recuperadas e analisadas, a intervenção é cancelada (`return "", []`), impedindo citações de links alucinados ou inadequados ([ADR 0028](../adr/0028-context-gate-e-critic-v2.md)).
 
 Quote posts notificam o autor. A decisão aceita o risco relacionado à diretriz de opt-in descrito no ADR 0002; a
 citação não elimina esse risco. Com `INTERVENTION_DRY_RUN=true` (padrão) nada é publicado.
@@ -113,7 +140,7 @@ com `reverter` nega o rótulo (`action="negate"`) sem apagar o histórico.
 
 Conteúdo verdadeiro ou não factual não recebe intervenção corretiva. Um resultado inconclusivo causa abstenção, sem ação penalizadora.
 
-**Referências:** [RF05, RF06 e RF07](../requisitos.md), [ADR 0002](../adr/0002-quote-post.md), [ADR 0003](../adr/0003-labeler-ozone.md), [ADR 0022](../adr/0022-janela-de-maturacao-e-critic-semantico.md), [ADR 0023](../adr/0023-outbox-de-rotulos-do-ozone.md).
+**Referências:** [RF05, RF06 e RF07](../requisitos.md), [ADR 0002](../adr/0002-quote-post.md), [ADR 0003](../adr/0003-labeler-ozone.md), [ADR 0022](../adr/0022-janela-de-maturacao-e-critic-semantico.md), [ADR 0023](../adr/0023-outbox-de-rotulos-do-ozone.md), [ADR 0028](../adr/0028-context-gate-e-critic-v2.md).
 
 ## 5. Auditoria: registrar o motivo da decisão
 
@@ -141,9 +168,17 @@ A decisão, inclusive monitoramento ou abstenção, deve ser registrada com os d
 ## Coletor de alegações checadas
 
 Além do fluxo acima, o worker parte das checagens de agências e busca no Bluesky quem as repete
-([ADR 0027](../adr/0027-coletor-de-alegacoes-checadas.md)). A cada hora ele pega as alegações falsas ou enganosas dos
-últimos 30 dias (Google Fact Check e acervo RSS), busca os dois termos mais raros de cada uma e filtra desmentidos,
-contradições (NLI do Jev) e posts que cobrem menos da metade da alegação (ponderada por IDF). Um candidato por rodada
-entra no pipeline com a checagem como fonte e o veredito da agência; a revisão das fontes e o auditor semântico decidem
-se publica. O log da decisão traz `claim_harvest` (URL, nota, alegação checada e cobertura).
+([ADR 0027](../adr/0027-coletor-de-alegacoes-checadas.md), corrigido e fortalecido pelo [ADR 0028](../adr/0028-context-gate-e-critic-v2.md)).
+A cada hora ele pega as alegações falsas ou enganosas dos últimos 30 dias (Google Fact Check e acervo RSS), busca os dois
+termos mais raros de cada uma e filtra desmentidos, contradições (NLI do Jev) e posts que cobrem menos da metade da
+alegação (ponderada por IDF).
+
+### Correções Estruturais e Filtro de Pertinência Proposicional ([ADR 0028](../adr/0028-context-gate-e-critic-v2.md))
+
+No desenho inicial do coletor, duas fragilidades foram identificadas e resolvidas:
+
+1. **Atribuição Correta da Alegação Checada:** O veredito gerado pelo coletor agora atribui obrigatoriamente a alegação checada pela agência (`verdict.claim = candidate.checked`), em vez do texto do post (`post.text[:300]`). Anteriormente, o filtro comparava o post contra si próprio, permitindo que falsidades da checagem fossem associadas indevidamente ao usuário.
+2. **Sobreposição Lexical Multi-token (`_is_claim_relevant_to_post`):** A verificação de pertinência antes da intervenção não aceita uma única palavra compartilhada isolada (ex.: tema comum como "Tigrinho" ou nome de político). Para alegações com 3 ou mais palavras informativas, o sistema exige ao menos 2 termos nucleares compartilhados, prevenindo que afirmações com polaridades opostas (ex.: "governo proibiu" vs "governo criou") sejam tratadas como a mesma proposição.
+
+Um candidato por rodada entra no pipeline com a checagem como fonte e o veredito da agência; a revisão das fontes, o Context Gate e o Critic V2 decidem se a publicação é autorizada. O log da decisão traz `claim_harvest` (URL, nota, alegação checada e cobertura).
 

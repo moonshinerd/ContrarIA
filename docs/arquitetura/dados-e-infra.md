@@ -158,7 +158,7 @@ Os grupos principais:
 
 | Grupo | Variáveis (padrão) |
 |---|---|
-| Bluesky | `BLUESKY_HANDLE`, `BLUESKY_APP_PASSWORD`, `BLUESKY_SESSION_PATH`, contexto do fio (`THREAD_CONTEXT_MAX_POSTS=4`) |
+| Bluesky e Context Gate | `BLUESKY_HANDLE`, `BLUESKY_APP_PASSWORD`, `BLUESKY_SESSION_PATH`, contexto do fio (`THREAD_CONTEXT_MAX_POSTS=4`), extração de posts citados embutidos (`thread.post.embed`) e hidratação de matérias em links externos (`PostContextBundle`, [ADR 0028](../adr/0028-context-gate-e-critic-v2.md)) |
 | Verificação | `VERIFICATION_BACKEND` (código: `llm`; operação: `jev`), `JEV_MODEL_REPO`, `JEV_SERVER_URL`, `CRC_ALPHA=0.05`, `JEV_ALLOW_UNCALIBRATED=false` |
 | LLM (redação e backend `llm`) | `LLM_MODEL_NAME=openrouter/openai/gpt-6-luna` (US$ 0,10/M entrada e US$ 0,50/M saída; o `gpt-5-mini` custa US$ 0,25 e US$ 2,00), `LLM_API_KEY` / `OPENROUTER_API_KEY`, `DAILY_LLM_BUDGET_USD=1.0` |
 | Evidências | `GOOGLE_FACTCHECK_API_KEY`, `SEARXNG_*`, `RSS_CHECKERS_ENABLED`, `RSS_ENABLED_SOURCES`, `RSS_POLL_SECONDS=3600` |
@@ -166,7 +166,7 @@ Os grupos principais:
 | Resiliência das fontes | `EVIDENCE_PROVIDER_TIMEOUT_SECONDS=8`, `EVIDENCE_FAILURE_COOLDOWN_SECONDS=30`, `EVIDENCE_FAILURE_COOLDOWN_MAX_SECONDS=600` |
 | Fonte citada | `CITED_SOURCE_ENTAILMENT_MIN=0.7`, `CITED_SOURCE_MIN_AUTHORITY=2.0` |
 | Vazão do worker | `WORKER_PIPELINE_CONCURRENCY=3`, `WORKER_QUEUE_MAX_PENDING=100`, `WORKER_QUEUE_SEARCH_RESERVE=30`, `WORKER_PIPELINE_MAX_ATTEMPTS=3` |
-| Intervenção e Critic | `INTERVENTION_DRY_RUN=true`, `INTERVENTION_ROUND_MINUTES=15`, faixa de silêncio opcional (`INTERVENTION_QUIET_HOURS_ENABLED`, desligada), `DAILY_MAX_INTERVENTIONS`, `DAILY_WRITE_POINTS_BUDGET`, `PIPELINE_MIN_FOLLOWERS_FOR_INTERVENTION=0`, `ENABLE_SEMANTIC_CRITIC=true` |
+| Intervenção e Critic V2 | `INTERVENTION_DRY_RUN=true`, `INTERVENTION_ROUND_MINUTES=15`, faixa de silêncio opcional (`INTERVENTION_QUIET_HOURS_ENABLED`, desligada), `DAILY_MAX_INTERVENTIONS`, `DAILY_WRITE_POINTS_BUDGET`, `PIPELINE_MIN_FOLLOWERS_FOR_INTERVENTION=0`, `ENABLE_SEMANTIC_CRITIC=true` (modo fail-closed, prompt `semantic_critic_v2.txt`, sem fallback silencioso de fontes; [ADR 0028](../adr/0028-context-gate-e-critic-v2.md)) |
 | Rótulo e Outbox | `PIPELINE_LABELER_ENABLED=false`, `OZONE_LABELER_*`, `LABEL_RETRY_INTERVAL_SECONDS=60`, `LABEL_RETRY_MAX_ATTEMPTS=8`, `OZONE_HEALTH_URL`, `ACCOUNT_LABEL_THRESHOLD=0.9`, `ACCOUNT_LABEL_HYSTERESIS=0.1`, `ACCOUNT_LABEL_MIN_POSTS=20` |
 | Feature flags | `PIPELINE_BOT_SCORING_ENABLED`, `PIPELINE_VERIFICATION_ENABLED`, `PIPELINE_INTERVENTION_ENABLED`, `ENABLE_SEMANTIC_CRITIC` |
 | Administração e Logs | `ADMIN_API_KEY`, `DATABASE_URL`, `SERVICE_NAME` |
