@@ -6,15 +6,18 @@ CONCEITO E REGRAS FUNDAMENTAIS:
 1. O POST (E SEU CONTEXTO) É O DESTINATÁRIO ÚNICO DA INTERVENÇÃO.
 2. A REPORTAGEM E A CHECAGEM SÃO APENAS FONTES EXTERNAS DE EVIDÊNCIA.
 3. NÃO-ATRIBUIÇÃO INDEVIDA (Grounding): Se a intervenção questiona o autor sobre pessoas, declarações, projetos, casas de aposta ou números que ele NUNCA mencionou (e que vieram apenas das fontes externas consultadas pelo bot), a intervenção é um desvio temático grave e DEVE SER REPROVADA.
-4. ATOS DE FALA, HUMOR E PARÓDIA:
+4. ATOS DE FALA, HUMOR, PARÓDIA E METÁFORA:
    - Se o post for piada, meme, risada expressa (ex.: "KKKK", "rsrs"), desabafo coloquial ou sarcasmo óbvio sem alegação fática sustentada a sério, a intervenção DEVE SER REPROVADA (Motivo: Post identificado como humor/meme/sátira).
+   - Se uma expressão ou termo factual (ex.: "tornozeleira eletrônica", "cortina de fumaça", "bomba relógio") for empregado em sentido metafórico, figurado, irônico ou hiperbólico, e não como uma asserção literal sobre o mundo real, a intervenção DEVE SER REPROVADA (Motivo: Uso figurado/metafórico).
    - Se o post é um desabafo genérico (ex.: reclamando de impostos ou citando presidentes passados), não tente imputar uma checagem específica que o autor não afirmou.
 5. CITAÇÃO VS. ENDOSSO: Se o autor está apenas compartilhando uma notícia ou citando terceiros, a intervenção não pode tratar a manchete como uma mentira fabricada pelo próprio autor.
 6. ASSOCIAÇÃO NÃO COMPROVADA (Unsupported Association):
    - Se a checagem trata de um assunto específico (ex.: apostas no Polymarket) e o post compartilhou matéria sobre outro tema (ex.: culto religioso ou pesquisa de opinião), a intervenção DEVE SER REPROVADA.
-7. TIPOLOGIA DE INTERVENÇÃO ACEITÁVEL:
-   - PERGUNTA CONTEXTUAL LEGÍTIMA: Se o post noticia ou comenta um evento real onde circularam mídias manipuladas ou fotos geradas por IA, uma pergunta socrática educada sobre a autenticidade das imagens ou dados daquele mesmo evento é APROVADA, desde que não acuse o autor de agir de má-fé.
-   - CORREÇÃO DIRETA: Só é aprovada se o autor tiver afirmado categoricamente o fato desmentido pelas matérias.
+   - CO-OCORRÊNCIA DE EVENTO NÃO JUSTIFICA INTERVENÇÃO: A menção a uma manifestação, ato público, local (ex.: Copacabana), figura pública ou data onde circularam imagens falsas ou desinformações NÃO autoriza intervenção se o post NÃO tiver compartilhado a imagem falsa nem afirmado expressamente o boato.
+   - Exemplo clássico proibido: se o post diz apenas "Multidão toma conta de Copacabana" e a checagem é "Imagem aérea de Copacabana lotada foi manipulada por IA", a intervenção DEVE SER REPROVADA porque o autor não postou a imagem falsa. Perguntar sobre fotos de IA para quem apenas comentou o ato real é uma associação indevida.
+7. REGRA DE OURO: CONTRADIÇÃO FÁTICA POSITIVA:
+   - A intervenção SÓ É APROVADA se houver CONTRADIÇÃO FÁTICA POSITIVA comprovada com o que o autor expressamente afirmou ou com a imagem/vídeo que ele efetivamente compartilhou.
+   - Se a mídia desmentida (imagem gerada por IA, vídeo adulterado, montagem) não estiver presente no post, no fio ou na citação embutida do autor, REPROVE sumariamente com `DECISAO: REPROVADA`.
 
 DADOS DA ANÁLISE:
 
@@ -34,10 +37,10 @@ INTERVENÇÃO PROPOSTA PELO BOT:
 "{generated_text}"
 
 CRITÉRIOS DE JULGAMENTO:
-1. ANCORAGEM NO POST E CONTEXTO: O questionamento faz sentido imediato para quem lê o post?
-2. AUSÊNCIA DE HUMOR/SÁTIRA: O post é uma afirmação séria e não uma piada/meme?
-3. NÃO-ATRIBUIÇÃO: O bot não imputa ao autor alegações inexistentes?
-4. CORRESPONDÊNCIA PROPOSICIONAL: O post está realmente falando da mesma alegação checada, e não de um tema apenas vagamente correlato?
+1. ANCORAGEM NO POST E CONTEXTO: O questionamento faz sentido imediato para o que o autor realmente disse?
+2. AUSÊNCIA DE HUMOR/METÁFORA: O post é uma afirmação factual literal e não uma piada, meme, desabafo ou metáfora?
+3. NÃO-ATRIBUIÇÃO: O bot não imputa ao autor fatos, números, mídias ou leis ausentes da postagem?
+4. CORRESPONDÊNCIA PROPOSICIONAL: O autor de fato afirmou a alegação checada ou compartilhou a mídia desmentida?
 
 FORMATO DA RESPOSTA (obrigatório, exatamente 2 linhas):
 Linha 1: `DECISAO: APROVADA` ou `DECISAO: REPROVADA`

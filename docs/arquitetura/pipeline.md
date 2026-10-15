@@ -106,23 +106,24 @@ Esse pacote (`PostContextBundle`) é injetado no redator socrático (`quote_post
 
 ### Tipologia de Intervenção e Sensibilidade a Atos de Fala
 
-Nem toda publicação com veredito adverso justifica um quote post público. O sistema categoriza as interações em quatro tipos:
+Nem toda publicação com veredito adverso justifica um quote post público. O sistema categoriza as interações em cinco tipos ([ADR 0028](../adr/0028-context-gate-e-critic-v2.md)):
 
 | Tipo | Condição | Ação | Justificativa |
 |---|---|---|---|
 | **`DIRECT_FACT_CHECK`** | Post afirma expressamente fato desmentido por checagem da agência. | **INTERVENE** | Intervenção socrática clássica com link da checagem. |
-| **`CONTEXTUAL_FACT_CHECK`** | Post noticia evento real onde circularam mídias manipuladas ou distorções no quote embed. | **INTERVENE** | Pergunta socrática contextual abordando a relação entre post e citação, sem acusação direta. |
-| **`UNSUPPORTED_ASSOCIATION`** | Post trata de evento real, mas a checagem foca em detalhes numéricos ou declarações ausentes no post. | **ABSTAIN** | Veto obrigatório: evita imputar ao autor desinformações que ele não afirmou. |
-| **`SPEECH_ACT_HUMOR`** | Meme, piada, sátira, desabafo genérico ou risadas expressas ("KKKK"). | **ABSTAIN** | Veto obrigatório: robô não responde a humor ou desabafos coloquiais. |
+| **`CONTEXTUAL_FACT_CHECK`** | Post compartilhou ou endossou mídia desmentida (imagem/vídeo de IA ou montagem) ou distorções no quote embed. | **INTERVENE** | Pergunta contextual socrática focada na mídia compartilhada, sem acusação direta de má-fé. |
+| **`UNSUPPORTED_ASSOCIATION`** | Post noticia evento real sem compartilhar a mídia falsa, ou a checagem aborda números e temas ausentes no post. | **ABSTAIN** | **Veto obrigatório:** Co-ocorrência de evento não justifica imputar desinformação não afirmada. |
+| **`SPEECH_ACT_HUMOR`** | Meme, piada, sátira, desabafo genérico ou risadas expressas ("KKKK"). | **ABSTAIN** | **Veto obrigatório:** Robô não responde a humor ou desabafos coloquiais. |
+| **`SPEECH_ACT_METAPHOR`** | Uso metafórico ou linguagem figurada de termos fáticos (ex.: "tornozeleira no bolso"). | **ABSTAIN** | **Veto obrigatório:** Expressões metafóricas não configuram afirmação literal do boato. |
 
 ### Critic Semântico V2 (Fail-Closed)
 
 Antes da publicação, o texto redigido é auditado pelo Critic Semântico V2 (`ENABLE_SEMANTIC_CRITIC=true`, prompt `semantic_critic_v2.txt`, [ADR 0028](../adr/0028-context-gate-e-critic-v2.md)):
 
-* **Aprovação Estritamente Explícita:** A intervenção só é publicada se o LLM responder com a linha `DECISAO: APROVADA` (e sem a presença de `REPROVADA`).
+* **Aprovação Estrita por Token:** O parser extrai a linha de decisão e isola o token exato `APROVADA` (rejeitando sumariamente prefixos e negações como `NAO APROVADA`, `NÃO APROVADA`, `DESAPROVADA` ou `REPROVADA`).
 * **Modo Fail-Closed:** Se a chamada ao LLM falhar, sofrer timeout, retornar vazia ou devolver uma resposta fora do formato estruturado, a intervenção é **automaticamente cancelada** (`return False, reason`), registrando abstenção em `decisions`.
-* **Veto a Desconexões Semânticas:** O Critic veta peremptoriamente textos que imputem ao autor personagens, declarações, leis ou acusações ausentes no post e no contexto do fio.
-* **Veto a Humor e Sátira:** Detectando ato de fala humorístico ou meme no contexto, o Critic emite `DECISAO: REPROVADA`.
+* **Veto a Desconexões Semânticas:** O Critic veta peremptoriamente textos que imputem ao autor personagens, declarações, leis, fotos de IA ou acusações ausentes no post e no contexto do fio.
+* **Veto a Humor, Sátira e Metáforas:** Detectando ato de fala humorístico, meme ou metáfora no contexto, o Critic emite `DECISAO: REPROVADA`.
 
 ### Parser Estrito de Fontes
 
