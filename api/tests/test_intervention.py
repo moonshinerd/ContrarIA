@@ -41,7 +41,13 @@ def mock_bsky():
 @pytest.fixture
 def mock_llm():
     llm = AsyncMock()
-    llm.complete.return_value = "FONTE 1: CONTRADIZ\nCITAÇÃO: trecho\nNOTA: nota factual"
+
+    async def fake_complete(*args, purpose=None, **kwargs):
+        if purpose == "critic_coherence":
+            return "DECISAO: APROVADA\nMOTIVO: Intervenção aprovada pelo auditor semântico"
+        return "FONTE 1: CONTRADIZ\nCITAÇÃO: trecho\nNOTA: nota factual"
+
+    llm.complete.side_effect = fake_complete
     llm.complete_with_tools.return_value = (
         "TIPO: FATO\nVEREDITO: DESMENTE\nFONTE: 1\n"
         "Isso não confere com os dados públicos. O que acha?"
@@ -439,7 +445,7 @@ def test_source_batches_preserve_every_character_and_split_large_articles():
 
 
 @pytest.mark.asyncio
-async def test_intervention_without_source_line_cites_the_most_relevant(
+async def test_intervention_without_source_line_is_rejected_fail_closed(
     mock_repo, mock_bsky, mock_llm
 ):
     mock_llm.complete_with_tools.return_value = (
@@ -462,10 +468,12 @@ async def test_intervention_without_source_line_cites_the_most_relevant(
         evidences=[Evidence("t", "https://a", "A", "a"), Evidence("t", "https://b", "B", "b")],
     )
 
-    await service.execute_intervention(post, Account(did="did:1", handle="user"), verdict, 0.1)
+    result = await service.execute_intervention(
+        post, Account(did="did:1", handle="user"), verdict, 0.1
+    )
 
-    _, kwargs = mock_bsky.quote_post.call_args
-    assert kwargs["source_url"] == "https://a"
+    assert result is None
+    mock_bsky.quote_post.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -559,3 +567,146 @@ async def test_claim_harvest_candidate_is_not_blocked_by_the_jev_confidence_floo
     )
     assert await service._should_intervene(post, author, low) is False
     assert await service._should_intervene(post, author, harvested) is True
+
+
+@pytest.mark.asyncio
+async def test_critic_v2_fail_closed_on_reprovada(mock_repo, mock_bsky, mock_llm):
+    async def fake_complete(*args, purpose=None, **kwargs):
+        if purpose == "critic_coherence":
+            return (
+                "DECISAO: REPROVADA\n"
+                "MOTIVO: Post identificado como meme ou sátira sem alegação séria"
+            )
+        return "FONTE 1: CONTRADIZ\nCITAÇÃO: trecho\nNOTA: nota factual"
+
+    mock_llm.complete.side_effect = fake_complete
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    service.settings.intervention_dry_run = False
+    post = Post(
+        uri="at://p1",
+        cid="c1",
+        author_did="did:1",
+        text="Lula e tigrinho",
+        created_at=datetime.now(UTC),
+    )
+    verdict = Verdict(
+        claim="Lula e tigrinho",
+        label=VerdictLabel.FALSE,
+        confidence=0.9,
+        rationale="r",
+        evidences=[Evidence("t", "https://a", "A", "a")],
+    )
+
+    result = await service.execute_intervention(
+        post, Account(did="did:1", handle="user"), verdict, 0.1
+    )
+    assert result is None
+    mock_bsky.quote_post.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "malformed_output",
+    [
+        "",
+        "Não tenho certeza se aprovo.",
+        "DECISAO: TALVEZ\nMOTIVO: Inconclusivo",
+        "APROVADA sem o prefixo de decisão",
+        "DECISAO: APROVADA e REPROVADA ao mesmo tempo",
+    ],
+)
+async def test_critic_v2_fail_closed_on_malformed_output(
+    mock_repo, mock_bsky, mock_llm, malformed_output
+):
+    async def fake_complete(*args, purpose=None, **kwargs):
+        if purpose == "critic_coherence":
+            return malformed_output
+        return "FONTE 1: CONTRADIZ\nCITAÇÃO: trecho\nNOTA: nota factual"
+
+    mock_llm.complete.side_effect = fake_complete
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    service.settings.intervention_dry_run = False
+    post = Post(
+        uri="at://p1",
+        cid="c1",
+        author_did="did:1",
+        text="Lula e tigrinho",
+        created_at=datetime.now(UTC),
+    )
+    verdict = Verdict(
+        claim="Lula e tigrinho",
+        label=VerdictLabel.FALSE,
+        confidence=0.9,
+        rationale="r",
+        evidences=[Evidence("t", "https://a", "A", "a")],
+    )
+
+    result = await service.execute_intervention(
+        post, Account(did="did:1", handle="user"), verdict, 0.1
+    )
+    assert result is None
+    mock_bsky.quote_post.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_critic_v2_fail_closed_on_llm_exception(mock_repo, mock_bsky, mock_llm):
+    async def fake_complete(*args, purpose=None, **kwargs):
+        if purpose == "critic_coherence":
+            raise TimeoutError("OpenRouter request timed out")
+        return "FONTE 1: CONTRADIZ\nCITAÇÃO: trecho\nNOTA: nota factual"
+
+    mock_llm.complete.side_effect = fake_complete
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    service.settings.intervention_dry_run = False
+    post = Post(
+        uri="at://p1",
+        cid="c1",
+        author_did="did:1",
+        text="Lula e tigrinho",
+        created_at=datetime.now(UTC),
+    )
+    verdict = Verdict(
+        claim="Lula e tigrinho",
+        label=VerdictLabel.FALSE,
+        confidence=0.9,
+        rationale="r",
+        evidences=[Evidence("t", "https://a", "A", "a")],
+    )
+
+    result = await service.execute_intervention(
+        post, Account(did="did:1", handle="user"), verdict, 0.1
+    )
+    assert result is None
+    mock_bsky.quote_post.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_critic_v2_approves_only_on_explicit_aprovada(mock_repo, mock_bsky, mock_llm):
+    async def fake_complete(*args, purpose=None, **kwargs):
+        if purpose == "critic_coherence":
+            return "DECISAO: APROVADA\nMOTIVO: Pergunta pertinente e fática"
+        return "FONTE 1: CONTRADIZ\nCITAÇÃO: trecho\nNOTA: nota factual"
+
+    mock_llm.complete.side_effect = fake_complete
+    service = InterventionService(mock_repo, mock_bsky, mock_llm)
+    service.settings.intervention_dry_run = False
+    post = Post(
+        uri="at://p1",
+        cid="c1",
+        author_did="did:1",
+        text="Lula e tigrinho",
+        created_at=datetime.now(UTC),
+    )
+    verdict = Verdict(
+        claim="Lula e tigrinho",
+        label=VerdictLabel.FALSE,
+        confidence=0.9,
+        rationale="r",
+        evidences=[Evidence("t", "https://a", "A", "a")],
+    )
+
+    result = await service.execute_intervention(
+        post, Account(did="did:1", handle="user"), verdict, 0.1
+    )
+    assert result is not None
+    mock_bsky.quote_post.assert_called_once()

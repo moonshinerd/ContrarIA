@@ -86,7 +86,7 @@ flowchart TD
 | PDS do bot | Onde o quote post é gravado | Escrita autenticada como `contraria-bot.bsky.social` |
 | Labeler Ozone | Emite rótulos assinados | Conta separada, `contraria-labeler.bsky.social` |
 | Fontes de evidência | Dão base à verificação | Consultadas por frase, nunca por post inteiro |
-| LLM na nuvem | Só **redige** o texto do quote e audita sua coerência | Nunca decide o veredito (quem decide é o Jev local) |
+| LLM na nuvem | Redige o quote socrático e opera o Critic V2 (fail-closed, [ADR 0028](../adr/0028-context-gate-e-critic-v2.md)) | Nunca decide o veredito fático (quem decide é o Jev local ou a agência de checagem) |
 | GitHub | Código, CI e deploy | OIDC, sem segredo guardado ([ADR 0020](../adr/0020-acesso-vm-tunel-cloudflare.md)) |
 
 ---
@@ -385,7 +385,10 @@ flowchart TD
 ```
 
 Esta é a visão de blocos; as regras de cada etapa estão em [O Pipeline do Agente](pipeline.md). O que importa para o
-mapa: **tudo termina em `decisions`**, e só `INTERVENE_QUEUED` segue para a saída.
+mapa: **tudo termina em `decisions`**, e só `INTERVENE_QUEUED` segue para a saída. Quando um candidato é enfileirado
+para intervenção, o sistema monta o **`PostContextBundle`** ([ADR 0028](../adr/0028-context-gate-e-critic-v2.md)),
+agregando os ancestrais da conversa no fio, posts citados via embed e matérias de links externos para consumo pelo
+Context Gate e pelo Critic V2 na rodada de publicação.
 
 ---
 
@@ -409,11 +412,16 @@ flowchart TD
     SORT --> NEXT{"<span style='color:#1E1B4B'>Próximo candidato</span>"}:::core
     NEXT --> T1{"<span style='color:#78350F'>Travas do InterventionService<br/>confiança 0,8 ou mais<br/>não é o próprio bot nem bot<br/>1 quote por post e por autor em 24 h<br/>teto diário e pontos de escrita<br/>postgate permite citação</span>"}:::guard
     T1 -- "barrado" --> NEXT
-    T1 -- "passou" --> SRC["<span style='color:#1E1B4B'><b>Revisão das fontes</b><br/>5 mais relevantes<br/>e leitura da matéria</span>"]:::core
-    SRC --> LLM["<span style='color:#0F172A'><b>LLM redige o quote</b><br/>pergunta socrática</span>"]:::ext
-    LLM --> CRIT{"<span style='color:#78350F'>Critic semântico<br/>a pergunta faz sentido com<br/>o POST, não só com a reportagem?</span>"}:::guard
-    CRIT -- "veta" --> NEXT
-    CRIT -- "aprova" --> DRY{"<span style='color:#78350F'>INTERVENTION_DRY_RUN?</span>"}:::guard
+    T1 -- "passou" --> BND["<span style='color:#1E1B4B'><b>Context Gate (PostContextBundle)</b><br/>fio + quote embed + matérias<br/>pertinência multi-token</span>"]:::core
+    BND --> GATE{"<span style='color:#78350F'>Tipologia & Atos de Fala<br/>humor / sátira / desabafo<br/>ou associação desconexa?</span>"}:::guard
+    GATE -- "sim (ABSTAIN)" --> NEXT
+    GATE -- "não (afirmação fática)" --> SRC["<span style='color:#1E1B4B'><b>Revisão das fontes</b><br/>5 mais relevantes<br/>e leitura da matéria</span>"]:::core
+    SRC --> LLM["<span style='color:#0F172A'><b>LLM redige o quote</b><br/>pergunta socrática (v2)</span>"]:::ext
+    LLM --> PARSE{"<span style='color:#78350F'>Parser Estrito de Fontes<br/>URL válida citada?</span>"}:::guard
+    PARSE -- "sem URL válida" --> NEXT
+    PARSE -- "válida" --> CRIT{"<span style='color:#78350F'>Critic V2 (Fail-Closed)<br/>DECISAO: APROVADA?<br/>veto em humor e alucinação</span>"}:::guard
+    CRIT -- "vetado / erro / timeout" --> NEXT
+    CRIT -- "aprovado" --> DRY{"<span style='color:#78350F'>INTERVENTION_DRY_RUN?</span>"}:::guard
     DRY -- "sim" --> SIM["<span style='color:#78350F'><b>Simula, nada publicado</b></span>"]:::guard
     DRY -- "não" --> PUB["<span style='color:#14532D'><b>Publica o quote post</b><br/>até 300 graphemes, em fio se preciso</span>"]:::out
     PUB --> IL[("<span style='color:#581C87'><b>intervention_logs</b></span>")]:::store
@@ -421,10 +429,13 @@ flowchart TD
     PUB --> REST["<span style='color:#581C87'><b>Demais candidatos viram MONITOR</b><br/>preterido por outro mais confiante</span>"]:::store
 ```
 
-O **critic semântico** é o segundo passo de defesa contra alucinação: depois de redigido, o texto é auditado por um
-prompt próprio (`semantic_critic_v1.txt`) que veta qualquer quote que atribua ao autor pessoas, declarações, leis ou
-dados que **não estão no post**. A reportagem é só fonte de evidência: o destinatário da pergunta é sempre o post
-([ADR 0022](../adr/0022-janela-de-maturacao-e-critic-semantico.md)).
+O fluxo de autorização opera sob defesa em profundidade e garantia **Fail-Closed** ([ADR 0028](../adr/0028-context-gate-e-critic-v2.md)):
+
+1. **Context Gate (`PostContextBundle`):** O post é inspecionado junto com o contexto do fio, publicações citadas embutidas (`thread.post.embed`) e o conteúdo de matérias compartilhadas em links externos (`fetch_article_text`). O gate valida a tipologia de intervenção:
+   * **`DIRECT_FACT_CHECK` / `CONTEXTUAL_FACT_CHECK`:** Seguem para intervenção socrática neutra.
+   * **`UNSUPPORTED_ASSOCIATION` / `SPEECH_ACT_HUMOR`:** Vetados sumariamente com abstenção (`ABSTAIN`). Piadas, memes, sátiras ou risadas expressas ("KKKK") nunca recebem resposta.
+2. **Parser Estrito de Fontes:** Em `_parse_agent_output()`, a resposta precisa referenciar uma URL válida existente no conjunto de evidências. Não há fallback silencioso: se a citação estiver ausente ou inválida, a publicação é abortada.
+3. **Critic Semântico V2 (Fail-Closed):** O prompt especializado `semantic_critic_v2.txt` exige afirmativa expressa `DECISAO: APROVADA`. Se o modelo detectar que a resposta atribui ao autor declarações ou leis ausentes do post, emite `DECISAO: REPROVADA`. Em caso de erro de conexão, timeout, formato inválido ou indisponibilidade, o sistema rejeita a intervenção (*fail-closed*), registrando a justificativa em `decisions` e preservando a integridade da conta pública ([ADR 0022](../adr/0022-janela-de-maturacao-e-critic-semantico.md) e [ADR 0028](../adr/0028-context-gate-e-critic-v2.md)).
 
 ---
 
@@ -634,6 +645,9 @@ flowchart LR
 | Teto diário | `DAILY_MAX_INTERVENTIONS`, pontos de escrita | Limita o impacto público |
 | Orçamento de LLM | `DAILY_LLM_BUDGET_USD` | O LLM só redige e audita o quote |
 | Repetição de rótulos | 60 s dobrando até 1 h, 8 tentativas | Tolera quedas do túnel sem perder o rótulo |
+| Context Gate | `PostContextBundle` (fio + embed + links) | Impede cegueira de contexto e exige sobreposição lexical multi-token (≥ 2 tokens) |
+| Critic V2 (Fail-Closed) | `ENABLE_SEMANTIC_CRITIC=true` (prompt v2) | Publicação estritamente condicionada a `DECISAO: APROVADA`; erro, timeout ou sátira vetam a intervenção |
+| Parser de Fontes | Sem fallback silencioso para `sources[0]` | Exige citação explícita de URL válida do acervo de evidências |
 
 **Referências:** [Visão Geral](index.md), [O Pipeline do Agente](pipeline.md),
 [Dados, Infraestrutura e Deploy](dados-e-infra.md), [Operação na VM](operacao-vm.md) e os [ADRs](../adr/index.md).

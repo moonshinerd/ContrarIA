@@ -223,6 +223,41 @@ async def test_get_thread_context_limits_posts_and_keeps_author_continuation(
     assert "resposta de outra pessoa" not in context
 
 
+async def test_get_thread_context_includes_quoted_post_embed(
+    client: BlueskyClient, router: Router
+) -> None:
+    target = _post_view(2)
+    target["record"]["text"] = "comentário sobre a matéria"
+    target["embed"] = {
+        "$type": "app.bsky.embed.record#view",
+        "record": {
+            "$type": "app.bsky.embed.record#viewRecord",
+            "uri": "at://did:plc:noticia/app.bsky.feed.post/99",
+            "cid": "cid99",
+            "indexedAt": "2026-09-16T10:00:00.000Z",
+            "author": {"did": "did:plc:noticia", "handle": "noticia.bsky.social"},
+            "value": {"text": "Veja: Lula e a regulação de apostas."},
+        },
+    }
+    router.on(
+        "app.bsky.feed.getPostThread",
+        httpx.Response(
+            200,
+            json={
+                "thread": {
+                    "$type": "app.bsky.feed.defs#threadViewPost",
+                    "post": target,
+                }
+            },
+        ),
+    )
+
+    context = await client.get_thread_context(target["uri"], max_posts=2, max_chars=1000)
+
+    assert context is not None
+    assert "post citado: @noticia.bsky.social: Veja: Lula e a regulação de apostas." in context
+
+
 async def test_search_requires_login_and_persists_session(
     client: BlueskyClient, router: Router, settings: Settings
 ) -> None:

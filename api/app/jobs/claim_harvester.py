@@ -242,7 +242,7 @@ def _verdict(candidate: HarvestCandidate) -> Verdict:
     label = VerdictLabel.FALSE if candidate.kind == RatingKind.FALSE else VerdictLabel.MISLEADING
     publisher = publisher_name(candidate.evidence)
     return Verdict(
-        claim=candidate.post.text[:300],
+        claim=candidate.checked,
         label=label,
         confidence=round(candidate.coverage, 3),
         rationale=(

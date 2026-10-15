@@ -9,6 +9,7 @@ DATA E HORA ATUAIS: {current_datetime}
 
 DADOS:
 - Post original: {post_text}
+- Contexto adicional (fio/citação/link): {context_text}
 - Reivindicação verificada (Claim): {claim}
 - Veredito da verificação: {rationale}
 - TARGET_TONE: {tone}

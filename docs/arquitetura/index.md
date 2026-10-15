@@ -108,9 +108,10 @@ flowchart TD
     VER --> GQ01
     GQ01 -- IGNORE / MONITOR --> LOG[("<span style='color:#581C87'><b>decisions</b></span>")]:::store
     GQ01 -- INTERVENE_QUEUED --> Q["<span style='color:#1E1B4B'><b>InterventionQueue</b></span>"]:::core
-    Q -- 1 melhor por rodada de 15 min<br/>silêncio 00h-07h opcional (desligado) --> INT["<span style='color:#1E1B4B'><b>InterventionService</b><br/>travas + revisão de fontes + redação</span>"]:::core
-    INT --> CRIT{{"<span style='color:#78350F'><b>Critic Semântico</b><br/>auditado via LLM</span>"}}:::guard
-    CRIT -- vetado --> LOG
+    Q -- 1 melhor por rodada de 15 min<br/>silêncio 00h-07h opcional (desligado) --> BND["<span style='color:#1E1B4B'><b>PostContextBundle</b><br/>fio + quote embed + matérias</span>"]:::core
+    BND --> INT["<span style='color:#1E1B4B'><b>InterventionService</b><br/>travas + revisão de fontes + redação</span>"]:::core
+    INT --> CRIT{{"<span style='color:#78350F'><b>Critic V2 (Fail-Closed)</b><br/>auditado via LLM<br/>DECISAO: APROVADA</span>"}}:::guard
+    CRIT -- "vetado / humor / erro" --> LOG
     CRIT -- aprovado --> QP["<span style='color:#14532D'><b>Quote post no Bluesky</b></span>"]:::out
     CRIT -- aprovado --> OB["<span style='color:#1E1B4B'><b>LabelOutbox</b><br/>resiliente com repetições</span>"]:::core
     OB --> LAB["<span style='color:#14532D'><b>Rótulo Ozone</b><br/>possivel-desinformacao</span>"]:::out
@@ -123,16 +124,18 @@ Pontos que o desenho deixa explícitos:
 
 - **O coletor de alegações checadas inverte o funil** ([ADR 0027](../adr/0027-coletor-de-alegacoes-checadas.md)): em vez
   de procurar checagem para posts populares, parte das checagens de agências e busca no Bluesky quem as repete
-  (inclusive respostas em threads). Os candidatos pulam a verificação do Jev, entram com o veredito da agência e vão para
-  a mesma fila de intervenção, onde a revisão das fontes e o Critic Semântico decidem.
+  (inclusive respostas em threads). Os candidatos pulam a verificação do Jev, entram com o veredito da agência
+  (`verdict.claim = candidate.checked`, corrigido no [ADR 0028](../adr/0028-context-gate-e-critic-v2.md)) e vão para
+  a mesma fila de intervenção, onde a pertinência multi-token, a revisão das fontes e o Critic V2 decidem.
 - **A coleta não analisa.** Ela só grava posts. Quem escolhe o que será analisado é a triagem
   (relevância, velocidade, matriz GQ04), executada pelo `EngagementRefresher`.
 - **A verificação cara roda em um pool de análises simultâneas** (`WORKER_PIPELINE_CONCURRENCY`), respeitando a
   **janela de maturação (3 h a 48 h)** para permitir a indexação prévia de matérias.
 - **A fila tem teto** (`WORKER_QUEUE_MAX_PENDING`, padrão 100): cheia, a coleta descarta os posts novos, e parte
   das vagas é reservada ao `searchPosts` ([ADR 0018](../adr/0018-concorrencia-e-contrapressao-do-worker.md)).
-- **Intervir é sempre assíncrono e raro.** O pipeline só enfileira o candidato; a fila publica no
-  máximo um por rodada, faixa de silêncio (0h-7h) opcional e desligada, e o texto é auditado pelo **Critic Semântico** antes do quote.
+- **Intervir é sempre assíncrono, raro e protegido por Context Gate:** O pipeline enfileira o candidato; a fila seleciona o
+  melhor por rodada; o `PostContextBundle` agrega ancestrais do fio, citação embutida (quote embed) e matérias de links externos; e a publicação só
+  ocorre sob aprovação explícita do **Critic V2 em modo estritamente Fail-Closed** ([ADR 0028](../adr/0028-context-gate-e-critic-v2.md)).
 - **Rótulos são emitidos via outbox resiliente**, garantindo que instabilidades temporárias de rede ou do túnel do Ozone não causem perda silenciosa de rótulos.
 - **Toda análise termina em `decisions`**, inclusive abstenção e monitoramento.
 
@@ -243,18 +246,21 @@ O Tavily, usado no MVP, foi removido em outubro de 2026 ([ADR 0016](../adr/0016-
 O `InterventionService` só publica se **todas** as travas passarem:
 
 1. Veredito `false` ou `misleading` com confiança ≥ 0,8. Exceção: o candidato do coletor de alegações checadas
-   (`agent_outputs.claim_harvest`) não tem confiança do Jev; quem decide é a revisão das fontes e o Critic Semântico.
+   (`agent_outputs.claim_harvest`) não tem confiança do Jev; quem decide é a pertinência lexical/proposicional, a revisão das fontes e o Critic V2.
 2. O post não é do próprio bot e o autor não tem rótulo `bot`.
 3. Um quote por post e um por autor a cada 24 h.
 4. Teto diário de quotes (`DAILY_MAX_INTERVENTIONS`) e orçamento diário de pontos de escrita.
 5. O post não desabilita citações (`postgate`).
 6. O texto passa por revisão das fontes e é limitado a 300 graphemes, em fio quando necessário.
+7. **Context Gate (`PostContextBundle`):** O post-alvo é avaliado em conjunto com seus ancestrais e continuações do mesmo autor no fio (`get_thread_context`), a publicação citada embutida em caso de quote post (`thread.post.embed`) e o texto de matérias vinculadas via links externos (`fetch_article_text`). O feixe contextual é injetado no redator e no Critic, impedindo que o bot ignore o tema da conversa ou responda a uma piada como se fosse afirmação literal ([ADR 0028](../adr/0028-context-gate-e-critic-v2.md)).
+8. **Critic Semântico V2 em modo Fail-Closed:** O texto redigido é auditado por um LLM dedicado (`ENABLE_SEMANTIC_CRITIC=true`, prompt `semantic_critic_v2.txt`). A intervenção só é autorizada se houver `DECISAO: APROVADA` explícita. Atos de fala como sátira, piada, meme, risada expressa ("KKKK"), desabafos genéricos ou associações não comprovadas (*Unsupported Association*) são sumariamente vetados. Exceções, timeouts ou respostas fora do formato esperado também bloqueiam a publicação (*fail-closed*), registrando a justificativa em `decisions` ([ADR 0028](../adr/0028-context-gate-e-critic-v2.md)).
+9. **Eliminação de Fallback Silencioso de Fontes:** Em `_parse_agent_output()`, a publicação exige obrigatoriamente a presença de uma URL válida comprovadamente presente no rol de evidências examinadas. A ausência de fonte aborta a intervenção sem realizar fallback para a primeira fonte da lista ([ADR 0028](../adr/0028-context-gate-e-critic-v2.md)).
 
 Contas analisadas com bot score acima de 0,9 recebem o rótulo `provavel-bot` do Ozone, mesmo sem quote ([ADR 0017](../adr/0017-rotulagem-de-contas-ao-vivo.md)). Além disso, `INTERVENTION_DRY_RUN` (padrão do código `true`) impede publicação real e `PIPELINE_LABELER_ENABLED`
 (padrão `false`) mantém o rótulo Ozone como ação opt-in. **Em produção ambos estão no `.env` da VM** e, em 14/10/2026, o
 dry-run estava `false` e o rótulo `true`: o bot publica de verdade. Desde essa data o piso de seguidores é 0 e a faixa de
-silêncio vem desligada ([ADR 0024](../adr/0024-remove-piso-de-seguidores-e-faixa-de-silencio.md)). Ver [ADR 0002](../adr/0002-quote-post.md)
-e [ADR 0003](../adr/0003-labeler-ozone.md).
+silêncio vem desligada ([ADR 0024](../adr/0024-remove-piso-de-seguidores-e-faixa-de-silencio.md)). Ver [ADR 0002](../adr/0002-quote-post.md),
+[ADR 0003](../adr/0003-labeler-ozone.md) e [ADR 0028](../adr/0028-context-gate-e-critic-v2.md).
 
 ## Organização do código
 
@@ -299,6 +305,7 @@ ContrarIA/
 - **O filtro de alegações verificáveis é uma heurística (regex) sem validação quantitativa.** Ele fica em
   `jev_verification.py` e não usa LLM nem Jev. A similaridade com `fact_articles` como sinal de triagem é uma
   alternativa ainda não implementada.
+- **Sensibilidade a humor, sátiras e contexto conversacional:** A heurística determinística do Jev identifica termos factuais sem compreender ironia, duplo sentido ou intenção comunicativa. Por essa razão, a segurança do bot contra respostas fora de tom depende criticamente do Context Gate e do Critic V2 (fail-closed, [ADR 0028](../adr/0028-context-gate-e-critic-v2.md)), que inspecionam o fio completo, a citação embutida (embed) e vetam publicações em sátiras, piadas, desabafos e associações não fundamentadas.
 - **`TriagePipeline` (`jobs/triage_pipeline.py`) é legado.** O worker usa `PipelineService` com a matriz
   GQ01; a matriz GQ04 ainda decide a fila de candidatos, mas dentro do `EngagementRefresher`.
 - **A fila de intervenção é volátil.** Um reinício do worker descarta os candidatos pendentes (registrados como `MONITOR`).
