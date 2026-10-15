@@ -8,11 +8,12 @@ import logging
 
 from sqlalchemy.orm import Session
 
+from app.clients.articles import fetch_article_text
 from app.clients.bluesky_client import BlueskyClient
 from app.clients.ozone_client import OzoneClient
 from app.core.config import Settings
 from app.db.orm.decisions import DecisionLog
-from app.domain.entities import Post, Verdict, VerdictLabel
+from app.domain.entities import Post, PostContextBundle, Verdict, VerdictLabel
 from app.services.account_labeling import AccountLabelService
 from app.services.bot_scoring import BotScoringService
 from app.services.intervention import InterventionService
@@ -92,6 +93,19 @@ class PipelineService:
             raise RuntimeError("Pipeline de verificação está desabilitado")
         await self._attach_links(post)
         thread_context = await self._thread_context(post)
+        shared_link_text = None
+        if post.links:
+            try:
+                shared_link_text = await fetch_article_text(post.links[0], max_chars=500)
+            except Exception as exc:
+                logger.debug("Falha ao hidratar link compartilhado %s: %s", post.links[0], exc)
+
+        context_bundle = PostContextBundle(
+            post=post,
+            thread_context=thread_context,
+            shared_link_text=shared_link_text,
+        )
+
         if verdict is None:
             verdict = await self.verification.verify(post, parent_text=thread_context)
         is_adverse = verdict.label in (VerdictLabel.FALSE, VerdictLabel.MISLEADING)
@@ -130,7 +144,7 @@ class PipelineService:
                     justification = "Veredito adverso: candidato à próxima rodada de intervenção."
                 else:
                     intervention_result = await self.intervention.execute_intervention(
-                        post, author, verdict, bot_score or 0.0
+                        post, author, verdict, bot_score or 0.0, context_bundle=context_bundle
                     )
                     if (
                         intervention_result
@@ -183,7 +197,14 @@ class PipelineService:
 
         if action == "INTERVENE_QUEUED" and self.intervention_queue is not None:
             self.intervention_queue.add(
-                InterventionCandidate(decision.id, post, author, verdict, bot_score or 0.0)
+                InterventionCandidate(
+                    decision.id,
+                    post,
+                    author,
+                    verdict,
+                    bot_score or 0.0,
+                    context_bundle=context_bundle,
+                )
             )
 
         return decision

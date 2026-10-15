@@ -8,7 +8,7 @@ from typing import Any
 from app.clients.articles import fetch_article_text
 from app.clients.bluesky_client import BlueskyClient
 from app.core.config import get_settings
-from app.domain.entities import Account, Evidence, Post, Verdict, VerdictLabel
+from app.domain.entities import Account, Evidence, Post, PostContextBundle, Verdict, VerdictLabel
 from app.models.llm.base import LLMPort
 from app.models.llm.model_limits import get_max_input_tokens
 from app.repositories.interventions import InterventionRepository
@@ -80,23 +80,26 @@ def _find_hallucinated_entity(generated_text: str, source_text: str) -> str | No
     return None
 
 
-def _is_claim_relevant_to_post(claim: str, post_text: str) -> bool:
-    """Verifica se a claim possui palavras informativas em comum com o texto do post."""
-    if len(claim.strip()) <= 5 or len(post_text.strip()) <= 5:
+def _is_claim_relevant_to_post(claim: str, post_text: str, context_text: str = "") -> bool:
+    """Verifica se a claim possui ancoramento mínimo de termos informativos no post ou contexto."""
+    combined = f"{post_text} {context_text}".strip()
+    if len(claim.strip()) <= 5 or len(combined) <= 5:
         return True
     claim_informative = {
         w.casefold()
         for w in re.findall(r"\w{4,}", claim)
         if w.casefold() not in _PORTUGUESE_STOPWORDS
     }
-    post_words = {
+    target_words = {
         w.casefold()
-        for w in re.findall(r"\w{4,}", post_text)
+        for w in re.findall(r"\w{4,}", combined)
         if w.casefold() not in _PORTUGUESE_STOPWORDS
     }
-    if not claim_informative or not post_words:
+    if not claim_informative or not target_words:
         return True
-    return bool(claim_informative & post_words)
+    overlap = claim_informative & target_words
+    min_required = 2 if len(claim_informative) >= 3 else 1
+    return len(overlap) >= min_required
 
 
 async def _no_tool_call(name: str, arguments: dict[str, Any]) -> str:
@@ -184,7 +187,7 @@ def _parse_agent_output(text: str, sources: list[Evidence]) -> tuple[str, list[s
     rest = text[verdict.end() :]
     source_match = _SOURCE_LINE.match(rest)
     if not source_match:
-        return rest, [sources[0].url] if sources else []
+        return "", []
     raw_numbers = [x.strip() for x in source_match.group(1).split(",") if x.strip().isdigit()]
     numbers = [int(x) for x in raw_numbers]
     if not numbers or 0 in numbers:
@@ -195,8 +198,8 @@ def _parse_agent_output(text: str, sources: list[Evidence]) -> tuple[str, list[s
             u = sources[num - 1].url
             if u not in urls:
                 urls.append(u)
-    if not urls and sources:
-        urls.append(sources[0].url)
+    if not urls:
+        return "", []
     return rest[source_match.end() :], urls[:3]
 
 
@@ -299,20 +302,27 @@ class InterventionService:
         return True
 
     async def _validate_semantic_coherence(
-        self, post_text: str, generated_text: str, claim: str
+        self,
+        post_text: str,
+        context_text: str,
+        generated_text: str,
+        claim: str,
+        evidence_snippet: str = "",
     ) -> tuple[bool, str]:
-        """Audita semanticamente via LLM se a pergunta socrática gerada é pertinente
+        """Audita semanticamente via LLM (Critic V2 fail-closed) a intervenção proposta.
 
-        ao que o autor do post realmente afirmou, garantindo que não atribui ao post
-        fatos, pessoas ou alegações ausentes trazidos apenas pelas fontes externas.
+        Verifica se a pergunta socrática é pertinente ao que o autor realmente afirmou,
+        rejeitando humor, memes, desabafos ou atribuições externas indevidas.
         """
         if not getattr(self.settings, "enable_semantic_critic", True):
             return True, "Auditoria semântica desabilitada por configuração"
 
         try:
-            critic_prompt = load_prompt("semantic_critic", version=1).format(
+            critic_prompt = load_prompt("semantic_critic", version=2).format(
                 post_text=post_text,
+                context_text=context_text or "Nenhum contexto adicional de fio ou citação.",
                 claim=claim,
+                evidence_snippet=evidence_snippet or "Não fornecido.",
                 generated_text=generated_text,
             )
             response = await self.llm.complete(
@@ -321,29 +331,49 @@ class InterventionService:
                 purpose="critic_coherence",
             )
             text = response.strip()
-            if "REPROVADA" in text.upper():
-                lines = [line.strip() for line in text.splitlines() if line.strip()]
-                reason_line = next((line for line in lines if "MOTIVO:" in line.upper()), "")
-                reason = (
-                    reason_line.replace("MOTIVO:", "").strip()
-                    if reason_line
-                    else "Inconsistência semântica apontada pelo auditor"
-                )
-                return False, reason
+            lines = [line.strip() for line in text.splitlines() if line.strip()]
+            decision_line = next(
+                (
+                    line
+                    for line in lines
+                    if "DECISAO:" in line.upper() or "DECISÃO:" in line.upper()
+                ),
+                "",
+            )
 
-            return True, "Intervenção aprovada pelo auditor semântico"
+            if "APROVADA" in decision_line.upper() and "REPROVADA" not in decision_line.upper():
+                return True, "Intervenção aprovada pelo auditor semântico"
+
+            reason_line = next((line for line in lines if "MOTIVO:" in line.upper()), "")
+            reason = (
+                reason_line.replace("MOTIVO:", "").strip()
+                if reason_line
+                else "Intervenção vetada pelo auditor semântico"
+            )
+            return False, reason
         except Exception as e:
-            logger.warning("Falha ao executar auditor semântico: %s; prosseguindo com cautela", e)
-            return True, "Auditoria semântica indisponível"
+            logger.error(
+                "Falha ao executar auditor semântico: %s; intervenção bloqueada (fail-closed)", e
+            )
+            return False, f"Auditoria semântica indisponível: {type(e).__name__}"
 
     async def execute_intervention(
-        self, post: Post, author: Account, verdict: Verdict, bot_score: float
+        self,
+        post: Post,
+        author: Account,
+        verdict: Verdict,
+        bot_score: float,
+        context_bundle: PostContextBundle | None = None,
     ) -> str | None:
         if not await self._should_intervene(post, author, verdict):
             return None
 
-        # Alinhamento da claim com o post: a claim precisa ter pertinência com o post.
-        if not _is_claim_relevant_to_post(verdict.claim, post.text):
+        if context_bundle is None:
+            context_bundle = PostContextBundle(post=post)
+        context_text = context_bundle.full_context_text()
+
+        # Alinhamento da claim com o post: a claim precisa ter pertinência com o post ou contexto.
+        if not _is_claim_relevant_to_post(verdict.claim, post.text, context_text):
             logger.warning(
                 "Intervenção abortada: alegação '%s' não possui correspondência com o post %s",
                 verdict.claim,
@@ -426,6 +456,7 @@ class InterventionService:
         prompt = load_prompt("quote_post", version=2).format(
             current_datetime=f"{now:%d/%m/%Y %H:%M} (horário de Brasília)",
             post_text=post.text,
+            context_text=context_text or "Nenhum contexto adicional de fio ou citação.",
             claim=verdict.claim,
             rationale=verdict.rationale,
             tone=target_tone,
@@ -457,9 +488,14 @@ class InterventionService:
             logger.warning("Texto de intervenção reprovado pelos guardrails de agressividade")
             return None
 
-        # Validação de pertinência socrática e grounding semântico via LLM (Critic)
+        # Validação de pertinência socrática e grounding semântico via LLM (Critic V2)
+        evidence_snippet = sources[0].snippet if sources else ""
         is_coherent, critic_reason = await self._validate_semantic_coherence(
-            post.text, generated_text, verdict.claim
+            post_text=post.text,
+            context_text=context_text,
+            generated_text=generated_text,
+            claim=verdict.claim,
+            evidence_snippet=evidence_snippet,
         )
         if not is_coherent:
             logger.warning(
@@ -469,7 +505,8 @@ class InterventionService:
             )
             return None
 
-        hallucinated_name = _find_hallucinated_entity(generated_text, post.text)
+        grounding_source = f"{post.text} {context_text}".strip()
+        hallucinated_name = _find_hallucinated_entity(generated_text, grounding_source)
         if hallucinated_name:
             logger.warning(
                 "Intervenção vetada por grounding: entidade '%s' ausente do post %s",

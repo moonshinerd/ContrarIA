@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.clients.ozone_client import OzoneClient
 from app.core.config import Settings
 from app.db.orm.decisions import DecisionLog
-from app.domain.entities import Account, Post, Verdict
+from app.domain.entities import Account, Post, PostContextBundle, Verdict
 from app.services.intervention import InterventionService
 from app.services.label_outbox import LabelOutbox
 
@@ -34,6 +34,7 @@ class InterventionCandidate:
     author: Account
     verdict: Verdict
     bot_score: float
+    context_bundle: PostContextBundle | None = None
 
 
 def expire_stale_candidates(session: Session) -> int:
@@ -106,7 +107,11 @@ class InterventionQueue:
             if published is None:
                 try:
                     published = await self.intervention.execute_intervention(
-                        candidate.post, candidate.author, candidate.verdict, candidate.bot_score
+                        candidate.post,
+                        candidate.author,
+                        candidate.verdict,
+                        candidate.bot_score,
+                        context_bundle=candidate.context_bundle,
                     )
                 except Exception as exc:
                     logger.error("Erro na intervenção de %s: %s", candidate.post.uri, exc)

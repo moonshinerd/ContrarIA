@@ -95,6 +95,7 @@ async def test_release_one_sends_a_false_verdict_with_the_check_as_source():
     post, verdict = pipeline.calls[0]
     assert post.uri == "at://1"
     assert verdict.label == VerdictLabel.FALSE
+    assert verdict.claim == "Gilmar Mendes vota com celular na cabine"
     assert verdict.evidences == [CHECK]
     assert "claim_harvest" in verdict.agent_outputs
     assert repo.upserts[0]["source"] == "claim_harvest"

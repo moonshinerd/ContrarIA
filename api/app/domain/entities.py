@@ -95,3 +95,27 @@ class Decision:
     verdict: Verdict | None
     reason: str
     decided_at: datetime
+
+
+@dataclass
+class PostContextBundle:
+    post: Post
+    thread_context: str | None = None
+    quoted_post_text: str | None = None
+    quoted_post_author: str | None = None
+    shared_link_title: str | None = None
+    shared_link_text: str | None = None
+
+    def full_context_text(self) -> str:
+        blocks = []
+        if self.quoted_post_text:
+            author_tag = f" por @{self.quoted_post_author}" if self.quoted_post_author else ""
+            blocks.append(f'POST CITADO (QUOTE EMBED){author_tag}:\n"{self.quoted_post_text}"')
+        if self.thread_context:
+            blocks.append(f"CONTEXTO DO FIO (CONVERSA/HISTÓRICO):\n{self.thread_context}")
+        if self.shared_link_title or self.shared_link_text:
+            link_info = f"Título: {self.shared_link_title}\n" if self.shared_link_title else ""
+            if self.shared_link_text:
+                link_info += f"Trecho: {self.shared_link_text[:400]}"
+            blocks.append(f"CONTEÚDO DO LINK COMPARTILHADO NO POST:\n{link_info.strip()}")
+        return "\n\n".join(blocks).strip()

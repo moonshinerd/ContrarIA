@@ -50,6 +50,7 @@ O padrão foi popularizado por Michael Nygard (2011) e é amplamente utilizado n
 | [**0020**](0020-acesso-vm-tunel-cloudflare.md) | Acesso à VM e deploy por túnel Cloudflare, sem porta de entrada | `Aceita` | 05/10/2026 | RNF03, RNF05, RNF07 |
 | [**0021**](0021-resiliencia-das-fontes-de-evidencia.md) | Resiliência das fontes de evidência | `Aceita` | 05/10/2026 | RNF01, RNF05, RF11 |
 | [**0022**](0022-janela-de-maturacao-e-critic-semantico.md) | Janela de maturação (3 h a 48 h) e critic semântico | `Aceita` | 07/10/2026 | RNF01, RF03, RF05, GQ03 |
+| [**0028**](0028-context-gate-e-critic-v2.md) | Context Gate, Critic V2 e Tipologia de Intervenção | `Aceita` | 15/10/2026 | RF05, RF06, RNF01, GQ01, GQ03, GQ04 |
 | [**0027**](0027-coletor-de-alegacoes-checadas.md) | Coletor de alegações checadas | `Aceita` | 14/10/2026 | RF01, RF05, RF06, GQ01, GQ04 |
 | [**0026**](0026-reverte-exigencia-de-casamento.md) | Reversão da exigência de casamento com a checagem | `Aceita` | 14/10/2026 | RF05, RF06, GQ01 |
 | [**0025**](0025-veredito-adverso-so-com-checagem-casada.md) | Veredito adverso só com checagem que casa com a alegação | `Aceita` | 14/10/2026 | RF05, RF06, RNF01, GQ01 |

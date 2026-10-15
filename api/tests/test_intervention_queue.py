@@ -11,7 +11,7 @@ from app.domain.entities import Account, Post, Verdict, VerdictLabel
 from app.services.intervention_queue import InterventionCandidate, InterventionQueue
 
 
-def make_queue(execute_results, quiet_hours=True):
+def make_queue(execute_results, quiet_hours=False):
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     session = Session(engine)
@@ -74,7 +74,7 @@ async def test_empty_round_does_nothing():
 
 
 async def test_round_in_quiet_hours_publishes_nothing():
-    queue, session, intervention = make_queue(["at://bot/1"])
+    queue, session, intervention = make_queue(["at://bot/1"], quiet_hours=True)
     add(queue, session, "at://a", 0.95)
     three_am_brasilia = datetime(2026, 9, 28, 6, 0, tzinfo=UTC)
 
@@ -84,7 +84,7 @@ async def test_round_in_quiet_hours_publishes_nothing():
 
 
 def test_quiet_hours_boundaries():
-    queue, _, _ = make_queue([])
+    queue, _, _ = make_queue([], quiet_hours=True)
     assert queue.in_quiet_hours(datetime(2026, 9, 28, 3, 0, tzinfo=UTC))  # 0h BRT
     assert queue.in_quiet_hours(datetime(2026, 9, 28, 9, 59, tzinfo=UTC))  # 6h59 BRT
     assert not queue.in_quiet_hours(datetime(2026, 9, 28, 10, 0, tzinfo=UTC))  # 7h BRT

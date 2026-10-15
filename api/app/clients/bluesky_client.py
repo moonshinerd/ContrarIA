@@ -120,6 +120,49 @@ def _post_text_from_view(view: Any) -> str:
     return (getattr(view.record, "text", "") or "").strip()
 
 
+def _quoted_post_from_view(view: Any) -> tuple[str, str] | None:
+    """Extrai (handle, texto) do post citado via embed (quote post), se houver."""
+
+    def get_val(obj: Any, key: str) -> Any:
+        if isinstance(obj, dict):
+            return obj.get(key)
+        return getattr(obj, key, None)
+
+    for embed in (get_val(view, "embed"), get_val(get_val(view, "record"), "embed")):
+        if embed is None:
+            continue
+        record_node = get_val(embed, "record")
+        if record_node is not None and (
+            hasattr(record_node, "record")
+            or (isinstance(record_node, dict) and "record" in record_node)
+        ):
+            record_node = get_val(record_node, "record")
+        if record_node is None and (get_val(embed, "author") or get_val(embed, "value")):
+            record_node = embed
+        if record_node is None:
+            continue
+        author = get_val(record_node, "author")
+        handle = get_val(author, "handle") or ""
+        value = get_val(record_node, "value")
+        text = ""
+        if value is not None:
+            text = (
+                get_val(value, "text")
+                if isinstance(value, dict)
+                else getattr(value, "text", "") or ""
+            )
+        if not text:
+            text = (
+                get_val(record_node, "text")
+                if isinstance(record_node, dict)
+                else getattr(record_node, "text", "") or ""
+            )
+        text = (text or "").strip()
+        if text:
+            return handle, text
+    return None
+
+
 def _account_from_profile(profile: Any) -> Account:
     labels = profile.labels or []
     return Account(
@@ -367,8 +410,15 @@ class BlueskyClient:
         if not hasattr(thread, "post"):
             return None
 
-        target_author = thread.post.author.did
+        target_author = getattr(getattr(thread.post, "author", None), "did", "")
+        if not target_author and isinstance(getattr(thread, "post", None), dict):
+            target_author = thread.post.get("author", {}).get("did", "")
         parts: list[tuple[str, str]] = []
+
+        quoted = _quoted_post_from_view(thread.post)
+        if quoted:
+            handle, text = quoted
+            parts.append(("post citado", f"@{handle}: {text}" if handle else text))
 
         ancestors = []
         parent = getattr(thread, "parent", None)
