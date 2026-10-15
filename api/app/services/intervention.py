@@ -336,17 +336,22 @@ class InterventionService:
                 (
                     line
                     for line in lines
-                    if "DECISAO:" in line.upper() or "DECISÃO:" in line.upper()
+                    if line.upper().startswith("DECISAO:") or line.upper().startswith("DECISÃO:")
                 ),
                 "",
             )
 
-            if "APROVADA" in decision_line.upper() and "REPROVADA" not in decision_line.upper():
+            decision_token = ""
+            if decision_line:
+                raw_decision = re.sub(r"^DECIS[AÃ]O\s*:\s*", "", decision_line, flags=re.IGNORECASE)
+                decision_token = raw_decision.strip().strip(".*`\"' ").upper()
+
+            if decision_token == "APROVADA":
                 return True, "Intervenção aprovada pelo auditor semântico"
 
-            reason_line = next((line for line in lines if "MOTIVO:" in line.upper()), "")
+            reason_line = next((line for line in lines if line.upper().startswith("MOTIVO:")), "")
             reason = (
-                reason_line.replace("MOTIVO:", "").strip()
+                re.sub(r"^MOTIVO\s*:\s*", "", reason_line, flags=re.IGNORECASE).strip()
                 if reason_line
                 else "Intervenção vetada pelo auditor semântico"
             )
