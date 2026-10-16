@@ -663,6 +663,10 @@ class BlueskyClient:
             logger.info("Post %s apagado com sucesso do Bluesky", post_uri)
             return True
         except Exception as exc:
+            err_str = str(exc)
+            if "Could not find" in err_str or "RecordNotFound" in err_str or "NotFound" in err_str:
+                logger.info("Post %s já não existe no Bluesky (já apagado)", post_uri)
+                return True
             logger.error("Erro ao apagar post %s: %s", post_uri, exc)
             return False
 

@@ -2,6 +2,7 @@
 
 import re
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import create_engine
@@ -14,7 +15,12 @@ from app.db.orm.decisions import DecisionLog, DecisionReview
 from app.domain.entities import Post
 from app.models.llm.litellm_model import LiteLLMModel
 from app.repositories.interventions import InterventionRepository
-from app.schemas.decisions import AnalyzeRequest, DecisionLogOut, DecisionReviewOut
+from app.schemas.decisions import (
+    AnalyzeRequest,
+    CleanPostsRequest,
+    DecisionLogOut,
+    DecisionReviewOut,
+)
 from app.services import build_verification_service
 from app.services.bot_scoring import BotScoringService
 from app.services.intervention import InterventionService
@@ -164,3 +170,27 @@ async def review_decision(
     pipeline.db.commit()
     pipeline.db.refresh(review)
     return review
+
+
+@router.post("/maintenance/clean-problematic-posts")
+async def post_clean_problematic_posts(
+    payload: CleanPostsRequest | None = None,
+) -> dict[str, Any]:
+    """Aciona a limpeza preventiva de posts problemáticos do bot via POST."""
+    from app.scripts.clean_problematic_posts import clean_posts
+
+    uris = payload.uris if payload else None
+    dry_run = payload.dry_run if payload else False
+    result = await clean_posts(uris, dry_run=dry_run)
+    return {"status": "ok", **result}
+
+
+@router.get("/maintenance/clean-problematic-posts")
+async def get_clean_problematic_posts(
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Aciona a limpeza preventiva de posts problemáticos do bot via GET."""
+    from app.scripts.clean_problematic_posts import clean_posts
+
+    result = await clean_posts(dry_run=dry_run)
+    return {"status": "ok", **result}
