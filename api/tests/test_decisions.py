@@ -167,3 +167,24 @@ def test_review_decision_endpoint():
     assert data["decision_id"] == decision_id
     assert data["action"] == "reverter"
     assert "reverteu" in data["justification"]
+
+
+def test_clean_problematic_posts_endpoint(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    mock_clean = AsyncMock(return_value={"deleted": ["at://test/post/1"], "failed": []})
+    monkeypatch.setattr("app.scripts.clean_problematic_posts.clean_posts", mock_clean)
+
+    # Test GET
+    res_get = client.get("/v1/maintenance/clean-problematic-posts?dry_run=true")
+    assert res_get.status_code == 200
+    assert res_get.json()["status"] == "ok"
+    assert res_get.json()["deleted"] == ["at://test/post/1"]
+
+    # Test POST
+    res_post = client.post(
+        "/v1/maintenance/clean-problematic-posts",
+        json={"uris": ["at://test/post/1"], "dry_run": False},
+    )
+    assert res_post.status_code == 200
+    assert res_post.json()["status"] == "ok"

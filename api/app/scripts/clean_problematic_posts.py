@@ -32,28 +32,36 @@ DEFAULT_PROBLEMATIC_URIS = [
 ]
 
 
-async def clean_posts(uris: list[str], dry_run: bool = False) -> None:
+async def clean_posts(uris: list[str] | None = None, dry_run: bool = False) -> dict[str, list[str]]:
+    target_uris = uris if uris is not None else DEFAULT_PROBLEMATIC_URIS
+    deleted: list[str] = []
+    failed: list[str] = []
     client = BlueskyClient()
     try:
         did = await client.login()
         logger.info("Autenticado no Bluesky com DID: %s", did)
 
-        for uri in uris:
+        for uri in target_uris:
             if not uri.startswith("at://"):
                 logger.warning("URI inválido ignorado: %s", uri)
                 continue
 
             if dry_run:
                 logger.info("[DRY RUN] Post seria apagado: %s", uri)
+                deleted.append(uri)
             else:
                 logger.info("Apagando post: %s...", uri)
                 success = await client.delete_post(uri)
                 if success:
+                    deleted.append(uri)
                     logger.info("Sucesso ao apagar: %s", uri)
                 else:
+                    failed.append(uri)
                     logger.error("Falha ao apagar: %s", uri)
     finally:
         await client.close()
+
+    return {"deleted": deleted, "failed": failed}
 
 
 def main():

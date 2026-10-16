@@ -28,6 +28,19 @@ async def lifespan(app: FastAPI):
         ensure_calibration_seeded(CRCCalibrationRepository(engine), settings)
     finally:
         engine.dispose()
+
+    if settings.bluesky_handle and settings.bluesky_app_password:
+        try:
+            from app.scripts.clean_problematic_posts import clean_posts
+
+            await clean_posts()
+        except Exception as exc:
+            import logging
+
+            logging.getLogger("contraria.cleanup").warning(
+                "Falha na limpeza inicial de posts no Bluesky: %s", exc
+            )
+
     yield
 
 

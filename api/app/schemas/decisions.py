@@ -34,3 +34,8 @@ class DecisionReviewOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class CleanPostsRequest(BaseModel):
+    uris: list[str] | None = Field(None, description="Lista opcional de URIs para apagar")
+    dry_run: bool = Field(False, description="Simula a remoção sem apagar de fato")
