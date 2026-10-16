@@ -32,7 +32,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.domain.entities import Account, Evidence, Post, PostContextBundle, Verdict, VerdictLabel
-from app.services.intervention import InterventionService, _is_claim_relevant_to_post
+from app.services.intervention import (
+    InterventionService,
+    _find_unmentioned_media_attribution,
+    _is_claim_relevant_to_post,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -677,3 +681,138 @@ async def test_regression_critic_v2_parser_strictness(base_service):
         post_text, context_text, generated_text, claim
     )
     assert ok is False
+
+
+@pytest.mark.asyncio
+async def test_regression_case_lula_political_debate_abstains(base_service):
+    """Caso 13 (Lula / Debate Político): Crítica retórica a projeto de adversário -> ABSTAIN."""
+    service, bsky, llm = base_service
+
+    post = Post(
+        uri="at://did:plc:lula/post/3mxotp37h6c2u",
+        cid="cid_lula",
+        author_did="did:plc:lula",
+        text=(
+            "Flávio Bolsonaro, não minta! Você mente sistematicamente.\n\n"
+            "O seu projeto é cortar os benefícios do povo. Foi exatamente o que seu pai fez. "
+            "E é isso que você quer fazer com o Brasil."
+        ),
+        created_at=datetime.now(UTC),
+    )
+    author = Account(did="did:plc:lula", handle="lulaoficialbluesky.bsky.social")
+    verdict = Verdict(
+        claim="Flávio diz que irá cortar todos os benefícios sociais se for eleito",
+        label=VerdictLabel.FALSE,
+        confidence=0.647,
+        rationale="Checagem por Estadão Verifica",
+        agent_outputs={
+            "claim_harvest": (
+                '{"checked_claim": "Flávio diz que irá cortar todos os benefícios..."}'
+            )
+        },
+        evidences=[
+            Evidence(
+                source="google_factcheck",
+                url="https://estadao.com.br/verifica/flavio-beneficios",
+                title="Entrevista de Flávio é manipulada para incluir falsa promessa",
+                snippet="Checagem por Estadão: Flávio diz que irá cortar todos os benefícios",
+            )
+        ],
+    )
+
+    # 1. Se o Critic V2 vetar por debate político / entrevista forjada
+    async def fake_complete_debate(*args, purpose=None, **kwargs):
+        if purpose == "critic_coherence":
+            return (
+                "DECISAO: REPROVADA\nMOTIVO: Debate político / Crítica a projetos de adversários."
+            )
+        return "FONTE 1: CONTRADIZ\nCITAÇÃO: trecho\nNOTA: nota"
+
+    llm.complete.side_effect = fake_complete_debate
+    llm.complete_with_tools.return_value = "TIPO: OPINIAO\nVEREDITO: CONFIRMA\nFONTE: 0"
+    result = await service.execute_intervention(post, author, verdict, bot_score=0.02)
+    assert result is None
+    bsky.quote_post.assert_not_called()
+
+    # 2. Se o LLM alucinar uma menção a 'entrevista', o guardrail determinístico de mídia veta
+    async def fake_complete_media_hallucination(*args, purpose=None, **kwargs):
+        if purpose == "critic_coherence":
+            return "DECISAO: APROVADA\nMOTIVO: Parece contradizer."
+        return "FONTE 1: CONTRADIZ\nCITAÇÃO: trecho\nNOTA: nota"
+
+    llm.complete.side_effect = fake_complete_media_hallucination
+    llm.complete_with_tools.return_value = (
+        "TIPO: FATO\nVEREDITO: DESMENTE\nFONTE: 1\nA entrevista de Flávio realmente promete cortes?"
+    )
+    result = await service.execute_intervention(post, author, verdict, bot_score=0.02)
+    assert result is None
+    bsky.quote_post.assert_not_called()
+
+
+def test_regression_unmentioned_media_grounding_filter():
+    """Valida o filtro determinístico de atribuição de formatos de mídia não mencionados."""
+    # Post sem menção a entrevista -> pergunta cita entrevista -> detecta
+    gen = "A entrevista de Flávio continha promessa de cortes?"
+    src = "O seu projeto é cortar os benefícios do povo."
+    assert _find_unmentioned_media_attribution(gen, src) == "entrevista"
+
+    # Post menciona entrevista -> pergunta cita entrevista -> permitido (None)
+    src_with_media = "Vejam o que ele disse nessa entrevista de ontem."
+    assert _find_unmentioned_media_attribution(gen, src_with_media) is None
+
+    # Post sem vídeo -> pergunta cita vídeo adulterado -> detecta
+    gen_video = "Esse vídeo divulgado passou por alguma perícia técnica?"
+    src_no_video = "Não acreditem nas promessas do adversário."
+    assert _find_unmentioned_media_attribution(gen_video, src_no_video) == "vídeo"
+
+
+@pytest.mark.asyncio
+async def test_regression_verbatim_post_duplication_stripped(base_service):
+    """Garante que duplicações acidentais do texto do autor são removidas da resposta."""
+    service, bsky, llm = base_service
+
+    original_text = "Alegação falsa grave divulgada com certeza absoluta."
+    post = Post(
+        uri="at://did:plc:autor/post/123",
+        cid="cid123",
+        author_did="did:plc:autor",
+        text=original_text,
+        created_at=datetime.now(UTC),
+    )
+    author = Account(did="did:plc:autor", handle="autor.bsky.social")
+    verdict = Verdict(
+        claim="Alegação falsa grave",
+        label=VerdictLabel.FALSE,
+        confidence=0.92,
+        rationale="Checagem oficial",
+        evidences=[
+            Evidence(
+                source="google_factcheck",
+                url="https://checagem.org/fato",
+                title="Checagem oficial",
+                snippet="Desmentido comprovado",
+            )
+        ],
+    )
+
+    async def fake_complete(*args, purpose=None, **kwargs):
+        if purpose == "critic_coherence":
+            return "DECISAO: APROVADA\nMOTIVO: Aprovada com pertinência."
+        return "FONTE 1: CONTRADIZ\nCITAÇÃO: trecho\nNOTA: nota"
+
+    llm.complete.side_effect = fake_complete
+    # Simula redator colando o post original antes da pergunta
+    llm.complete_with_tools.return_value = (
+        "TIPO: FATO\n"
+        "VEREDITO: DESMENTE\n"
+        "FONTE: 1\n"
+        f"{original_text} Você considerou os dados da checagem oficial?"
+    )
+    bsky.quote_post.return_value = ("at://did:plc:bot/post/999", "cid999")
+
+    result = await service.execute_intervention(post, author, verdict, bot_score=0.1)
+    assert result is not None
+    bsky.quote_post.assert_called_once()
+    called_text = bsky.quote_post.call_args.kwargs["text"]
+    assert not called_text.startswith(original_text)
+    assert "Você considerou os dados da checagem oficial?" in called_text

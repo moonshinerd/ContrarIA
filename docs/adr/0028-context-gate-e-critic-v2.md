@@ -1,7 +1,7 @@
 # 0028 — Context Gate, Critic V2 e Tipologia de Intervenção
 
 - **Status:** Aceita
-- **Data:** 15/10/2026
+- **Data:** 15/10/2026 (atualizada em 16/10/2026)
 - **Requisitos / GQs:** RF05, RF06, RNF01, GQ01, GQ03, GQ04
 
 ## Contexto
@@ -14,7 +14,8 @@ Em 14 e 15 de outubro de 2026, com o início da operação do `ClaimHarvester` (
 4. **Desconexão de Matérias Compartilhadas:** Quando um usuário publicava um link externo (ex.: matéria de imprensa, evento religioso ou portal regional), o pipeline confrontava apenas o texto curto da postagem contra checagens externas não relacionadas (ex.: Polymarket ou manipulação de fotos), sem ler a matéria compartilhada no link do autor.
 5. **Brecha Contextual por Co-ocorrência de Evento (`CONTEXTUAL_FACT_CHECK`):** Uma formulação permissiva inicial permitia ao bot fazer perguntas sobre imagens manipuladas por inteligência artificial em posts que apenas noticiavam um evento real (ex.: manifestação em Copacabana), mesmo que o autor não tivesse compartilhado nem afirmado a imagem falsa desmentida.
 6. **Vulnerabilidade no Parser por Substring:** O parser original buscava a substring `"APROVADA"` na linha de decisão, o que criava a brecha de interpretar respostas negativas como `DECISAO: NAO APROVADA` ou `DECISAO: DESAPROVADA` como se fossem aprovações válidas.
-7. **Ausência de Tipologia de Intervenção e Sensibilidade a Metáforas e Atos de Fala:** O sistema tratava qualquer sobreposição de palavras com intervenção direta, sem distinguir humor/sátira/meme (ex.: risadas expressas como "KKKK"), metáforas/linguagem figurada (ex.: "colocou a tornozeleira eletrônica no bolso") e desabafos genéricos sem alegação factual.
+7. **Ausência de Sensibilidade a Metáforas e Atos de Fala:** O sistema tratava qualquer sobreposição de palavras com intervenção direta, sem distinguir humor/sátira/meme (ex.: risadas expressas como "KKKK"), metáforas/linguagem figurada (ex.: "colocou a tornozeleira eletrônica no bolso") e desabafos genéricos sem alegação factual.
+8. **Confusão entre Retórica Eleitoral e Boato Factual (Caso Lula / Flávio Bolsonaro):** Na noite de 15/10/2026, o bot respondeu à conta oficial do presidente Lula (`lulaoficialbluesky.bsky.social`) imputando-lhe um trecho adulterado de entrevista com IA que ele nunca citou nem compartilhou. A postagem era uma crítica política padrão sobre intenções/projetos de adversários ("o seu projeto é cortar benefícios"). Além disso, o redator copiou verbatim o texto do post original no início do quote por ambiguidade no prompt.
 
 ## Decisão
 
@@ -26,7 +27,7 @@ Adotou-se uma arquitetura de proteção em profundidade centrada no princípio *
 
 2. **Entidade de Contexto Unificada (`PostContextBundle`):**
    - Modela integralmente o alvo da intervenção: texto do post, histórico do fio (`thread_context`), post citado via embed (`quoted_post_text` e autor) e resumo textual de links compartilhados (`shared_link_text`, hidratado via `fetch_article_text`).
-   - O contexto completo é propagado para o gerador de quote posts (`quote_post_v2.txt`), para a verificação de grounding de entidades (`_find_hallucinated_entity`) e para o auditor semântico.
+   - O contexto completo é propagado para o gerador de quote posts (`quote_post_v2.txt`), para a verificação de grounding de entidades e para o auditor semântico.
 
 3. **Extração de Posts Citados no Bluesky (`BlueskyClient`):**
    - O método `get_thread_context()` inspeciona `thread.post.embed` (suportando `app.bsky.embed.record#view` e `recordWithMedia#view`) e inclui o post citado com prefixo `post citado: @autor: texto`.
@@ -38,9 +39,17 @@ Adotou-se uma arquitetura de proteção em profundidade centrada no princípio *
 5. **Critic V2 Estritamente Fail-Closed com Parser por Token Exato:**
    - Em `_validate_semantic_coherence` (`app/services/intervention.py`), o parser localiza a linha `DECISAO:`, remove o prefixo e extrai o token exato: a aprovação só ocorre se `decision_token == "APROVADA"`. Expressões como `NAO APROVADA`, `NÃO APROVADA`, `DESAPROVADA` ou `REPROVADA` são categoricamente rejeitadas.
    - Qualquer resposta malformada, incompleta, timeout de rede ou exceção de API resulta em abstenção imediata (*fail-closed*, `return False, reason`).
-   - Avaliação explícita de atos de fala: posts identificados como sátira, meme, risada ("KKKK"), desabafo genérico ou uso metafórico/figurado de termos fáticos são vetados com `DECISAO: REPROVADA`.
+   - Avaliação explícita de atos de fala: posts identificados como sátira, meme, risada ("KKKK"), desabafo genérico, metáfora ou debate eleitoral sobre projetos de adversários são vetados com `DECISAO: REPROVADA`.
 
-6. **Eliminação de Fallback Silencioso de Fontes:**
+6. **Veto a Debate Político e Retórica de Projetos (`SPEECH_ACT_POLITICAL_DEBATE`):**
+   - Críticas políticas entre adversários sobre plataformas, intenções ou projetos (ex.: "o seu projeto é cortar benefícios", "o candidato quer destruir a previdência") são classificadas como atos de fala de debate político/opinião (`TIPO: OPINIAO`, `VEREDITO: CONFIRMA`), e vetadas pelo Critic V2 com `DECISAO: REPROVADA`.
+   - Se uma matéria desmente uma entrevista ou declaração forjada, a intervenção só é aprovada se o post tiver citado expressamente a entrevista ou declaração, nunca em acusações genéricas de palanque.
+
+7. **Guardrail Determinístico de Formatos de Mídia e Deduplicação Verbatim:**
+   - Função `_find_unmentioned_media_attribution`: se a intervenção gerada citar `entrevista`, `vídeo`, `áudio` ou `foto`, mas o post e seu contexto não contiverem esses termos nem anexos de mídia, a intervenção é **sumariamente vetada por falha de grounding**.
+   - O redator remove qualquer cópia do texto do post original no início da pergunta gerada, evitando duplicações desnecessárias no Bluesky.
+
+8. **Eliminação de Fallback Silencioso de Fontes:**
    - Em `_parse_agent_output()`, a ausência de linha `FONTE:` válida aborta a publicação imediatamente (`return "", []`), sem fallback artificial para a primeira fonte da lista.
 
 ## Tipologia de Intervenção
@@ -52,9 +61,10 @@ Adotou-se uma arquitetura de proteção em profundidade centrada no princípio *
 | **`UNSUPPORTED_ASSOCIATION`** | Post noticia evento real sem compartilhar a mídia falsa, ou a checagem aborda números e temas ausentes no post. | **ABSTAIN** | **Veto obrigatório:** Co-ocorrência temática de evento não justifica imputar boato ao autor. |
 | **`SPEECH_ACT_HUMOR`** | Meme, piada, sátira, desabafo ou risada expressa ("KKKK"). | **ABSTAIN** | **Veto obrigatório:** Robô não intervém em humor ou desabafos coloquiais. |
 | **`SPEECH_ACT_METAPHOR`** | Uso metafórico ou linguagem figurada de termo fático (ex.: "tornozeleira no bolso"). | **ABSTAIN** | **Veto obrigatório:** Não há intenção de afirmação fática literal. |
+| **`SPEECH_ACT_POLITICAL_DEBATE`** | Crítica política retórica a projetos, planos ou intenções de adversários ("projeto de cortar benefícios"). | **ABSTAIN** | **Veto obrigatório:** Discurso de debate político e juízo de valor não é afirmação de boato de entrevista adulterada. |
 
 ## Consequências
 
-- **Positivas:** Intervenções públicas indevidas em posts que apenas noticiam eventos reais, matérias legítimas de imprensa, desabafos, piadas e metáforas são bloqueadas com 100% de rigor. O bot atua sob garantia estrita *fail-closed*.
-- **Observabilidade:** Toda rejeição pelo Critic Semântico, por falta de pertinência ou por ato de fala/associação desconexa é registrada em `decisions` com o motivo estruturado, permitindo auditoria contínua e sem perda de histórico.
-- **Garantia de Regressão:** Suíte robusta `tests/test_regression_adr0028.py` com 12 testes cobrindo todos os cenários reais auditados em produção (Mirella Tigrinho, Temer IPVA, Netasgard evangélico, Copacabana sem foto de IA, Copacabana com foto de IA, Alexandre Oliva tornozeleira de bolso, BrunoAntifa Copacabana Palace, G1 TSE, Paulo Pimenta Mídia NINJA, Dilma Resistente Brasil 247, fail-closed por indisponibilidade e testes do parser estrito).
+- **Positivas:** Intervenções públicas indevidas em debate político, críticas a planos de adversários, notícias de eventos reais, matérias legítimas de imprensa, desabafos, piadas e metáforas são bloqueadas com 100% de rigor. O bot atua sob garantia estrita *fail-closed*.
+- **Observabilidade:** Toda rejeição pelo Critic Semântico, por falta de pertinência, por grounding de mídia ou por ato de fala/associação desconexa é registrada em `decisions` com o motivo estruturado, permitindo auditoria contínua e sem perda de histórico.
+- **Garantia de Regressão:** Suíte robusta `tests/test_regression_adr0028.py` com 15 testes cobrindo todos os cenários reais auditados em produção (Lula / debate político, Mirella Tigrinho, Temer IPVA, Netasgard evangélico, Copacabana sem foto de IA, Copacabana com foto de IA, Alexandre Oliva tornozeleira de bolso, BrunoAntifa Copacabana Palace, G1 TSE, Paulo Pimenta Mídia NINJA, Dilma Resistente Brasil 247, fail-closed por indisponibilidade, testes do parser estrito, filtro determinístico de mídia e remoção de duplicação verbatim).
