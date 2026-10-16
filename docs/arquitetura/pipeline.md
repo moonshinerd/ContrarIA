@@ -115,15 +115,17 @@ Nem toda publicação com veredito adverso justifica um quote post público. O s
 | **`UNSUPPORTED_ASSOCIATION`** | Post noticia evento real sem compartilhar a mídia falsa, ou a checagem aborda números e temas ausentes no post. | **ABSTAIN** | **Veto obrigatório:** Co-ocorrência de evento não justifica imputar desinformação não afirmada. |
 | **`SPEECH_ACT_HUMOR`** | Meme, piada, sátira, desabafo genérico ou risadas expressas ("KKKK"). | **ABSTAIN** | **Veto obrigatório:** Robô não responde a humor ou desabafos coloquiais. |
 | **`SPEECH_ACT_METAPHOR`** | Uso metafórico ou linguagem figurada de termos fáticos (ex.: "tornozeleira no bolso"). | **ABSTAIN** | **Veto obrigatório:** Expressões metafóricas não configuram afirmação literal do boato. |
+| **`SPEECH_ACT_POLITICAL_DEBATE`** | Crítica política retórica a projetos, planos ou intenções de adversários ("projeto de cortar benefícios"). | **ABSTAIN** | **Veto obrigatório:** Debate de campanha e juízo de valor não é repetição de entrevista ou vídeo adulterado. |
 
-### Critic Semântico V2 (Fail-Closed)
+### Critic Semântico V2 e Guardrails de Grounding (Fail-Closed)
 
-Antes da publicação, o texto redigido é auditado pelo Critic Semântico V2 (`ENABLE_SEMANTIC_CRITIC=true`, prompt `semantic_critic_v2.txt`, [ADR 0028](../adr/0028-context-gate-e-critic-v2.md)):
+Antes da publicação, o texto redigido é auditado pelo Critic Semântico V2 (`ENABLE_SEMANTIC_CRITIC=true`, prompt `semantic_critic_v2.txt`, [ADR 0028](../adr/0028-context-gate-e-critic-v2.md)) e pelos filtros pós-geração:
 
 * **Aprovação Estrita por Token:** O parser extrai a linha de decisão e isola o token exato `APROVADA` (rejeitando sumariamente prefixos e negações como `NAO APROVADA`, `NÃO APROVADA`, `DESAPROVADA` ou `REPROVADA`).
 * **Modo Fail-Closed:** Se a chamada ao LLM falhar, sofrer timeout, retornar vazia ou devolver uma resposta fora do formato estruturado, a intervenção é **automaticamente cancelada** (`return False, reason`), registrando abstenção em `decisions`.
-* **Veto a Desconexões Semânticas:** O Critic veta peremptoriamente textos que imputem ao autor personagens, declarações, leis, fotos de IA ou acusações ausentes no post e no contexto do fio.
-* **Veto a Humor, Sátira e Metáforas:** Detectando ato de fala humorístico, meme ou metáfora no contexto, o Critic emite `DECISAO: REPROVADA`.
+* **Veto a Desconexões Semânticas e Atos de Fala:** O Critic veta peremptoriamente textos que imputem ao autor personagens, declarações, leis, fotos de IA ou acusações ausentes no post e no contexto do fio, assim como posts identificados como meme, humor, desabafo, metáfora ou debate eleitoral sobre intenções/projetos.
+* **Filtro Determinístico de Mídia (`_find_unmentioned_media_attribution`):** Se a intervenção gerada questionar sobre `entrevista`, `vídeo`, `áudio` ou `foto`, mas o post original não contiver tais formatos, a publicação é cancelada por violação de grounding.
+* **Deduplicação Verbatim:** O pipeline remove qualquer repetição acidental do texto do autor no início da pergunta gerada, garantindo quotes concisos e sem poluição visual.
 
 ### Parser Estrito de Fontes
 

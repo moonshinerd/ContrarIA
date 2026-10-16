@@ -38,8 +38,8 @@ Quando o sistema identifica uma alegação comprovadamente falsa com alto alcanc
 * **Tom Respeitoso e Não-Polarizador:** Ausência de adjetivos acusatórios ("mentira", "fake news criminosa").
 * **Estímulo à Metacognição:** A pergunta convida o leitor a ponderar sobre a confiabilidade da fonte.
 * **Link para a Fonte Primária:** Acesso direto à checagem realizada por agências profissionais (Lupa, Aos Fatos, Comprova, TSE).
-* **Proteção contra Respostas em Humor, Metáforas e Co-ocorrências (Context Gate):** O bot não intervém em piadas, ironias, memes, sátiras, metáforas ("tornozeleira no bolso") ou desabafos genéricos. Com o **Context Gate** e o **Critic Semântico V2 (Fail-Closed)** ([ADR 0028](adr/0028-context-gate-e-critic-v2.md)), o sistema analisa o fio completo, post citado e matérias compartilhadas, abstendo-se obrigatoriamente se o post apenas noticiar um evento real ou se não houver contradição fática positiva comprovada.
-* **Prevenção a Associações Forçadas:** O sistema é estritamente proibido de imputar ao autor números, figuras públicas, fotos geradas por IA não compartilhadas ou leis ausentes do post original.
+* **Proteção contra Respostas em Humor, Metáforas, Debate Político e Co-ocorrências (Context Gate):** O bot não intervém em piadas, ironias, memes, sátiras, metáforas ("tornozeleira no bolso"), disputas retóricas/políticas gerais ou desabafos de campanha. Com o **Context Gate** e o **Critic Semântico V2 (Fail-Closed)** ([ADR 0028](adr/0028-context-gate-e-critic-v2.md)), o sistema analisa o fio completo, post citado e matérias compartilhadas, abstendo-se obrigatoriamente se o post apenas noticiar um evento real, expressar opinião/debate sobre intenções de adversários políticos, ou se não houver contradição fática positiva comprovada.
+* **Prevenção a Associações Forçadas e Grounding de Mídia:** O sistema é estritamente proibido de imputar ao autor números, figuras públicas, fotos geradas por IA não compartilhadas, entrevistas/vídeos inexistentes no post ou leis ausentes do post original.
 
 ---
 

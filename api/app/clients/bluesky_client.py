@@ -649,6 +649,23 @@ class BlueskyClient:
             return True
         return False
 
+    async def delete_post(self, post_uri: str) -> bool:
+        """Apaga um post publicado pelo próprio bot via AT Protocol."""
+        did = await self.login()
+        parts = post_uri.rstrip("/").split("/")
+        rkey = parts[-1]
+        try:
+            await self._authenticated(
+                lambda: self._auth.com.atproto.repo.delete_record(
+                    {"repo": did, "collection": "app.bsky.feed.post", "rkey": rkey}
+                )
+            )
+            logger.info("Post %s apagado com sucesso do Bluesky", post_uri)
+            return True
+        except Exception as exc:
+            logger.error("Erro ao apagar post %s: %s", post_uri, exc)
+            return False
+
     async def close(self) -> None:
         await self._public.request.close()
         await self._auth.request.close()

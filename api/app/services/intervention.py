@@ -80,6 +80,25 @@ def _find_hallucinated_entity(generated_text: str, source_text: str) -> str | No
     return None
 
 
+_MEDIA_TERMS: dict[str, tuple[str, ...]] = {
+    "entrevista": ("entrevista", "entrevistou", "entrevistado", "entrevistada"),
+    "vídeo": ("vídeo", "video", "gravação", "gravacao", "filmagem"),
+    "áudio": ("áudio", "audio", "gravação de voz", "gravacao de voz"),
+    "foto": ("foto", "fotografia", "fotomontagem", "imagem aérea", "foto aérea"),
+}
+
+
+def _find_unmentioned_media_attribution(generated_text: str, source_text: str) -> str | None:
+    """Detecta menções a mídia/entrevista na intervenção ausentes do post ou contexto."""
+    gen_lower = generated_text.casefold()
+    src_lower = source_text.casefold()
+    for media_name, triggers in _MEDIA_TERMS.items():
+        if any(re.search(r"\b" + re.escape(t) + r"\b", gen_lower) for t in triggers):
+            if not any(re.search(r"\b" + re.escape(t) + r"\b", src_lower) for t in triggers):
+                return media_name
+    return None
+
+
 def _is_claim_relevant_to_post(claim: str, post_text: str, context_text: str = "") -> bool:
     """Verifica se a claim possui ancoramento mínimo de termos informativos no post ou contexto."""
     combined = f"{post_text} {context_text}".strip()
@@ -488,6 +507,16 @@ class InterventionService:
 
         # Guardrails pós-geração (sobre o texto completo, antes de dividir em thread)
         generated_text = generated_text.strip()
+
+        # Remove eventual duplicação do texto do autor no início da pergunta
+        clean_post = post.text.strip()
+        for prefix_len in (len(clean_post), 100, 60, 40):
+            if prefix_len >= 30 and len(clean_post) >= prefix_len:
+                prefix = clean_post[:prefix_len]
+                if generated_text.startswith(prefix):
+                    generated_text = generated_text[len(prefix) :].lstrip(" :.-\n\t\"'")
+                    break
+
         is_aggressive = any(term in generated_text.casefold() for term in _AGGRESSIVE_TERMS)
         if not generated_text or is_aggressive:
             logger.warning("Texto de intervenção reprovado pelos guardrails de agressividade")
@@ -516,6 +545,15 @@ class InterventionService:
             logger.warning(
                 "Intervenção vetada por grounding: entidade '%s' ausente do post %s",
                 hallucinated_name,
+                post.uri,
+            )
+            return None
+
+        unmentioned_media = _find_unmentioned_media_attribution(generated_text, grounding_source)
+        if unmentioned_media:
+            logger.warning(
+                "Intervenção vetada por grounding de mídia: '%s' ausente do post/contexto %s",
+                unmentioned_media,
                 post.uri,
             )
             return None
