@@ -346,3 +346,40 @@ def test_admin_overview_reports_label_outbox_and_ozone_health(monkeypatch):
     assert data["labels"]["by_status"] == {"pending": 1, "sent": 1}
     assert "502" in data["labels"]["last_error"]["error"]
     assert data["ozone"]["reachable"] is False
+
+
+def test_admin_overview_flags_label_delivery_degraded_after_last_sent():
+    from datetime import UTC, datetime, timedelta
+
+    from app.db.orm.label_events import LabelEvent
+
+    now = datetime.now(UTC)
+
+    def event(status, created, sent=None):
+        return LabelEvent(
+            subject_kind="post",
+            subject_uri=f"at://{status}-{created.timestamp()}",
+            label_val="possivel-desinformacao",
+            action="create",
+            status=status,
+            attempts=1,
+            created_at=created,
+            sent_at=sent,
+        )
+
+    with Session(test_engine) as session:
+        session.add_all(
+            [
+                event("sent", now - timedelta(hours=3), sent=now - timedelta(hours=3)),
+                event("failed", now - timedelta(hours=1)),
+            ]
+        )
+        session.commit()
+
+    labels = client.get(
+        "/v1/admin/overview", headers={"X-Admin-Api-Key": "secret-test-key"}
+    ).json()["labels"]
+
+    assert labels["delivery_degraded"] is True
+    assert labels["undelivered_since_last_sent"] == 1
+    assert labels["last_sent_at"] is not None

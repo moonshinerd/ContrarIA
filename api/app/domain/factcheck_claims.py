@@ -56,10 +56,23 @@ _PROPER = re.compile(r"^[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõú�
 
 
 _DEBUNK_MARKERS = re.compile(
-    r"\b(?:[eé]\s+(?:#?fake|fals[oa])|n[aã]o\s+[eé]\s+verdade|fake\s*news|fato\s+ou\s+fake|"
-    r"mentira|boato|desmentid|desmente|checagem|checamos|fact[\s-]?check|"
-    r"n[aã]o\s+(?:foi|houve|existe|aconteceu)|voto\s+sem\s+fake|bsfato|posts?\s+falsos?|"
-    r"gerada\s+por\s+intelig[eê]ncia\s+artificial|usad[oa]\s+para\s+alegar|fora\s+de\s+contexto)\b"
+    r"\b(?:"
+    r"[eé]\s+(?:#?fake|fals[oa])|"
+    r"fals[oa]\s+que|"
+    r"n[aã]o\s+[eé]\s+(?:verdade|fato)|"
+    r"fake\s*news|"
+    r"fato\s+ou\s+fake|"
+    r"mentira|"
+    r"ment(?:e|em|iu|iram|indo)\s+(?:ao\s+(?:dizer|afirmar|alegar|declarar|publicar)|dizendo|que)|"
+    r"boato|"
+    r"desment\w+|"
+    r"checagem|checamos|fact[\s-]?check|"
+    r"n[aã]o\s+(?:foi|houve|existe|aconteceu)|"
+    r"voto\s+sem\s+fake|bsfato|posts?\s+falsos?|"
+    r"gerada\s+por\s+intelig[eê]ncia\s+artificial|"
+    r"usad[oa]\s+para\s+alegar|"
+    r"fora\s+de\s+contexto"
+    r")\b"
     r"|#fake\b|^no\s+ar\.",
     re.IGNORECASE,
 )
@@ -70,6 +83,46 @@ _CHECKER_LINKS = re.compile(
     r"projetocomprova|checamos\.afp|noticias\.uol\.com\.br/confere",
     re.IGNORECASE,
 )
+
+_NUMERIC_ANCHOR_PATTERN = re.compile(r"\b\d+(?:[.,]\d+)*(?:\s*%)?", re.UNICODE)
+
+
+def _canonical_number(token: str) -> str:
+    s = token.strip()
+    s = re.sub(r"[%ºª\s]", "", s)
+    if not s:
+        return ""
+    if "." in s and "," in s:
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")
+        else:
+            s = s.replace(",", "")
+    elif "," in s:
+        s = s.replace(",", ".")
+    if re.search(r"^\d{1,3}(?:\.\d{3})+$", s):
+        s = s.replace(".", "")
+    elif s.endswith(".0"):
+        s = s[:-2]
+    return s
+
+
+def numeric_anchors(text: str) -> set[str]:
+    """Extrai números normalizados de um texto (sem %, normalizando pontos e vírgulas)."""
+    anchors: set[str] = set()
+    for match in _NUMERIC_ANCHOR_PATTERN.findall(text):
+        canon = _canonical_number(match)
+        if canon:
+            anchors.add(canon)
+    return anchors
+
+
+def covers_numeric_anchors(post_text: str, claim: str) -> bool:
+    """Verifica se o post contém todas as âncoras numéricas da alegação checada."""
+    required = numeric_anchors(claim)
+    if not required:
+        return True
+    present = numeric_anchors(post_text)
+    return required.issubset(present)
 
 
 def looks_like_debunk(text: str) -> bool:

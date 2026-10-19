@@ -9,12 +9,15 @@ from app.clients.articles import fetch_article_text
 from app.clients.bluesky_client import BlueskyClient
 from app.core.config import get_settings
 from app.domain.entities import Account, Evidence, Post, PostContextBundle, Verdict, VerdictLabel
+from app.domain.press_guard import is_press_or_official_author
 from app.models.llm.base import LLMPort
 from app.models.llm.model_limits import get_max_input_tokens
 from app.repositories.interventions import InterventionRepository
 from app.services.prompts_loader import load_prompt
 
 logger = logging.getLogger("contraria.services.intervention")
+
+__all__ = ["InterventionService", "is_press_or_official_author"]
 
 _AGGRESSIVE_TERMS = ("idiota", "burro", "imbecil", "estúpido", "estupido", "lixo")
 

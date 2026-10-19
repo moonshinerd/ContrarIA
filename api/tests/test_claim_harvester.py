@@ -45,8 +45,15 @@ class FakePipeline:
         self.calls.append((post, verdict))
 
 
-def _post(uri, text):
-    return Post(uri=uri, cid="c", author_did="did:a", text=text, created_at=datetime.now(UTC))
+def _post(uri, text, author_handle=""):
+    return Post(
+        uri=uri,
+        cid="c",
+        author_did="did:a",
+        author_handle=author_handle,
+        text=text,
+        created_at=datetime.now(UTC),
+    )
 
 
 CHECK = Evidence(
@@ -220,3 +227,48 @@ async def test_run_forever_survives_a_failing_round(monkeypatch):
     with pytest.raises(asyncio.CancelledError):
         await harvester.run_forever()
     assert calls["n"] == 2
+
+
+@pytest.mark.anyio
+async def test_harvest_drops_press_authors():
+    press_post = _post(
+        "at://1",
+        "Gilmar Mendes vota em MT usando celular em cabine, absurdo",
+        author_handle="poder360.bsky.social",
+    )
+    user_post = _post(
+        "at://2",
+        "Gilmar Mendes vota em MT usando celular em cabine, absurdo",
+        author_handle="cidadao.bsky.social",
+    )
+    harvester, _, _, _ = _harvester([press_post, user_post])
+    report = await harvester.run()
+
+    assert report["new_candidates"] == 1
+    assert [c.post.uri for c in harvester.backlog] == ["at://2"]
+
+
+@pytest.mark.anyio
+async def test_harvest_drops_missing_numeric_anchors():
+    check_with_number = Evidence(
+        source="google_factcheck",
+        url="https://www.aosfatos.org/noticias/flavio-pesquisa/",
+        title="Pesquisa Flávio",
+        snippet="Checagem por Aos Fatos: É falso que pesquisa mostra Flávio com 61% das intenções",
+        rating="falso",
+    )
+    post_without_61 = _post(
+        "at://1",
+        "Pesquisa PoderData mostra intenções de voto no senador "
+        "Flávio Bolsonaro avançando em 3 dias",
+    )
+    post_with_61 = _post(
+        "at://2",
+        "Pesquisa mostra Flávio Bolsonaro com 61% das intenções de voto no primeiro turno",
+    )
+    harvester, _, _, _ = _harvester([post_without_61, post_with_61], evidences=[check_with_number])
+    harvester.settings.claim_harvest_queries = ["Flávio"]
+    report = await harvester.run()
+
+    assert report["new_candidates"] == 1
+    assert [c.post.uri for c in harvester.backlog] == ["at://2"]

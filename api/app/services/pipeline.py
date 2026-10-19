@@ -14,6 +14,7 @@ from app.clients.ozone_client import OzoneClient
 from app.core.config import Settings
 from app.db.orm.decisions import DecisionLog
 from app.domain.entities import Post, PostContextBundle, Verdict, VerdictLabel
+from app.domain.press_guard import is_press_or_official_author
 from app.services.account_labeling import AccountLabelService
 from app.services.bot_scoring import BotScoringService
 from app.services.intervention import InterventionService
@@ -69,13 +70,19 @@ class PipelineService:
 
         # 1. Bot score
         author = await self.bluesky.get_profile(post.author_did)
+        is_press = is_press_or_official_author(
+            getattr(author, "handle", None) or post.author_handle,
+            getattr(author, "display_name", None),
+            getattr(author, "did", None) or post.author_did,
+            settings=self.settings,
+        )
         bot_scoring_enabled = getattr(self.settings, "pipeline_bot_scoring_enabled", True)
         if bot_scoring_enabled:
             assessment = await self.bots.get_assessment(post.author_did)
         else:
             assessment = None
         bot_score = assessment.score if assessment else None
-        if assessment is not None and self.account_labels is not None:
+        if assessment is not None and self.account_labels is not None and not is_press:
             try:
                 await self.account_labels.sync(author, assessment.score)
             except Exception:
@@ -115,7 +122,10 @@ class PipelineService:
         action = "MONITOR"
         justification = "Condição não coberta pela matriz, monitorando."
 
-        if (
+        if is_press:
+            action = "MONITOR"
+            justification = "Autor é veículo de imprensa/órgão oficial. Sem intervenção."
+        elif (
             bot_score is not None
             and bot_score > getattr(self.settings, "pipeline_bot_ignore_threshold", 0.9)
             and not high_engagement

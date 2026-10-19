@@ -67,3 +67,24 @@ Também defina `OZONE_POSTGRES_USER=postgres` e `OZONE_POSTGRES_DB=ozone`.
 
 Nunca aplique ou remova rótulos de posts de terceiros sem uma revisão humana e
 uma autorização explícita para aquele post.
+
+## Diagnóstico: `/_health` 200, mas rótulos falham com 502/500 (19/10/2026)
+
+Sintoma: `GET /xrpc/_health` responde 200 e `queryLabels` funciona, porém todo rótulo
+vai para o outbox com `NetworkError: 502` (o PDS repassa o 500 do Ozone) e fica
+`pending`/`failed`. Desde 15/10/2026 ~03:30 nenhum rótulo foi entregue. Saúde do Ozone
+não basta: confira a **entrega real** em `GET /admin/overview` → `labels.delivery_degraded`.
+
+Como separar a causa (a conta do Labeler é admin do Ozone):
+
+1. Login na conta do Labeler (`OZONE_LABELER_HANDLE`/`OZONE_LABELER_APP_PASSWORD`).
+2. `com.atproto.server.getServiceAuth?aud=<OZONE_LABELER_DID>&lxm=<método>` devolve um
+   token de serviço; chame o Ozone direto (`https://$OZONE_DOMAIN/xrpc/<método>`) com ele.
+3. Resultado medido em 19/10: `getConfig` e `queryStatuses` (só banco) dão 200 com
+   `role=admin`; `listMembers`, `queryEvents` e `emitEvent` (hidratam perfis/registros
+   pelo AppView e pelo PLC) dão 500. Autenticação e banco estão bem; o que falha é a saída
+   do Ozone para `OZONE_APPVIEW_URL`/`OZONE_DID_PLC_URL`, ou a chave `OZONE_SIGNING_KEY_HEX`
+   que assina essas chamadas.
+4. Na VM: `docker compose -f deploy/docker-compose.prod.yml --env-file api/.env logs --tail=100 ozone`
+   mostra a exceção real; confirme também a saída de rede do container
+   (`docker compose ... exec ozone wget -qO- https://api.bsky.app/xrpc/_health`).
