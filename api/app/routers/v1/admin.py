@@ -182,6 +182,15 @@ def get_overview(
     labels_by_status = dict(
         db.query(LabelEvent.status, func.count(LabelEvent.id)).group_by(LabelEvent.status).all()
     )
+    # O /_health do Ozone responde 200 mesmo com a escrita quebrada (desde 15/10: emitEvent
+    # dá 500); a entrega real dos rótulos é o sinal confiável de que o Ozone está funcionando.
+    last_label_sent_at = db.query(func.max(LabelEvent.sent_at)).scalar()
+    undelivered = db.query(func.count(LabelEvent.id)).filter(
+        LabelEvent.status.in_(("pending", "failed"))
+    )
+    if last_label_sent_at is not None:
+        undelivered = undelivered.filter(LabelEvent.created_at > last_label_sent_at)
+    undelivered_since_last_sent = undelivered.scalar() or 0
     last_label_error = (
         db.query(LabelEvent.last_error, LabelEvent.subject_uri, LabelEvent.created_at)
         .filter(LabelEvent.last_error.isnot(None))
@@ -224,6 +233,9 @@ def get_overview(
             "by_status": labels_by_status,
             "pending": labels_by_status.get("pending", 0),
             "failed": labels_by_status.get("failed", 0),
+            "last_sent_at": last_label_sent_at,
+            "undelivered_since_last_sent": undelivered_since_last_sent,
+            "delivery_degraded": undelivered_since_last_sent > 0,
             "last_error": (
                 {
                     "error": last_label_error[0],
