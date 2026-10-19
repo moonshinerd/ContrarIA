@@ -25,12 +25,14 @@ from app.domain.entities import Evidence, Post, Verdict, VerdictLabel
 from app.domain.factcheck_claims import (
     RatingKind,
     checked_claim,
+    covers_numeric_anchors,
     informative_tokens,
     looks_like_debunk,
     publisher_name,
     rare_query_terms,
     weighted_coverage,
 )
+from app.domain.press_guard import is_press_or_official_author
 
 logger = logging.getLogger("contraria.claim_harvester")
 
@@ -139,7 +141,14 @@ class ClaimHarvester:
                     logger.warning("searchPosts falhou no coletor (%s)", type(exc).__name__)
             per_claim: dict[str, HarvestCandidate] = {}
             for post in posts:
-                if post.uri in self._seen or looks_like_debunk(post.text):
+                if (
+                    post.uri in self._seen
+                    or is_press_or_official_author(
+                        post.author_handle, did=post.author_did, settings=self.settings
+                    )
+                    or looks_like_debunk(post.text)
+                    or not covers_numeric_anchors(post.text, checked)
+                ):
                     continue
                 coverage = weighted_coverage(post.text, checked, frequency, corpus_size)
                 if coverage < self.settings.claim_harvest_min_coverage:

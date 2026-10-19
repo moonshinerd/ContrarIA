@@ -51,6 +51,7 @@ from app.domain.factcheck_claims import (
     informative_tokens,
     looks_like_debunk,
 )
+from app.domain.press_guard import FACTCHECK_DOMAINS, JOURNALISTIC_DOMAINS, OFFICIAL_DOMAINS
 from app.domain.sentences import split_sentences
 from app.models.classifiers.jev import (
     PROMPT_OVERHEAD_TOKENS,
@@ -484,42 +485,9 @@ _PROPER_NOUN_PATTERN = re.compile(
     r"\b[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+(?:\s+[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+)*\b"
 )
 _PROPER_NOUN_TOKEN_PATTERN = re.compile(r"\b[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+\b|\b[A-Z]{2,6}\b")
-_OFFICIAL_DOMAINS = (
-    ".jus.br",
-    ".gov.br",
-    ".leg.br",
-    "tse.jus.br",
-    "stf.jus.br",
-)
-
-_FACTCHECK_DOMAINS = (
-    "aosfatos.org",
-    "lupa.uol.com.br",
-    "fatoouboato",
-    "checamos.afp.com",
-    "uol.com.br/confere",
-    "estadao.com.br/estadao-verifica",
-    "projetocomprova.com.br",
-)
-
-_JOURNALISTIC_DOMAINS = (
-    "g1.globo.com",
-    "folha.uol.com.br",
-    "estadao.com.br",
-    "uol.com.br",
-    "oglobo.globo.com",
-    "bbc.com",
-    "cnnbrasil.com.br",
-    "poder360.com.br",
-    "cartacapital.com.br",
-    "jota.info",
-    "valor.globo.com",
-    "metropoles.com",
-    "teletime.com.br",
-    "reuters.com",
-    "elpais.com",
-    "platobr.com.br",
-)
+_OFFICIAL_DOMAINS = OFFICIAL_DOMAINS
+_FACTCHECK_DOMAINS = FACTCHECK_DOMAINS
+_JOURNALISTIC_DOMAINS = JOURNALISTIC_DOMAINS
 
 _CLICKBAIT_TERMS = {"BOMBÁSTICO", "URGENTE", "ATENÇÃO", "CORRE", "ALERTA"}
 

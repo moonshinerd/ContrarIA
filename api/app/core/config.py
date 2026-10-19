@@ -120,6 +120,34 @@ class Settings(BaseSettings):
     daily_write_points_budget: int = 150
     intervention_write_points: int = 3
     intervention_dry_run: bool = True
+    # Veículos de imprensa, órgãos oficiais e checadores nos quais o bot nunca intervém.
+    press_account_handles: list[str] = [
+        "poder360.bsky.social",
+        "folha",
+        "estadao",
+        "g1",
+        "oglobo",
+        "cnnbrasil",
+        "correiocb.bsky.social",
+        "capitalnews.bsky.social",
+        "brasil247",
+        "cartacapital",
+        "metropoles",
+        "uol",
+        "bbc",
+        "reuters",
+        "aosfatos",
+        "lupa",
+        "g1-bot-rss.adilson.net.br",
+        "tse",
+        "stf",
+        "camara",
+        "senado",
+        "planalto",
+        "poder360",
+        "correiocb",
+        "capitalnews",
+    ]
     # Coletor de alegações checadas (ADR 0027): parte das checagens recentes de agências e
     # busca no Bluesky quem as repete, inclusive em respostas de threads.
     claim_harvest_enabled: bool = True
@@ -222,6 +250,53 @@ class Settings(BaseSettings):
     pipeline_labeler_enabled: bool = False
     pipeline_bot_ignore_threshold: float = Field(default=0.9, ge=0, le=1)
     pipeline_min_followers_for_intervention: int = Field(default=0, ge=0)
+    # Contas de imprensa, órgãos oficiais e agências de checagem: o bot nunca intervém nelas.
+    press_account_handles: list[str] = [
+        "poder360.bsky.social",
+        "folha",
+        "folha.bsky.social",
+        "estadao",
+        "estadao.bsky.social",
+        "g1",
+        "g1.bsky.social",
+        "oglobo",
+        "oglobo.bsky.social",
+        "cnnbrasil",
+        "cnnbrasil.bsky.social",
+        "correiocb.bsky.social",
+        "capitalnews.bsky.social",
+        "brasil247",
+        "brasil247.bsky.social",
+        "cartacapital",
+        "cartacapital.bsky.social",
+        "metropoles",
+        "metropoles.bsky.social",
+        "uol",
+        "uol.bsky.social",
+        "bbc",
+        "bbcbrasil.bsky.social",
+        "reuters",
+        "reuters.bsky.social",
+        "aosfatos",
+        "aosfatos.bsky.social",
+        "lupa",
+        "lupa.bsky.social",
+        "agencialupa.bsky.social",
+        "g1-bot-rss.adilson.net.br",
+        "tse",
+        "tse.bsky.social",
+        "tsejus.bsky.social",
+        "stf",
+        "stf.bsky.social",
+        "camara",
+        "camara.bsky.social",
+        "camaradeputados.bsky.social",
+        "senado",
+        "senado.bsky.social",
+        "senadofederal.bsky.social",
+        "planalto",
+        "planalto.bsky.social",
+    ]
     # Rótulo `provavel-bot` em contas: emitido quando o bot score passa do limiar e
     # negado quando cai abaixo de (limiar - histerese), para não oscilar. Só age com
     # `pipeline_labeler_enabled`.

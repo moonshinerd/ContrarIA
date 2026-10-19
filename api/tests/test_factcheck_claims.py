@@ -94,7 +94,12 @@ def test_debunking_posts_are_recognized():
     assert looks_like_debunk("É falso que Gilmar Mendes entrou na cabine de votação com celular")
     assert looks_like_debunk("VOTO SEM FAKE. Não é verdade que o Exército comunicou ao STF")
     assert looks_like_debunk("Isso é boato, o TSE já desmentiu")
+    assert looks_like_debunk("Flávio Bolsonaro mente ao dizer que Lula é o pai do tigrinho")
+    assert looks_like_debunk("O senador mentiu ao dizer que a eleição foi fraudada")
+    assert looks_like_debunk("Boato sobre urnas foi desmentido pelo TSE")
+    assert looks_like_debunk("Falso que Flávio lidera pesquisa com 61%")
     assert not looks_like_debunk("Gilmar Mendes entrou na cabine de votação com celular")
+    assert not looks_like_debunk("Lula é o pai do tigrinho")
 
 
 def test_claim_coverage_rewards_repeating_the_content_not_just_the_name():
@@ -103,3 +108,30 @@ def test_claim_coverage_rewards_repeating_the_content_not_just_the_name():
     checked = "Lula jogou bandeira do Brasil no chão após votar"
     assert claim_coverage("Lula jogou a bandeira do Brasil no chão depois de votar", checked) > 0.7
     assert claim_coverage("LULA 13: promoveu avanços na vida do povo brasileiro", checked) < 0.5
+
+
+def test_covers_numeric_anchors():
+    from app.domain.factcheck_claims import covers_numeric_anchors, numeric_anchors
+
+    claim = "É falso que pesquisa mostra Flávio com 61% das intenções de voto"
+    post_sem_61 = (
+        "#PoderData Pesquisa PoderData/Aya mostra intenções de voto no senador "
+        "Flávio Bolsonaro avançando em 3 dias"
+    )
+    post_com_61_pct = "Pesquisa mostra Flávio Bolsonaro com 61% das intenções de voto"
+    post_com_61_puro = "Pesquisa mostra Flávio Bolsonaro com 61 das intenções"
+
+    assert numeric_anchors(claim) == {"61"}
+    assert numeric_anchors(post_sem_61) == {"3"}
+    assert not covers_numeric_anchors(post_sem_61, claim)
+    assert covers_numeric_anchors(post_com_61_pct, claim)
+    assert covers_numeric_anchors(post_com_61_puro, claim)
+
+    # Requer todos os números presentes na alegação
+    multi_num_claim = "Flávio teve 63% em 2018"
+    assert covers_numeric_anchors("Em 2018 ele teve 63%", multi_num_claim)
+    assert not covers_numeric_anchors("Ele teve 63%", multi_num_claim)
+    assert not covers_numeric_anchors("Em 2018 ele teve 50%", multi_num_claim)
+
+    # Sem números na checagem: qualquer post é aceito pelo filtro de âncora
+    assert covers_numeric_anchors("Lula pai do tigrinho", "Lula é o pai do tigrinho")
