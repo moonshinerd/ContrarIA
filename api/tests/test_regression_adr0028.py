@@ -35,6 +35,7 @@ from app.domain.entities import Account, Evidence, Post, PostContextBundle, Verd
 from app.services.intervention import (
     InterventionService,
     _find_unmentioned_media_attribution,
+    _find_unmentioned_percentage,
     _is_claim_relevant_to_post,
 )
 
@@ -816,3 +817,23 @@ async def test_regression_verbatim_post_duplication_stripped(base_service):
     called_text = bsky.quote_post.call_args.kwargs["text"]
     assert not called_text.startswith(original_text)
     assert "Você considerou os dados da checagem oficial?" in called_text
+
+
+def test_unmentioned_percentage_grounding_filter():
+    """O bot não pode citar porcentagem que o post não trouxe (caso Poder360, 19/10/2026)."""
+    poder360 = (
+        "#PoderData Pesquisa PoderData/Aya, divulgada nesta 2ª feira, mostra que as intenções "
+        "de voto no senador Flávio Bolsonaro (PL) avançaram em 3 dias."
+    )
+    gen = "A pesquisa PoderData/Aya menciona os 61% de intenções de voto para Flávio?"
+    assert _find_unmentioned_percentage(gen, poder360) == "61%"
+    # Porcentagem que o próprio post cita (mesmo com vírgula/espaço) não é atribuição indevida
+    assert (
+        _find_unmentioned_percentage("E os 63,5 % citados?", "Pesquisa aponta 63,5% no Estado")
+        is None
+    )
+    # Número que não é porcentagem (ano da lei) é contraprova legítima, não é vetado
+    assert (
+        _find_unmentioned_percentage("Legalizadas em 2018, como assim?", "Lula é o pai do tigrinho")
+        is None
+    )
