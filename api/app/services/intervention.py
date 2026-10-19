@@ -102,6 +102,27 @@ def _find_unmentioned_media_attribution(generated_text: str, source_text: str) -
     return None
 
 
+_PERCENTAGE_PATTERN = re.compile(r"\d+(?:[.,]\d+)?\s*%")
+
+
+def _find_unmentioned_percentage(generated_text: str, source_text: str) -> str | None:
+    """Detecta porcentagem na intervenção que o post (e o contexto) nunca citaram.
+
+    Pergunta com "61%" para um post que não traz esse número imputa ao autor um dado da checagem
+    (caso do Poder360, 19/10/2026). Só porcentagens: números como o ano de uma lei são
+    contraprova legítima da pergunta, não atribuição ao autor.
+    """
+    source_numbers = {_normalize_percentage(m) for m in _PERCENTAGE_PATTERN.findall(source_text)}
+    for match in _PERCENTAGE_PATTERN.findall(generated_text):
+        if _normalize_percentage(match) not in source_numbers:
+            return match.strip()
+    return None
+
+
+def _normalize_percentage(raw: str) -> str:
+    return raw.replace("%", "").replace(",", ".").strip()
+
+
 def _is_claim_relevant_to_post(claim: str, post_text: str, context_text: str = "") -> bool:
     """Verifica se a claim possui ancoramento mínimo de termos informativos no post ou contexto."""
     combined = f"{post_text} {context_text}".strip()
@@ -557,6 +578,15 @@ class InterventionService:
             logger.warning(
                 "Intervenção vetada por grounding de mídia: '%s' ausente do post/contexto %s",
                 unmentioned_media,
+                post.uri,
+            )
+            return None
+
+        unmentioned_percentage = _find_unmentioned_percentage(generated_text, grounding_source)
+        if unmentioned_percentage:
+            logger.warning(
+                "Intervenção vetada por grounding numérico: '%s' ausente do post/contexto %s",
+                unmentioned_percentage,
                 post.uri,
             )
             return None
