@@ -98,9 +98,9 @@ não faz nada. Para desligar: Actions → "Deploy pendente" → *Disable workflo
 
 **Runner self-hosted no talos.** Rodam em `runs-on: [talos]`, um runner self-hosted instalado no próprio talos e
 que não gasta minutos do Actions: o Deploy, o vigia (que, a cada 15 min num runner hospedado, consumia os créditos da
-conta), o "Deploy docs" e os jobs leves do CI (`research`, `web`, `docs`). Os jobs `api` e `docker` do CI continuam no
-`ubuntu-latest`: instalam torch, e o talos (Intel Atom N550, 4 threads, 1,9 GB de RAM, sem SSE4/AVX) não o executa
-nem tem memória para a build da imagem. Por isso o job `research` usa `uvx ruff@<versão do api/uv.lock>` em vez de
+conta), o "Deploy docs" e os jobs leves do CI (lint de `research`, `web`, `docs`). Os jobs `api`, `docker` e
+`research (pytest)` continuam no `ubuntu-latest`: o talos (Intel Atom N550, 4 threads, 1,9 GB de RAM, sem SSE4/AVX)
+não executa torch nem numpy (morrem com SIGILL) e não tem memória para a build da imagem. Por isso o job `research` usa `uvx ruff@<versão do api/uv.lock>` em vez de
 `uv sync`.
 
 Limites para o runner não derrubar o talos, que também roda o `cloudflared` do túnel

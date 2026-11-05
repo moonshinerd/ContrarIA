@@ -53,8 +53,8 @@ jobs:
         run: uv run pytest
 
   # Os jobs leves (research, web, docs) rodam no runner self-hosted do talos, sem gastar minutos.
-  # api e docker ficam no ubuntu-latest: instalam torch, que o talos (Atom N550, 1,9 GB, sem SSE4/AVX)
-  # não roda. Ver docs/arquitetura/operacao-vm.md.
+  # api, docker e os testes de research ficam no ubuntu-latest: torch e numpy não rodam no talos
+  # (Atom N550, 1,9 GB, sem SSE4/AVX). Ver docs/arquitetura/operacao-vm.md.
   research:
     name: research (lint + testes)
     runs-on: [talos]
@@ -69,6 +69,17 @@ jobs:
           ruff_version=$(grep -A1 '^name = "ruff"$' uv.lock | sed -n 's/^version = "\(.*\)"$/\1/p')
           uvx "ruff@$ruff_version" check --config pyproject.toml ../research
           uvx "ruff@$ruff_version" format --check --config pyproject.toml ../research
+
+  # Os testes de research/ usam numpy/scipy, que morrem com SIGILL no Atom do talos: ficam no
+  # ubuntu-latest, em job separado do lint.
+  research-tests:
+    name: research (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
       - name: pytest
         working-directory: research
         run: |
