@@ -119,7 +119,9 @@ Medidas de segurança, necessárias porque o repositório é público:
   (`approval_policy=all_external_contributors`), não só dos estreantes.
 - O serviço roda como o usuário de sistema `ghrunner` (sem sudo, sem grupo `docker`, shell `nologin`), em
   `/opt/actions-runner`, com a unidade systemd endurecida (`/etc/systemd/system/actions.runner.*.service.d/hardening.conf`:
-  `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, `PrivateDevices`). Os jobs precisam de `curl`,
+  `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, `PrivateDevices`). Não use
+  `RestrictSUIDSGID`: o seccomp dele devolve ENOSYS ao `openat2`, e o `tar` do Ubuntu 26.04 falha ao extrair as actions
+  ("Cannot open: Function not implemented"). Os jobs precisam de `curl`,
   `jq` e `gh` (instalado pelo apt) no talos.
 
 Operação no talos: `systemctl status 'actions.runner.*'`; logs em `journalctl -u 'actions.runner.*'`. Para trocar de
