@@ -93,7 +93,7 @@ Os `-e BLUESKY_*=` vazios são necessários: o `env_file` injeta as credenciais 
 - O custo de LLM vem do OpenRouter (`usage.cost`) e vai para `llm_usage`; modelo padrão `openrouter/openai/gpt-6-luna`. **Não rode testes que chamem o OpenRouter sem pedir.**
 - Produção: `INTERVENTION_DRY_RUN` e o resto vêm do `.env` da VM (em 14/10 o dry-run estava `false`); confira em `/admin/overview` (`config_summary`). Daqui, `contraria.schmidt.monster` pode exigir `curl --resolve contraria.schmidt.monster:443:104.21.35.166`.
 - O túnel `contraria-vm` roda no notebook talos; fora dele o Deploy falha e o workflow `deploy-retry.yml` o refaz sozinho quando volta.
-- `deploy.yml` e `deploy-retry.yml` rodam no runner self-hosted do talos (`runs-on: [talos]`, usuário `ghrunner`, só o label `talos`). Não mova outros jobs para ele: o repo é público. Detalhes em `docs/arquitetura/operacao-vm.md`.
+- Runner self-hosted no talos (`runs-on: [talos]`, usuário `ghrunner`, só o label `talos`, CPU e memória limitadas): Deploy, vigia, "Deploy docs" e os jobs `research`, `web` e `docs` do CI. `api` e `docker` ficam no `ubuntu-latest`: o talos (Atom N550, 1,9 GB, sem SSE4/AVX) não roda torch. Nunca mande para ele jobs com torch ou build de imagem. Detalhes em `docs/arquitetura/operacao-vm.md`.
 
 ## Issues e Project
 

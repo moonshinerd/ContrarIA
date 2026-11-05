@@ -96,11 +96,23 @@ responde `200` e houve menos de 3 tentativas por dispatch para o commit. Com o D
 não faz nada. Para desligar: Actions → "Deploy pendente" → *Disable workflow*. O vigia não usa o ambiente `production`
 (por isso o endereço tem valor padrão público quando `DEPLOY_URL` não chega ao job).
 
-**Runner self-hosted no talos.** Os dois workflows de deploy rodam em `runs-on: [talos]`, um runner self-hosted
-instalado no próprio talos. Ele não gasta minutos do Actions; o vigia, rodando a cada 15 min num runner hospedado,
-consumia os créditos da conta. Os outros workflows (CI, docs) continuam no `ubuntu-latest`. Medidas de segurança,
-necessárias porque o repositório é público:
+**Runner self-hosted no talos.** Rodam em `runs-on: [talos]`, um runner self-hosted instalado no próprio talos e
+que não gasta minutos do Actions: o Deploy, o vigia (que, a cada 15 min num runner hospedado, consumia os créditos da
+conta), o "Deploy docs" e os jobs leves do CI (`research`, `web`, `docs`). Os jobs `api` e `docker` do CI continuam no
+`ubuntu-latest`: instalam torch, e o talos (Intel Atom N550, 4 threads, 1,9 GB de RAM, sem SSE4/AVX) não o executa
+nem tem memória para a build da imagem. Por isso o job `research` usa `uvx ruff@<versão do api/uv.lock>` em vez de
+`uv sync`.
 
+Limites para o runner não derrubar o talos, que também roda o `cloudflared` do túnel
+(`/etc/systemd/system/actions.runner.*.service.d/limits.conf`): `CPUQuota=200%` (metade da CPU), `CPUWeight=20`,
+`Nice=15`, I/O `idle`, `MemoryHigh=500M`, `MemoryMax=700M`, `MemorySwapMax=512M` e `OOMScoreAdjust=800`. Sob
+pressão de memória o kernel mata o job, não o túnel. Há um runner só, então os jobs rodam um de cada vez. Não mova
+para ele jobs que instalem torch ou façam build de imagem.
+
+Medidas de segurança, necessárias porque o repositório é público:
+
+- Um PR roda os jobs leves do CI no talos. Por isso o runner é isolado como descrito abaixo, e PRs de fora do time
+  só rodam com aprovação.
 - O runner foi registrado com `--no-default-labels --labels talos`: só tem o label `talos`, então um workflow com
   `runs-on: self-hosted` (por exemplo, num PR malicioso) nunca cai nele.
 - Settings → Actions → General exige aprovação para rodar workflows de **todo** colaborador externo

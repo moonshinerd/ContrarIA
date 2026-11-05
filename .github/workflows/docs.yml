@@ -15,8 +15,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # No runner self-hosted do talos (ver docs/arquitetura/operacao-vm.md).
   build:
-    runs-on: ubuntu-latest
+    runs-on: [talos]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -27,7 +28,7 @@ jobs:
 
   deploy:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: [talos]
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

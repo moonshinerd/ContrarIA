@@ -52,21 +52,23 @@ jobs:
       - name: pytest
         run: uv run pytest
 
+  # Os jobs leves (research, web, docs) rodam no runner self-hosted do talos, sem gastar minutos.
+  # api e docker ficam no ubuntu-latest: instalam torch, que o talos (Atom N550, 1,9 GB, sem SSE4/AVX)
+  # não roda. Ver docs/arquitetura/operacao-vm.md.
   research:
     name: research (lint + testes)
-    runs-on: ubuntu-latest
+    runs-on: [talos]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.12"
-      # research/ não tem pyproject próprio: usa o ruff travado da api e a mesma configuração
+      # research/ não tem pyproject próprio: usa o ruff da api (mesma versão do api/uv.lock) e a mesma
+      # configuração, sem `uv sync` (que instalaria torch).
       - name: ruff (config da api)
         working-directory: api
         run: |
-          uv sync --frozen
-          uv run ruff check --config pyproject.toml ../research
-          uv run ruff format --check --config pyproject.toml ../research
+          ruff_version=$(grep -A1 '^name = "ruff"$' uv.lock | sed -n 's/^version = "\(.*\)"$/\1/p')
+          uvx "ruff@$ruff_version" check --config pyproject.toml ../research
+          uvx "ruff@$ruff_version" format --check --config pyproject.toml ../research
       - name: pytest
         working-directory: research
         run: |
@@ -78,7 +80,7 @@ jobs:
 
   web:
     name: web (lint + testes)
-    runs-on: ubuntu-latest
+    runs-on: [talos]
     steps:
       - uses: actions/checkout@v4
       # web/ é pós-MVP: o job passa sem fazer nada até existir um package.json
@@ -120,7 +122,7 @@ jobs:
 
   docs:
     name: docs (mkdocs build --strict)
-    runs-on: ubuntu-latest
+    runs-on: [talos]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
