@@ -21,7 +21,8 @@ concurrency:
 
 jobs:
   retry:
-    runs-on: ubuntu-latest
+    # No runner do talos, como o Deploy: rodar a cada 15 min num runner hospedado gastava minutos.
+    runs-on: [talos]
     timeout-minutes: 5
     steps:
       - name: Disparar deploy pendente

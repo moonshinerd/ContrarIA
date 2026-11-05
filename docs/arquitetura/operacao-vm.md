@@ -96,6 +96,24 @@ responde `200` e houve menos de 3 tentativas por dispatch para o commit. Com o D
 não faz nada. Para desligar: Actions → "Deploy pendente" → *Disable workflow*. O vigia não usa o ambiente `production`
 (por isso o endereço tem valor padrão público quando `DEPLOY_URL` não chega ao job).
 
+**Runner self-hosted no talos.** Os dois workflows de deploy rodam em `runs-on: [talos]`, um runner self-hosted
+instalado no próprio talos. Ele não gasta minutos do Actions; o vigia, rodando a cada 15 min num runner hospedado,
+consumia os créditos da conta. Os outros workflows (CI, docs) continuam no `ubuntu-latest`. Medidas de segurança,
+necessárias porque o repositório é público:
+
+- O runner foi registrado com `--no-default-labels --labels talos`: só tem o label `talos`, então um workflow com
+  `runs-on: self-hosted` (por exemplo, num PR malicioso) nunca cai nele.
+- Settings → Actions → General exige aprovação para rodar workflows de **todo** colaborador externo
+  (`approval_policy=all_external_contributors`), não só dos estreantes.
+- O serviço roda como o usuário de sistema `ghrunner` (sem sudo, sem grupo `docker`, shell `nologin`), em
+  `/opt/actions-runner`, com a unidade systemd endurecida (`/etc/systemd/system/actions.runner.*.service.d/hardening.conf`:
+  `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, `PrivateDevices`). O job só precisa de `curl`
+  e `jq`.
+
+Operação no talos: `systemctl status 'actions.runner.*'`; logs em `journalctl -u 'actions.runner.*'`. Para trocar de
+máquina, remova o runner (Settings → Actions → Runners) e registre outro com o mesmo label. Com o runner fora do ar,
+os jobs de deploy ficam na fila (até 24 h) e rodam quando ele volta.
+
 **Deploy manual de uma branch** (por exemplo, para testar antes do merge), na rede local ou VPN:
 
 ```bash

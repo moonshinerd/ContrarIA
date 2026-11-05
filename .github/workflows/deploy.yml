@@ -27,7 +27,9 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    # Runner self-hosted no talos (a máquina do túnel), registrado só com o label `talos`: não gasta
+    # minutos do Actions e só roda quando o túnel está de pé. Ver docs/arquitetura/operacao-vm.md.
+    runs-on: [talos]
     environment: production
     timeout-minutes: 30
     steps:
